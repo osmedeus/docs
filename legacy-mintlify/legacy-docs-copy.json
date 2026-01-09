@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "maple",
-  "name": "Osmedeus - A Modern Orchestration Engine for Security",
+  "theme": "mint",
+  "name": "Osmedeus",
   "colors": {
     "primary": "#16A34A",
     "light": "#07C983",
@@ -18,11 +18,10 @@
             "icon": "rocket",
             "pages": [
               "dev/index",
-              "dev/getting-started/quickstart",
               "dev/getting-started/installation",
+              "dev/getting-started/quickstart",
               "dev/getting-started/configuration",
-              "dev/getting-started/deployment",
-              "dev/getting-started/development"
+              "dev/getting-started/deployment"
             ]
           },
           {
@@ -37,7 +36,7 @@
           },
           {
             "group": "Workflows",
-            "icon": "chart-diagram",
+            "icon": "flow",
             "pages": [
               "dev/workflows/overview",
               "dev/workflows/flows",
@@ -47,15 +46,23 @@
             ]
           },
           {
-            "group": "CLI Usage",
+            "group": "CLI",
             "icon": "terminal",
             "pages": [
-              "dev/cli/run",
               "dev/cli/install",
+              "dev/cli/run",
               "dev/cli/server",
               "dev/cli/workflow",
               "dev/cli/function",
               "dev/cli/snapshot"
+            ]
+          },
+          {
+            "group": "API",
+            "icon": "plug",
+            "pages": [
+              "dev/api/overview",
+              "dev/api/quick-reference"
             ]
           },
           {
@@ -95,23 +102,6 @@
               "dev/reference/types",
               "dev/reference/variables"
             ]
-          },
-          {
-            "group": "API Server",
-            "icon": "book-open",
-            "pages": [
-              "dev/api/overview",
-              "dev/api/quick-reference"
-            ]
-          },
-          {
-            "group": "Endpoint examples",
-            "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
-            ]
           }
         ]
       },
@@ -139,14 +129,14 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Contact",
-          "href": "https://x.com/j3ssie",
-          "icon": "x-twitter"
+          "anchor": "Documentation",
+          "href": "https://mintlify.com/docs",
+          "icon": "book-open-cover"
         },
         {
-          "anchor": "Sponring",
-          "href": "/dev/others/sponsor",
-          "icon": "hands-holding-diamond"
+          "anchor": "Blog",
+          "href": "https://mintlify.com/blog",
+          "icon": "newspaper"
         }
       ]
     }
@@ -158,18 +148,14 @@
   "navbar": {
     "links": [
       {
-        "label": "Website",
-        "href": "https://osmedeus.org/"
-      },
-      {
-        "label": "Twitter",
-        "href": "https://osmedeus.org/"
+        "label": "Support",
+        "href": "mailto:hi@mintlify.com"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Github",
-      "href": "https://github.com/j3ssie/osmedeus"
+      "label": "Dashboard",
+      "href": "https://dashboard.mintlify.com"
     }
   },
   "contextual": {
@@ -178,20 +164,17 @@
       "view",
       "chatgpt",
       "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
       "vscode"
     ]
   },
   "footer": {
     "socials": {
-      "twitter": "https://x.com/OsmedeusEngine",
-      "github": "https://github.com/j3ssie",
-      "discord": "https://discord.gg/mtQG2FQsYA",
       "x": "https://x.com/j3ssie",
-      "linkedin": "https://www.linkedin.com/in/ai-ho/"
+      "github": "https://github.com/j3ssie",
+      "linkedin": "https://linkedin.com/profile/ai-ho"
     }
-  },
-  "banner": {
-  "content": "🛠️ This document is under active maintenance in preparation for the major Osmedeus **v5.0.0** upgrade",
-  "dismissible": true 
-}
+  }
 }

@@ -1,0 +1,399 @@
+---
+title: "Step Types"
+description: "Available step types for workflow execution"
+icon: "list-check"
+---
+
+Osmedeus supports 7 step types for different execution needs.
+
+## Overview
+
+| Type | Description | Primary Use |
+|------|-------------|-------------|
+| `bash` | Execute shell commands | Run tools, file operations |
+| `function` | Run utility functions | Conditions, logging, file checks |
+| `foreach` | Iterate over file lines | Process lists |
+| `parallel-steps` | Run steps concurrently | Parallel tool execution |
+| `remote-bash` | Per-step Docker/SSH | Mixed environments |
+| `http` | Make HTTP requests | API calls, webhooks |
+| `llm` | AI-powered processing | Analysis, summarization |
+
+## bash
+
+Execute shell commands.
+
+### Basic Command
+
+```yaml
+- name: run-subfinder
+  type: bash
+  command: subfinder -d {{target}} -o {{Output}}/subs.txt
+```
+
+### Multiple Commands (Sequential)
+
+```yaml
+- name: setup
+  type: bash
+  commands:
+    - mkdir -p {{Output}}/scans
+    - echo "Starting scan for {{target}}"
+    - date > {{Output}}/start-time.txt
+```
+
+### Parallel Commands
+
+```yaml
+- name: run-tools
+  type: bash
+  parallel_commands:
+    - subfinder -d {{target}} -o {{Output}}/subfinder.txt
+    - amass enum -passive -d {{target}} -o {{Output}}/amass.txt
+    - assetfinder {{target}} > {{Output}}/assetfinder.txt
+```
+
+### Structured Arguments
+
+```yaml
+- name: nuclei-scan
+  type: bash
+  command: nuclei
+  input_args:
+    - name: target-list
+      flag: -l
+      value: "{{Output}}/live.txt"
+  output_args:
+    - name: output
+      flag: -o
+      value: "{{Output}}/nuclei.txt"
+  config_args:
+    - name: templates
+      flag: -t
+      value: "{{Data}}/templates/cves"
+  speed_args:
+    - name: rate-limit
+      flag: -rl
+      value: "150"
+```
+
+### Save Output to File
+
+```yaml
+- name: scan
+  type: bash
+  command: nmap -sV {{target}}
+  std_file: "{{Output}}/nmap-output.txt"
+```
+
+## function
+
+Execute utility functions via Otto JavaScript VM.
+
+### Single Function
+
+```yaml
+- name: log-start
+  type: function
+  function: log_info("Starting scan for {{target}}")
+```
+
+### Multiple Functions
+
+```yaml
+- name: check-files
+  type: function
+  functions:
+    - log_info("Checking prerequisites")
+    - fileExists("{{Output}}/targets.txt")
+    - log_info("Ready to proceed")
+```
+
+### Parallel Functions
+
+```yaml
+- name: parallel-checks
+  type: function
+  parallel_functions:
+    - fileLength("{{Output}}/subs.txt")
+    - fileLength("{{Output}}/urls.txt")
+    - fileLength("{{Output}}/live.txt")
+```
+
+### Use in Conditions
+
+```yaml
+- name: run-if-exists
+  type: bash
+  pre_condition: 'fileExists("{{Output}}/targets.txt")'
+  command: nuclei -l {{Output}}/targets.txt
+```
+
+## foreach
+
+Iterate over lines in a file.
+
+### Basic Loop
+
+```yaml
+- name: probe-subdomains
+  type: foreach
+  input: "{{Output}}/subdomains.txt"
+  variable: subdomain
+  threads: 10
+  step:
+    name: httpx-probe
+    type: bash
+    command: echo [[subdomain]] | httpx -silent >> {{Output}}/live.txt
+```
+
+### With Nested Variables
+
+```yaml
+- name: scan-hosts
+  type: foreach
+  input: "{{Output}}/hosts.txt"
+  variable: host
+  threads: 5
+  step:
+    name: nuclei-scan
+    type: bash
+    command: nuclei -u [[host]] -t {{templates}} -o {{Output}}/nuclei-[[host]].txt
+```
+
+### Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `input` | Yes | Path to file with items (one per line) |
+| `variable` | Yes | Variable name for current item |
+| `threads` | No | Concurrent iterations (default: 1) |
+| `step` | Yes | Step to execute for each item |
+
+Note: Use `[[variable]]` (double brackets) for loop variables to avoid conflicts with `{{templates}}`.
+
+## parallel-steps
+
+Run multiple steps concurrently.
+
+```yaml
+- name: parallel-recon
+  type: parallel-steps
+  parallel_steps:
+    - name: subfinder
+      type: bash
+      command: subfinder -d {{target}} -o {{Output}}/subfinder.txt
+
+    - name: amass
+      type: bash
+      command: amass enum -passive -d {{target}} -o {{Output}}/amass.txt
+
+    - name: findomain
+      type: bash
+      command: findomain -t {{target}} -o {{Output}}/findomain.txt
+```
+
+Nested steps can be any type:
+
+```yaml
+- name: parallel-checks
+  type: parallel-steps
+  parallel_steps:
+    - name: check-dns
+      type: bash
+      command: dig {{target}}
+
+    - name: log-check
+      type: function
+      function: log_info("Parallel check running")
+
+    - name: probe-hosts
+      type: foreach
+      input: "{{Output}}/subs.txt"
+      variable: sub
+      threads: 5
+      step:
+        type: bash
+        command: echo [[sub]] | httpx
+```
+
+## remote-bash
+
+Execute commands in Docker or SSH without module-level runner.
+
+### Docker Execution
+
+```yaml
+- name: docker-nuclei
+  type: remote-bash
+  step_runner: docker
+  step_runner_config:
+    image: projectdiscovery/nuclei:latest
+    volumes:
+      - "{{Output}}:/output"
+    environment:
+      - "API_KEY={{api_key}}"
+  command: nuclei -u {{target}} -o /output/nuclei.txt
+```
+
+### SSH Execution
+
+```yaml
+- name: ssh-nmap
+  type: remote-bash
+  step_runner: ssh
+  step_runner_config:
+    host: "{{ssh_host}}"
+    port: 22
+    user: "{{ssh_user}}"
+    key_file: ~/.ssh/scanner_key
+  command: nmap -sV {{target}} -oN /tmp/nmap.txt
+  step_remote_file: /tmp/nmap.txt
+  host_output_file: "{{Output}}/nmap-result.txt"
+```
+
+### Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `step_runner` | Yes | `docker` or `ssh` |
+| `step_runner_config` | Yes | Runner configuration |
+| `command` | Yes | Command to execute |
+| `step_remote_file` | No | Remote file to copy back |
+| `host_output_file` | No | Local destination for remote file |
+
+## http
+
+Make HTTP requests.
+
+### GET Request
+
+```yaml
+- name: fetch-api
+  type: http
+  url: "https://api.example.com/data/{{target}}"
+  method: GET
+  headers:
+    Authorization: "Bearer {{api_token}}"
+  exports:
+    api_response: "{{http_response_body}}"
+    status: "{{http_status_code}}"
+```
+
+### POST Request
+
+```yaml
+- name: submit-scan
+  type: http
+  url: "https://scanner.example.com/api/scan"
+  method: POST
+  headers:
+    Content-Type: application/json
+  request_body: |
+    {
+      "target": "{{target}}",
+      "scan_type": "full"
+    }
+```
+
+### Auto-Exported Variables
+
+After HTTP step execution:
+- `http_status_code` - Response status code
+- `http_response_body` - Response body
+- `http_response_headers` - Response headers (JSON)
+
+## llm
+
+AI-powered processing using LLM APIs.
+
+### Chat Completion
+
+```yaml
+- name: analyze-findings
+  type: llm
+  messages:
+    - role: system
+      content: You are a security analyst. Analyze the findings and provide a summary.
+    - role: user
+      content: |
+        Analyze these vulnerability findings:
+        {{readFile("{{Output}}/vulnerabilities.txt")}}
+  exports:
+    analysis: "{{llm_response}}"
+```
+
+### With Tool Calling
+
+```yaml
+- name: intelligent-scan
+  type: llm
+  messages:
+    - role: system
+      content: You are a security scanner assistant.
+    - role: user
+      content: Analyze {{target}} and suggest next steps.
+  tools:
+    - type: function
+      function:
+        name: run_scan
+        description: Execute a security scan
+        parameters:
+          type: object
+          properties:
+            scan_type:
+              type: string
+              enum: [port, vuln, web]
+```
+
+### Embeddings
+
+```yaml
+- name: generate-embeddings
+  type: llm
+  is_embedding: true
+  embedding_input:
+    - "{{readFile('{{Output}}/finding1.txt')}}"
+    - "{{readFile('{{Output}}/finding2.txt')}}"
+  exports:
+    embeddings: "{{llm_embeddings}}"
+```
+
+### Configuration Override
+
+```yaml
+- name: custom-llm
+  type: llm
+  llm_config:
+    provider: ollama
+    base_url: http://localhost:11434
+    model: llama2
+  messages:
+    - role: user
+      content: Analyze {{target}}
+```
+
+## Common Step Fields
+
+All steps support these fields:
+
+```yaml
+- name: step-name              # Required: unique name
+  type: bash                   # Required: step type
+  pre_condition: 'expr'        # Skip if false
+  exports:                     # Export values
+    var_name: "{{value}}"
+  on_success:                  # Success handlers
+    - action: log
+      message: "Done"
+  on_error:                    # Error handlers
+    - action: continue
+  decision:                    # Conditional routing
+    - condition: 'expr'
+      jump: other-step
+```
+
+## Next Steps
+
+- [Variables](variables) - Exports and propagation
+- [Control Flow](control-flow) - Conditions and routing
+- [Functions Reference](../functions/reference) - Available functions

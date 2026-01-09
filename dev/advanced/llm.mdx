@@ -1,0 +1,398 @@
+---
+title: "LLM Integration"
+icon: "brain"
+---
+
+AI-powered workflow steps using Large Language Models.
+
+## Overview
+
+The `llm` step type enables:
+- Chat completions for analysis
+- Tool/function calling
+- Text embeddings
+- Multimodal content (images)
+- Structured outputs
+
+## Configuration
+
+### Settings
+
+In `osm-settings.yaml`:
+
+```yaml
+llm:
+  provider: openai          # openai, anthropic, ollama
+  api_key: "sk-..."
+  model: gpt-4
+  base_url: ""              # Custom endpoint
+  temperature: 0.7
+  max_tokens: 4096
+```
+
+### Environment Variables
+
+```bash
+export OSM_LLM_API_KEY=sk-...
+export OSM_LLM_PROVIDER=openai
+export OSM_LLM_MODEL=gpt-4
+```
+
+## Chat Completion
+
+### Basic Usage
+
+```yaml
+- name: analyze-results
+  type: llm
+  messages:
+    - role: system
+      content: You are a security analyst. Analyze findings concisely.
+    - role: user
+      content: |
+        Analyze these vulnerabilities:
+        {{readFile("{{Output}}/vulns.txt")}}
+  exports:
+    analysis: "{{llm_response}}"
+```
+
+### Message Roles
+
+| Role | Description |
+|------|-------------|
+| `system` | System instructions |
+| `user` | User input |
+| `assistant` | Previous AI response |
+| `tool` | Tool call result |
+
+### Multi-turn Conversation
+
+```yaml
+- name: chat
+  type: llm
+  messages:
+    - role: system
+      content: You are a helpful security assistant.
+    - role: user
+      content: What is SQL injection?
+    - role: assistant
+      content: SQL injection is a code injection technique...
+    - role: user
+      content: How do I prevent it in Python?
+```
+
+## Tool Calling
+
+### Define Tools
+
+```yaml
+- name: intelligent-scan
+  type: llm
+  messages:
+    - role: system
+      content: You are a security scanner. Use tools to analyze targets.
+    - role: user
+      content: Analyze {{target}} for security issues.
+  tools:
+    - type: function
+      function:
+        name: port_scan
+        description: Scan ports on a target
+        parameters:
+          type: object
+          properties:
+            target:
+              type: string
+              description: Target IP or hostname
+            ports:
+              type: string
+              description: Port range (e.g., "1-1000")
+          required: ["target"]
+
+    - type: function
+      function:
+        name: vulnerability_scan
+        description: Run vulnerability scan
+        parameters:
+          type: object
+          properties:
+            target:
+              type: string
+            templates:
+              type: string
+              enum: ["cves", "misconfigurations", "exposures"]
+          required: ["target"]
+```
+
+### Handle Tool Calls
+
+Tool calls are exported for handling:
+
+```yaml
+- name: ai-scan
+  type: llm
+  messages:
+    - role: user
+      content: Scan {{target}}
+  tools:
+    - type: function
+      function:
+        name: scan
+        parameters: { ... }
+  exports:
+    tool_calls: "{{llm_tool_calls}}"
+
+- name: execute-tool
+  type: function
+  pre_condition: '{{tool_calls}} != ""'
+  function: |
+    // Parse and execute tool calls
+    executeToolCalls("{{tool_calls}}")
+```
+
+## Embeddings
+
+### Generate Embeddings
+
+```yaml
+- name: embed-findings
+  type: llm
+  is_embedding: true
+  embedding_input:
+    - "SQL injection in login form"
+    - "Cross-site scripting in search"
+    - "Insecure direct object reference"
+  exports:
+    embeddings: "{{llm_embeddings}}"
+```
+
+### Use with Files
+
+```yaml
+- name: embed-vulns
+  type: llm
+  is_embedding: true
+  embedding_input: "{{readLines('{{Output}}/vulns.txt')}}"
+  exports:
+    vuln_embeddings: "{{llm_embeddings}}"
+```
+
+## Structured Output
+
+### JSON Schema
+
+```yaml
+- name: extract-findings
+  type: llm
+  messages:
+    - role: user
+      content: |
+        Extract vulnerabilities from this report:
+        {{readFile("{{Output}}/scan-report.txt")}}
+  response_format:
+    type: json_schema
+    json_schema:
+      name: vulnerabilities
+      schema:
+        type: object
+        properties:
+          findings:
+            type: array
+            items:
+              type: object
+              properties:
+                title:
+                  type: string
+                severity:
+                  type: string
+                  enum: ["critical", "high", "medium", "low"]
+                description:
+                  type: string
+        required: ["findings"]
+  exports:
+    structured_findings: "{{llm_response}}"
+```
+
+## Configuration Override
+
+### Per-Step Config
+
+```yaml
+- name: local-analysis
+  type: llm
+  llm_config:
+    provider: ollama
+    base_url: http://localhost:11434
+    model: llama2
+  messages:
+    - role: user
+      content: Analyze {{target}}
+```
+
+### Extra Parameters
+
+```yaml
+- name: creative-analysis
+  type: llm
+  messages:
+    - role: user
+      content: Write a security assessment for {{target}}
+  extra_llm_parameters:
+    temperature: 0.9
+    top_p: 0.95
+    frequency_penalty: 0.5
+```
+
+## Multimodal Content
+
+### Image Analysis
+
+```yaml
+- name: analyze-screenshot
+  type: llm
+  messages:
+    - role: user
+      content:
+        - type: text
+          text: Analyze this screenshot for security issues.
+        - type: image_url
+          image_url:
+            url: "file://{{Output}}/screenshot.png"
+```
+
+## API Endpoint
+
+OpenAI-compatible API:
+
+```bash
+# Chat completion
+curl -X POST http://localhost:8002/osm/api/llm/v1/chat/completions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4",
+    "messages": [
+      {"role": "user", "content": "Analyze this vulnerability: ..."}
+    ]
+  }'
+
+# Embeddings
+curl -X POST http://localhost:8002/osm/api/llm/v1/embeddings \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "text-embedding-ada-002",
+    "input": ["text to embed"]
+  }'
+```
+
+## Providers
+
+### OpenAI
+
+```yaml
+llm:
+  provider: openai
+  api_key: "sk-..."
+  model: gpt-4
+```
+
+### Anthropic
+
+```yaml
+llm:
+  provider: anthropic
+  api_key: "sk-ant-..."
+  model: claude-3-opus
+```
+
+### Ollama (Local)
+
+```yaml
+llm:
+  provider: ollama
+  base_url: http://localhost:11434
+  model: llama2
+```
+
+### Azure OpenAI
+
+```yaml
+llm:
+  provider: azure
+  api_key: "..."
+  base_url: https://your-resource.openai.azure.com
+  model: gpt-4
+  extra_parameters:
+    api_version: "2024-02-01"
+```
+
+## Use Cases
+
+### Vulnerability Analysis
+
+```yaml
+- name: analyze-vulns
+  type: llm
+  messages:
+    - role: system
+      content: |
+        You are a security expert. Analyze vulnerabilities and provide:
+        1. Risk assessment
+        2. Impact analysis
+        3. Remediation steps
+    - role: user
+      content: "{{readFile('{{Output}}/nuclei-results.json')}}"
+```
+
+### Report Generation
+
+```yaml
+- name: generate-report
+  type: llm
+  messages:
+    - role: user
+      content: |
+        Generate a security assessment report for {{target}}.
+
+        Subdomains found: {{fileLength("{{Output}}/subs.txt")}}
+        Live hosts: {{fileLength("{{Output}}/live.txt")}}
+        Vulnerabilities: {{readFile("{{Output}}/vulns.txt")}}
+  exports:
+    report: "{{llm_response}}"
+
+- name: save-report
+  type: bash
+  command: echo "{{report}}" > {{Output}}/report.md
+```
+
+### Intelligent Filtering
+
+```yaml
+- name: filter-false-positives
+  type: llm
+  messages:
+    - role: system
+      content: |
+        Analyze these findings and mark false positives.
+        Return JSON: {"valid": [...], "false_positives": [...]}
+    - role: user
+      content: "{{readFile('{{Output}}/findings.json')}}"
+  response_format:
+    type: json_object
+```
+
+## Best Practices
+
+1. **Use system prompts** for consistent behavior
+2. **Limit context size** - summarize large inputs
+3. **Handle errors** - LLM calls can fail
+4. **Cache responses** when possible
+5. **Use structured output** for parsing
+6. **Consider local models** for sensitive data
+
+## Next Steps
+
+- [Step Types](../workflows/step-types.md) - LLM step details
+- [API Overview](../api/overview.md) - LLM endpoints
+- [Configuration](../getting-started/configuration.md) - LLM settings

@@ -1,0 +1,404 @@
+---
+title: "Adding CLI Commands"
+icon: "command"
+---
+
+Add custom commands to the Osmedeus CLI.
+
+## Overview
+
+CLI commands use Cobra and are defined in `pkg/cli/`. Each command file typically contains one main command with optional subcommands.
+
+## Command Structure
+
+```go
+// pkg/cli/mycommand.go
+
+package cli
+
+import (
+    "fmt"
+
+    "github.com/spf13/cobra"
+)
+
+var (
+    // Command flags
+    myFlag string
+    myBoolFlag bool
+)
+
+var myCmd = &cobra.Command{
+    Use:   "mycommand",
+    Short: "Short description",
+    Long:  `Long description with details.`,
+    RunE: func(cmd *cobra.Command, args []string) error {
+        return runMyCommand(args)
+    },
+}
+
+func init() {
+    // Register with root command
+    rootCmd.AddCommand(myCmd)
+
+    // Add flags
+    myCmd.Flags().StringVarP(&myFlag, "flag", "f", "", "Flag description")
+    myCmd.Flags().BoolVarP(&myBoolFlag, "verbose", "v", false, "Verbose output")
+
+    // Add subcommands
+    myCmd.AddCommand(mySubCmd)
+}
+
+func runMyCommand(args []string) error {
+    // Load configuration
+    cfg, err := loadConfig()
+    if err != nil {
+        return err
+    }
+
+    // Command logic
+    fmt.Printf("Running mycommand with flag: %s\n", myFlag)
+
+    return nil
+}
+```
+
+## Steps to Add a Command
+
+### 1. Create Command File
+
+Create `pkg/cli/mycommand.go`:
+
+```go
+package cli
+
+import (
+    "fmt"
+
+    "github.com/osmedeus/osmedeus-ng/internal/config"
+    "github.com/osmedeus/osmedeus-ng/internal/terminal"
+    "github.com/spf13/cobra"
+)
+
+var (
+    targetFlag   string
+    outputFlag   string
+    verboseFlag  bool
+)
+
+var myCmd = &cobra.Command{
+    Use:     "mycommand [subcommand]",
+    Aliases: []string{"my", "mc"},
+    Short:   "My custom command",
+    Long: `My custom command does something useful.
+
+Examples:
+  osmedeus mycommand do-something -t example.com
+  osmedeus mycommand list`,
+    RunE: func(cmd *cobra.Command, args []string) error {
+        // Show help if no subcommand
+        return cmd.Help()
+    },
+}
+
+var myDoCmd = &cobra.Command{
+    Use:   "do-something",
+    Short: "Do something specific",
+    RunE: func(cmd *cobra.Command, args []string) error {
+        return runDoSomething()
+    },
+}
+
+var myListCmd = &cobra.Command{
+    Use:     "list",
+    Aliases: []string{"ls"},
+    Short:   "List items",
+    RunE: func(cmd *cobra.Command, args []string) error {
+        return runList()
+    },
+}
+
+func init() {
+    // Register main command
+    rootCmd.AddCommand(myCmd)
+
+    // Add flags to main command (inherited by subcommands)
+    myCmd.PersistentFlags().StringVarP(&targetFlag, "target", "t", "", "Target")
+    myCmd.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "v", false, "Verbose")
+
+    // Add subcommand-specific flags
+    myDoCmd.Flags().StringVarP(&outputFlag, "output", "o", "", "Output path")
+
+    // Register subcommands
+    myCmd.AddCommand(myDoCmd)
+    myCmd.AddCommand(myListCmd)
+}
+
+func runDoSomething() error {
+    cfg, err := config.Load(settingsFile)
+    if err != nil {
+        return fmt.Errorf("failed to load config: %w", err)
+    }
+
+    if targetFlag == "" {
+        return fmt.Errorf("target is required")
+    }
+
+    terminal.PrintInfo("Processing target: %s", targetFlag)
+
+    // Your logic here...
+
+    terminal.PrintSuccess("Done!")
+    return nil
+}
+
+func runList() error {
+    cfg, err := config.Load(settingsFile)
+    if err != nil {
+        return err
+    }
+
+    items := []string{"item1", "item2", "item3"}
+
+    terminal.PrintTable([]string{"Name", "Status"}, [][]string{
+        {"item1", "active"},
+        {"item2", "pending"},
+        {"item3", "complete"},
+    })
+
+    return nil
+}
+```
+
+### 2. Use Terminal Helpers
+
+The `internal/terminal` package provides output formatting:
+
+```go
+import "github.com/osmedeus/osmedeus-ng/internal/terminal"
+
+// Print messages
+terminal.PrintInfo("Information message")
+terminal.PrintSuccess("Success message")
+terminal.PrintWarning("Warning message")
+terminal.PrintError("Error message")
+
+// Print formatted
+terminal.PrintInfo("Processing %s with %d threads", target, threads)
+
+// Print tables
+terminal.PrintTable(
+    []string{"Column1", "Column2"},
+    [][]string{
+        {"row1-col1", "row1-col2"},
+        {"row2-col1", "row2-col2"},
+    },
+)
+
+// Print with colors
+terminal.PrintColored(terminal.Green, "Success!")
+
+// Spinner for long operations
+spinner := terminal.NewSpinner("Loading...")
+spinner.Start()
+// ... do work ...
+spinner.Stop()
+```
+
+### 3. Access Configuration
+
+```go
+import "github.com/osmedeus/osmedeus-ng/internal/config"
+
+func runMyCommand() error {
+    // Load config (uses global settingsFile from root.go)
+    cfg, err := config.Load(settingsFile)
+    if err != nil {
+        return err
+    }
+
+    // Use config values
+    baseFolder := cfg.BaseFolder
+    dbPath := cfg.Database.DBPath
+
+    // Access environment paths
+    workflowsPath := cfg.Environments.Workflows
+    binariesPath := cfg.Environments.Binaries
+
+    return nil
+}
+```
+
+### 4. Handle Errors
+
+```go
+func runMyCommand() error {
+    // Return errors - Cobra handles display
+    if targetFlag == "" {
+        return fmt.Errorf("--target is required")
+    }
+
+    result, err := doSomething(targetFlag)
+    if err != nil {
+        return fmt.Errorf("operation failed: %w", err)
+    }
+
+    return nil
+}
+```
+
+### 5. Add Command Help
+
+```go
+var myCmd = &cobra.Command{
+    Use:   "mycommand <action>",
+    Short: "Brief one-line description",
+    Long: `Detailed description of the command.
+
+This command does X, Y, and Z. Use it when you need to...
+
+Examples:
+  # Basic usage
+  osmedeus mycommand action -t target
+
+  # With options
+  osmedeus mycommand action -t target -o output.txt --verbose
+
+  # Multiple targets
+  osmedeus mycommand action -t target1 -t target2`,
+    RunE: func(cmd *cobra.Command, args []string) error {
+        return cmd.Help()
+    },
+}
+```
+
+## Example: Export Command
+
+```go
+// pkg/cli/export.go
+
+package cli
+
+import (
+    "fmt"
+    "os"
+
+    "github.com/osmedeus/osmedeus-ng/internal/config"
+    "github.com/osmedeus/osmedeus-ng/internal/database"
+    "github.com/osmedeus/osmedeus-ng/internal/terminal"
+    "github.com/spf13/cobra"
+)
+
+var (
+    exportWorkspace string
+    exportFormat    string
+    exportOutput    string
+)
+
+var exportCmd = &cobra.Command{
+    Use:   "export",
+    Short: "Export data from workspace",
+    Long: `Export assets, vulnerabilities, or other data from a workspace.
+
+Examples:
+  osmedeus export assets -w example.com -f json -o assets.json
+  osmedeus export vulns -w example.com -f csv`,
+}
+
+var exportAssetsCmd = &cobra.Command{
+    Use:   "assets",
+    Short: "Export assets",
+    RunE: func(cmd *cobra.Command, args []string) error {
+        return runExportAssets()
+    },
+}
+
+var exportVulnsCmd = &cobra.Command{
+    Use:   "vulns",
+    Short: "Export vulnerabilities",
+    RunE: func(cmd *cobra.Command, args []string) error {
+        return runExportVulns()
+    },
+}
+
+func init() {
+    rootCmd.AddCommand(exportCmd)
+
+    exportCmd.PersistentFlags().StringVarP(&exportWorkspace, "workspace", "w", "", "Workspace name (required)")
+    exportCmd.PersistentFlags().StringVarP(&exportFormat, "format", "f", "json", "Output format (json, csv, jsonl)")
+    exportCmd.PersistentFlags().StringVarP(&exportOutput, "output", "o", "", "Output file (stdout if empty)")
+
+    exportCmd.MarkPersistentFlagRequired("workspace")
+
+    exportCmd.AddCommand(exportAssetsCmd)
+    exportCmd.AddCommand(exportVulnsCmd)
+}
+
+func runExportAssets() error {
+    cfg, err := config.Load(settingsFile)
+    if err != nil {
+        return err
+    }
+
+    db, err := database.Connect(cfg)
+    if err != nil {
+        return fmt.Errorf("database connection failed: %w", err)
+    }
+    defer db.Close()
+
+    assets, err := db.GetAssetsByWorkspace(exportWorkspace)
+    if err != nil {
+        return err
+    }
+
+    output, err := formatOutput(assets, exportFormat)
+    if err != nil {
+        return err
+    }
+
+    if exportOutput != "" {
+        return os.WriteFile(exportOutput, []byte(output), 0644)
+    }
+
+    fmt.Println(output)
+    return nil
+}
+```
+
+## Flag Types
+
+```go
+// String flag
+cmd.Flags().StringVarP(&myString, "string", "s", "default", "description")
+
+// Bool flag
+cmd.Flags().BoolVarP(&myBool, "bool", "b", false, "description")
+
+// Int flag
+cmd.Flags().IntVarP(&myInt, "count", "c", 10, "description")
+
+// String slice (repeatable)
+cmd.Flags().StringSliceVarP(&mySlice, "item", "i", []string{}, "description")
+
+// Persistent flag (inherited by subcommands)
+cmd.PersistentFlags().StringVarP(&myPersistent, "global", "g", "", "description")
+
+// Required flag
+cmd.Flags().StringVarP(&required, "required", "r", "", "description")
+cmd.MarkFlagRequired("required")
+```
+
+## Best Practices
+
+1. **Use subcommands** for related actions
+2. **Provide aliases** for common commands
+3. **Write helpful examples** in Long description
+4. **Validate input early** before processing
+5. **Use terminal helpers** for consistent output
+6. **Handle interrupts** with context
+
+## Next Steps
+
+- [Adding API Endpoints](api-endpoints.md) - REST endpoints
+- [Adding Step Types](step-types.md) - Custom steps
+- [CLI Reference](../cli/run.md) - Existing commands

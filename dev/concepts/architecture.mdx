@@ -1,0 +1,252 @@
+---
+title: "Architecture"
+description: "Osmedeus system design and component structure"
+icon: "sitemap"
+---
+
+Osmedeus follows a layered architecture with clear separation of concerns.
+
+## High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         CLI / API                           │
+│              (pkg/cli, pkg/server)                          │
+├─────────────────────────────────────────────────────────────┤
+│                      Executor Layer                         │
+│  ┌─────────────┐ ┌──────────────┐ ┌────────────────────┐   │
+│  │  Executor   │ │  Dispatcher  │ │  Step Executors    │   │
+│  │             │ │              │ │  (bash, function,  │   │
+│  │             │ │              │ │   foreach, etc.)   │   │
+│  └─────────────┘ └──────────────┘ └────────────────────┘   │
+├─────────────────────────────────────────────────────────────┤
+│                      Runner Layer                           │
+│  ┌──────────────┐ ┌───────────────┐ ┌─────────────────┐    │
+│  │ Host Runner  │ │ Docker Runner │ │   SSH Runner    │    │
+│  └──────────────┘ └───────────────┘ └─────────────────┘    │
+├─────────────────────────────────────────────────────────────┤
+│                     Support Systems                         │
+│  ┌──────────────┐ ┌───────────────┐ ┌─────────────────┐    │
+│  │   Template   │ │   Functions   │ │   Scheduler     │    │
+│  │   Engine     │ │   Registry    │ │   (triggers)    │    │
+│  └──────────────┘ └───────────────┘ └─────────────────┘    │
+├─────────────────────────────────────────────────────────────┤
+│                      Data Layer                             │
+│  ┌──────────────┐ ┌───────────────┐ ┌─────────────────┐    │
+│  │   Parser/    │ │   Database    │ │   Workspace     │    │
+│  │   Loader     │ │   (SQLite/PG) │ │   Manager       │    │
+│  └──────────────┘ └───────────────┘ └─────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Execution Flow
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   CLI/API    │────▶│   Executor   │────▶│  Dispatcher  │
+└──────────────┘     └──────────────┘     └──────────────┘
+                                               │
+                    ┌────────────────────────────┼────────────────────────────┐
+                    │                            │                            │
+                    ▼                            ▼                            ▼
+             ┌──────────────┐            ┌──────────────┐            ┌──────────────┐
+             │ BashExecutor │            │FunctionExec  │            │ForeachExec   │
+             └──────────────┘            └──────────────┘            └──────────────┘
+                    │
+                    ▼
+             ┌──────────────┐
+             │    Runner    │
+             └──────────────┘
+```
+
+## Layer Responsibilities
+
+### CLI / API Layer
+
+**Location**: `pkg/cli/`, `pkg/server/`
+
+- Parse command-line arguments
+- Handle REST API requests
+- Validate user input
+- Initiate workflow execution
+- Return results to user
+
+### Executor Layer
+
+**Location**: `internal/executor/`
+
+Components:
+- **Executor** (`executor.go`) - Orchestrates workflow execution
+- **StepDispatcher** (`dispatcher.go`) - Routes steps to appropriate handlers
+- **Step Executors** - Handle specific step types:
+  - `BashExecutor` - Shell commands
+  - `FunctionExecutor` - Utility functions
+  - `ForeachExecutor` - Loop iteration
+  - `ParallelExecutor` - Concurrent steps
+  - `RemoteBashExecutor` - Per-step Docker/SSH
+  - `HTTPExecutor` - HTTP requests
+  - `LLMExecutor` - AI-powered steps
+
+Responsibilities:
+- Initialize execution context
+- Inject built-in variables
+- Dispatch steps to handlers
+- Process exports and conditions
+- Handle errors and decision routing
+
+### Runner Layer
+
+**Location**: `internal/runner/`
+
+Interface:
+```go
+type Runner interface {
+    Execute(ctx context.Context, command string) (*CommandResult, error)
+    Setup(ctx context.Context) error
+    Cleanup(ctx context.Context) error
+    Type() core.RunnerType
+    IsRemote() bool
+}
+```
+
+Implementations:
+- **HostRunner** - Local shell execution (`sh -c`)
+- **DockerRunner** - Container execution (ephemeral or persistent)
+- **SSHRunner** - Remote SSH execution
+
+### Support Systems
+
+**Template Engine** (`internal/template/`)
+- Renders `{{variable}}` and `[[variable]]` syntax
+- Provides value generators (UUID, date, etc.)
+
+**Functions Registry** (`internal/functions/`)
+- Otto JavaScript VM for function evaluation
+- Built-in functions for file, string, JSON operations
+
+**Scheduler** (`internal/scheduler/`)
+- Cron-based scheduling
+- Event-driven triggers
+- File watch triggers
+
+### Data Layer
+
+**Parser/Loader** (`internal/parser/`)
+- YAML parsing and validation
+- Workflow caching
+- Name resolution
+
+**Database** (`internal/database/`)
+- SQLite (default) and PostgreSQL support
+- Bun ORM for data access
+- Repository pattern for queries
+
+**Workspace** (`internal/workspace/`)
+- Workspace directory creation
+- Output path management
+
+## Project Structure
+
+```
+osmedeus-ng/
+├── cmd/osmedeus/          # Application entry point
+│   └── main.go
+├── internal/              # Private packages
+│   ├── config/            # Configuration management
+│   ├── core/              # Core types and interfaces
+│   ├── parser/            # YAML parsing and validation
+│   ├── executor/          # Workflow execution
+│   ├── runner/            # Execution environments
+│   ├── template/          # Template rendering
+│   ├── functions/         # Utility functions
+│   ├── scheduler/         # Trigger scheduling
+│   ├── database/          # Data persistence
+│   ├── workspace/         # Workspace management
+│   ├── snapshot/          # Workspace export/import
+│   ├── installer/         # Binary installation
+│   ├── distributed/       # Master-worker pattern
+│   ├── heuristics/        # Target analysis
+│   ├── terminal/          # Terminal UI
+│   ├── logger/            # Structured logging
+│   ├── notify/            # Notifications
+│   └── storage/           # Cloud storage
+├── pkg/                   # Public packages
+│   ├── cli/               # CLI commands
+│   └── server/            # REST API server
+├── test/                  # Test suites
+│   ├── e2e/               # End-to-end tests
+│   ├── integration/       # Integration tests
+│   └── testdata/          # Test fixtures
+└── build/                 # Build artifacts
+    └── docker/            # Docker files
+```
+
+## Key Data Types
+
+Defined in `internal/core/`:
+
+```go
+// Workflow kinds
+type WorkflowKind string
+const (
+    WorkflowKindModule WorkflowKind = "module"
+    WorkflowKindFlow   WorkflowKind = "flow"
+)
+
+// Step types
+type StepType string
+const (
+    StepTypeBash          StepType = "bash"
+    StepTypeFunction      StepType = "function"
+    StepTypeForeach       StepType = "foreach"
+    StepTypeParallelSteps StepType = "parallel-steps"
+    StepTypeRemoteBash    StepType = "remote-bash"
+    StepTypeHTTP          StepType = "http"
+    StepTypeLLM           StepType = "llm"
+)
+
+// Runner types
+type RunnerType string
+const (
+    RunnerTypeHost   RunnerType = "host"
+    RunnerTypeDocker RunnerType = "docker"
+    RunnerTypeSSH    RunnerType = "ssh"
+)
+
+// Trigger types
+type TriggerType string
+const (
+    TriggerManual TriggerType = "manual"
+    TriggerCron   TriggerType = "cron"
+    TriggerEvent  TriggerType = "event"
+    TriggerWatch  TriggerType = "watch"
+)
+```
+
+## Execution Context
+
+The `ExecutionContext` carries state through the execution pipeline:
+
+```go
+type ExecutionContext struct {
+    WorkflowName string
+    WorkflowKind WorkflowKind
+    RunID        string
+    Target       string
+    Variables    map[string]interface{}  // Built-in variables
+    Params       map[string]string       // User parameters
+    Exports      map[string]interface{}  // Step outputs
+    StepIndex    int
+    Logger       *zap.Logger
+}
+```
+
+- **Variables** - Set by executor (Target, Output, threads, etc.)
+- **Params** - Provided by user via CLI or API
+- **Exports** - Step outputs that propagate to subsequent steps
+
+## Next Steps
+
+- [Workflows](workflows) - Module vs Flow concepts
+- [Templates](templates) - Variable interpolation
+- [Runners](runners) - Execution environments

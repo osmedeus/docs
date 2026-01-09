@@ -1,0 +1,391 @@
+---
+title: "Control Flow"
+description: "Conditions, routing, and error handling"
+icon: "code-branch"
+---
+
+Control execution with conditions, handlers, and decision routing.
+
+## Pre-Conditions
+
+Skip a step if a condition is false.
+
+```yaml
+- name: nuclei-scan
+  type: bash
+  pre_condition: 'fileLength("{{Output}}/live.txt") > 0'
+  command: nuclei -l {{Output}}/live.txt -o {{Output}}/vulns.txt
+```
+
+### Common Conditions
+
+```yaml
+# File exists
+pre_condition: 'fileExists("{{Output}}/targets.txt")'
+
+# File has content
+pre_condition: 'fileLength("{{Output}}/hosts.txt") > 0'
+
+# Check export value
+pre_condition: '{{host_count}} > 10'
+
+# Check parameter
+pre_condition: '{{enable_scan}} == "true"'
+
+# Combine conditions
+pre_condition: 'fileExists("{{Output}}/subs.txt") && {{threads}} > 0'
+```
+
+### Condition Functions
+
+| Function | Description |
+|----------|-------------|
+| `fileExists(path)` | True if file exists |
+| `fileLength(path)` | Number of non-empty lines |
+| `dirLength(path)` | Number of directory entries |
+| `isEmpty(str)` | True if string is empty |
+| `contains(str, substr)` | True if string contains substring |
+
+## Decision Routing
+
+Jump to a different step based on conditions.
+
+```yaml
+steps:
+  - name: check-hosts
+    type: bash
+    command: wc -l < {{Output}}/hosts.txt
+    exports:
+      count: "{{stdout}}"
+    decision:
+      - condition: '{{count}} == 0'
+        jump: no-hosts-found
+      - condition: '{{count}} < 10'
+        jump: small-scan
+      - condition: '{{count}} >= 10'
+        jump: large-scan
+
+  - name: no-hosts-found
+    type: function
+    function: log_warning("No hosts found, skipping scan")
+    decision:
+      - condition: 'true'
+        jump: _end              # Special: end workflow
+
+  - name: small-scan
+    type: bash
+    command: nuclei -l {{Output}}/hosts.txt -t {{Data}}/templates/
+
+  - name: large-scan
+    type: bash
+    command: nuclei -l {{Output}}/hosts.txt -c 50 -t {{Data}}/templates/
+```
+
+### Special Jump Targets
+
+| Target | Description |
+|--------|-------------|
+| `_end` | End workflow immediately |
+| `_next` | Continue to next step (default) |
+| `step-name` | Jump to named step |
+
+## Success Handlers
+
+Execute actions when a step succeeds.
+
+```yaml
+- name: scan
+  type: bash
+  command: nuclei -l {{Output}}/hosts.txt -o {{Output}}/vulns.txt
+  on_success:
+    - action: log
+      message: "Scan completed successfully"
+
+    - action: export
+      key: scan_status
+      value: "completed"
+
+    - action: notify
+      message: "Vulnerability scan finished for {{target}}"
+```
+
+### Available Actions
+
+| Action | Description | Parameters |
+|--------|-------------|------------|
+| `log` | Log a message | `message` |
+| `export` | Export a value | `key`, `value` |
+| `run` | Run a command | `command` |
+| `notify` | Send notification | `message` |
+| `continue` | Continue execution | - |
+
+```yaml
+on_success:
+  - action: log
+    message: "Step completed"
+
+  - action: export
+    key: result
+    value: "success"
+
+  - action: run
+    command: echo "Done" >> {{Output}}/log.txt
+
+  - action: notify
+    message: "{{target}} scan finished"
+```
+
+## Error Handlers
+
+Handle step failures.
+
+```yaml
+- name: risky-scan
+  type: bash
+  command: aggressive-tool {{target}}
+  on_error:
+    - action: log
+      message: "Scan failed, continuing with fallback"
+
+    - action: continue    # Don't stop workflow
+
+    - action: run
+      command: fallback-tool {{target}}
+```
+
+### Error Action Types
+
+| Action | Description |
+|--------|-------------|
+| `log` | Log error message |
+| `abort` | Stop workflow (default) |
+| `continue` | Continue to next step |
+| `run` | Run recovery command |
+| `notify` | Send error notification |
+
+```yaml
+on_error:
+  - action: abort       # Stop workflow on error
+
+# OR
+
+on_error:
+  - action: continue    # Ignore error, continue
+```
+
+## Combined Example
+
+```yaml
+steps:
+  - name: enumerate
+    type: bash
+    command: subfinder -d {{target}} -o {{Output}}/subs.txt
+    exports:
+      sub_count: "{{stdout}}"
+    on_success:
+      - action: log
+        message: "Found subdomains"
+    on_error:
+      - action: log
+        message: "Enumeration failed"
+      - action: continue
+
+  - name: validate-results
+    type: function
+    function: fileLength("{{Output}}/subs.txt")
+    exports:
+      count: "{{result}}"
+    decision:
+      - condition: '{{count}} == 0'
+        jump: no-results
+      - condition: '{{count}} > 0'
+        jump: probe-hosts
+
+  - name: no-results
+    type: function
+    function: log_warning("No subdomains found for {{target}}")
+    decision:
+      - condition: 'true'
+        jump: _end
+
+  - name: probe-hosts
+    type: bash
+    pre_condition: 'fileLength("{{Output}}/subs.txt") > 0'
+    command: httpx -l {{Output}}/subs.txt -o {{Output}}/live.txt
+    on_success:
+      - action: export
+        key: probe_status
+        value: "done"
+      - action: notify
+        message: "Probing complete for {{target}}"
+    on_error:
+      - action: log
+        message: "HTTP probing failed"
+      - action: abort
+
+  - name: screenshot
+    type: bash
+    pre_condition: 'fileLength("{{Output}}/live.txt") > 0 && {{probe_status}} == "done"'
+    command: gowitness file -f {{Output}}/live.txt -P {{Output}}/screenshots
+```
+
+## Flow-Level Conditions
+
+Conditional module execution in flows:
+
+```yaml
+kind: flow
+name: conditional-flow
+
+params:
+  - name: target
+  - name: enable_active
+    default: "false"
+
+modules:
+  - name: passive-recon
+    path: modules/passive.yaml
+
+  - name: active-scan
+    path: modules/active.yaml
+    depends_on: [passive-recon]
+    condition: '{{enable_active}} == "true"'
+
+  - name: vuln-scan
+    path: modules/vuln.yaml
+    depends_on: [passive-recon]
+    condition: 'fileLength("{{Output}}/live.txt") > 0'
+```
+
+## Branching Patterns
+
+### If-Then-Else
+
+```yaml
+- name: check
+  type: function
+  function: fileLength("{{Output}}/data.txt")
+  exports:
+    has_data: "{{result}}"
+  decision:
+    - condition: '{{has_data}} > 0'
+      jump: process-data
+    - condition: '{{has_data}} == 0'
+      jump: handle-empty
+
+- name: process-data
+  type: bash
+  command: process {{Output}}/data.txt
+  decision:
+    - condition: 'true'
+      jump: finalize
+
+- name: handle-empty
+  type: function
+  function: log_warning("No data to process")
+  decision:
+    - condition: 'true'
+      jump: finalize
+
+- name: finalize
+  type: function
+  function: log_info("Workflow complete")
+```
+
+### Early Exit
+
+```yaml
+- name: validate
+  type: function
+  function: fileExists("{{Output}}/required.txt")
+  exports:
+    valid: "{{result}}"
+  decision:
+    - condition: '!{{valid}}'
+      jump: _end              # Exit if invalid
+    - condition: '{{valid}}'
+      jump: continue-scan
+
+- name: continue-scan
+  type: bash
+  command: scan {{target}}
+```
+
+### Loop with Retry
+
+```yaml
+- name: attempt-scan
+  type: bash
+  command: flaky-scanner {{target}}
+  exports:
+    attempt: "1"
+  on_error:
+    - action: export
+      key: failed
+      value: "true"
+    - action: continue
+
+- name: retry-check
+  type: function
+  function: log_info("Checking retry status")
+  decision:
+    - condition: '{{failed}} == "true" && {{attempt}} < 3'
+      jump: retry-scan
+    - condition: '{{failed}} == "true" && {{attempt}} >= 3'
+      jump: give-up
+    - condition: '{{failed}} != "true"'
+      jump: success
+
+- name: retry-scan
+  type: bash
+  command: flaky-scanner {{target}} --retry
+  exports:
+    attempt: "{{parseInt({{attempt}}) + 1}}"
+  on_error:
+    - action: continue
+  decision:
+    - condition: 'true'
+      jump: retry-check
+```
+
+## Best Practices
+
+1. **Always check file existence before processing**
+   ```yaml
+   pre_condition: 'fileExists("{{Output}}/input.txt")'
+   ```
+
+2. **Use meaningful log messages**
+   ```yaml
+   on_success:
+     - action: log
+       message: "Found {{count}} subdomains for {{target}}"
+   ```
+
+3. **Handle errors gracefully**
+   ```yaml
+   on_error:
+     - action: log
+       message: "Step failed, attempting fallback"
+     - action: continue
+   ```
+
+4. **Use decision routing for complex logic**
+   ```yaml
+   decision:
+     - condition: '{{count}} > 100'
+       jump: large-dataset-handler
+   ```
+
+5. **End workflows cleanly**
+   ```yaml
+   decision:
+     - condition: '{{fatal_error}}'
+       jump: _end
+   ```
+
+## Next Steps
+
+- [Step Types](step-types) - All step types
+- [Variables](variables) - Exports and conditions
+- [Functions Reference](../functions/reference) - Condition functions

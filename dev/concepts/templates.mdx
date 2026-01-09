@@ -1,0 +1,253 @@
+---
+title: "Templates"
+description: "Variable interpolation and template rendering"
+icon: "wand-magic-sparkles"
+---
+
+Osmedeus uses a template engine for variable interpolation in workflows.
+
+## Template Syntax
+
+### Standard Variables: `{{Variable}}`
+
+Double curly braces for standard variable interpolation:
+
+```yaml
+steps:
+  - name: scan
+    type: bash
+    command: subfinder -d {{target}} -o {{Output}}/subdomains.txt
+```
+
+### Foreach Variables: `[[variable]]`
+
+Double square brackets for foreach loop variables:
+
+```yaml
+steps:
+  - name: probe-hosts
+    type: foreach
+    input: "{{Output}}/subdomains.txt"
+    variable: subdomain
+    step:
+      name: httpx
+      type: bash
+      command: echo [[subdomain]] | httpx >> {{Output}}/live.txt
+```
+
+The `[[]]` syntax prevents conflicts between loop variables and template variables.
+
+## Built-in Variables
+
+| Variable | Description | Example Value |
+|----------|-------------|---------------|
+| `{{Target}}` | Current scan target | `example.com` |
+| `{{TargetSpace}}` | Sanitized target (filesystem safe) | `example_com` |
+| `{{Output}}` | Workspace output directory | `/home/user/osmedeus-base/workspaces/example.com` |
+| `{{BaseFolder}}` | Osmedeus installation directory | `/home/user/osmedeus-base` |
+| `{{Binaries}}` | Path to tool binaries | `/home/user/osmedeus-base/binaries` |
+| `{{Data}}` | Path to data files | `/home/user/osmedeus-base/data` |
+| `{{Workspaces}}` | Path to workspaces directory | `/home/user/osmedeus-base/workspaces` |
+| `{{threads}}` | Thread count (based on tactic) | `50` |
+| `{{baseThreads}}` | Base thread count | `25` |
+| `{{TaskID}}` | Unique task identifier | `abc123` |
+| `{{Today}}` | Current date (YYYY-MM-DD) | `2024-01-15` |
+| `{{TimeStamp}}` | Unix timestamp | `1705312000` |
+| `{{RandomString}}` | Random 8-character string | `xK9mPq2r` |
+
+## Variable Resolution
+
+Variables are resolved in this order:
+
+1. **Exports** - Values from previous step exports
+2. **Parameters** - User-provided params (`-p key=value`)
+3. **Built-in Variables** - System-provided values
+4. **Environment Variables** - From shell environment
+
+If not found, the variable renders as an empty string.
+
+## Parameters
+
+### Defining Parameters
+
+```yaml
+params:
+  - name: target
+    required: true
+    description: Target domain to scan
+
+  - name: threads
+    default: "10"
+    description: Number of threads
+
+  - name: wordlist
+    default: "{{Data}}/wordlists/subdomains.txt"
+    description: Path to wordlist
+```
+
+### Passing Parameters
+
+CLI:
+```bash
+# Single parameter
+osmedeus run -m scan -t example.com -p 'threads=20'
+
+# Multiple parameters
+osmedeus run -m scan -t example.com -p 'threads=20' -p 'wordlist=/custom/list.txt'
+
+# From file
+osmedeus run -m scan -t example.com -P params.yaml
+```
+
+params.yaml:
+```yaml
+threads: "20"
+wordlist: "/custom/list.txt"
+```
+
+### Using Parameters
+
+```yaml
+steps:
+  - name: scan
+    type: bash
+    command: subfinder -d {{target}} -t {{threads}} -w {{wordlist}}
+```
+
+## Generator Functions
+
+Use generator functions in parameter defaults:
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `uuid()` | Generate UUID v4 | `a1b2c3d4-...` |
+| `currentDate()` | Current date (YYYY-MM-DD) | `2024-01-15` |
+| `currentDate(format)` | Formatted date | `currentDate("02-Jan-2006")` |
+| `currentTimestamp()` | Unix timestamp | `1705312000` |
+| `getEnvVar(key)` | Environment variable | `getEnvVar("HOME")` |
+| `getEnvVar(key, default)` | With default | `getEnvVar("API_KEY", "none")` |
+| `randomInt(min, max)` | Random integer | `randomInt(1, 100)` |
+| `randomString(len)` | Random string | `randomString(8)` |
+| `concat(a, b, ...)` | Concatenate strings | `concat("a", "b")` |
+| `toLower(s)` | Lowercase | `toLower("ABC")` → `abc` |
+| `toUpper(s)` | Uppercase | `toUpper("abc")` → `ABC` |
+| `trim(s)` | Trim whitespace | `trim("  a  ")` → `a` |
+| `replace(s, old, new)` | Replace string | `replace("a.b", ".", "_")` |
+| `split(s, sep)` | Split string | `split("a,b", ",")` |
+| `join(arr, sep)` | Join array | `join(["a","b"], "-")` |
+| `execCmd(cmd)` | Execute command | `execCmd("whoami")` |
+
+Example:
+```yaml
+params:
+  - name: scan_id
+    default: "{{uuid()}}"
+
+  - name: date
+    default: "{{currentDate()}}"
+
+  - name: user
+    default: "{{getEnvVar('USER', 'unknown')}}"
+```
+
+## Template Rendering
+
+Templates are rendered at different stages:
+
+### Step Execution Time
+
+Most fields are rendered just before step execution:
+
+```yaml
+- name: scan
+  type: bash
+  command: echo "{{target}}"     # Rendered when step runs
+```
+
+### Foreach Iteration Time
+
+Loop variables are rendered during each iteration:
+
+```yaml
+- name: process
+  type: foreach
+  input: "{{Output}}/list.txt"   # {{}} rendered first
+  variable: item
+  step:
+    command: process [[item]]    # [[]] rendered per iteration
+```
+
+## Conditional Templates
+
+Use templates in conditions:
+
+```yaml
+- name: scan
+  type: bash
+  pre_condition: 'fileExists("{{Output}}/targets.txt")'
+  command: nuclei -l {{Output}}/targets.txt
+```
+
+## Nested Variables
+
+Variables can reference other variables:
+
+```yaml
+params:
+  - name: output_dir
+    default: "{{Output}}/scans"
+
+steps:
+  - name: scan
+    type: bash
+    command: subfinder -d {{target}} -o {{output_dir}}/subs.txt
+```
+
+Resolution:
+1. `{{output_dir}}` resolves to `{{Output}}/scans`
+2. `{{Output}}` resolves to workspace path
+3. Final: `/home/user/.../workspaces/example.com/scans`
+
+## Best Practices
+
+1. **Quote paths with spaces**
+   ```yaml
+   command: cat "{{Output}}/my file.txt"
+   ```
+
+2. **Use descriptive parameter names**
+   ```yaml
+   params:
+     - name: target_domain    # Good
+     - name: t                # Bad
+   ```
+
+3. **Provide defaults when possible**
+   ```yaml
+   params:
+     - name: threads
+       default: "10"
+   ```
+
+4. **Document parameters**
+   ```yaml
+   params:
+     - name: severity
+       default: "high,critical"
+       description: Nuclei severity filter
+   ```
+
+5. **Use built-in paths**
+   ```yaml
+   # Good - uses built-in variables
+   command: "{{Binaries}}/nuclei -t {{Data}}/templates"
+
+   # Bad - hardcoded paths
+   command: "/usr/local/bin/nuclei -t /opt/templates"
+   ```
+
+## Next Steps
+
+- [Variables](../workflows/variables) - Exports and propagation
+- [Step Types](../workflows/step-types) - Using templates in steps
+- [Functions Reference](../functions/reference) - Built-in functions

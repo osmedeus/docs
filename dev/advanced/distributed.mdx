@@ -1,0 +1,345 @@
+---
+title: "Distributed Execution"
+icon: "chart-network"
+---
+
+Scale scanning across multiple machines using Redis coordination.
+
+## Architecture
+
+```
+┌─────────────────┐     ┌─────────────────┐
+│     Master      │     │     Redis       │
+│   (API Server)  │────▶│   (Task Queue)  │
+└─────────────────┘     └────────┬────────┘
+                                 │
+        ┌────────────────────────┼────────────────────────┐
+        │                        │                        │
+        ▼                        ▼                        ▼
+┌───────────────┐       ┌───────────────┐       ┌───────────────┐
+│   Worker 1    │       │   Worker 2    │       │   Worker N    │
+└───────────────┘       └───────────────┘       └───────────────┘
+```
+
+## Components
+
+### Master Node
+
+- API server for submitting tasks
+- Task distribution coordinator
+- Result aggregation
+- Worker health monitoring
+
+### Workers
+
+- Execute assigned tasks
+- Report progress and results
+- Auto-reconnect on failure
+- Heartbeat to master
+
+### Redis
+
+- Task queue storage
+- Worker registration
+- Result storage
+- Pub/Sub for events
+
+## Setup
+
+### 1. Start Redis
+
+```bash
+# Docker
+docker run -d -p 6379:6379 redis:7-alpine
+
+# With persistence
+docker run -d -p 6379:6379 \
+  -v redis-data:/data \
+  redis:7-alpine redis-server --appendonly yes
+```
+
+### 2. Start Master
+
+```bash
+osmedeus server --master
+```
+
+Or with custom Redis:
+```bash
+osmedeus server --master --redis-url redis://redis-host:6379
+```
+
+### 3. Start Workers
+
+On each worker machine:
+
+```bash
+osmedeus worker join
+```
+
+With custom Redis:
+```bash
+osmedeus worker join --redis-url redis://redis-host:6379
+```
+
+### 4. Submit Tasks
+
+```bash
+# Via CLI
+osmedeus run -f general -t example.com -D
+
+# Via API
+curl -X POST http://master:8002/osm/api/runs \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"flow": "general", "target": "example.com", "distributed": true}'
+```
+
+## Configuration
+
+### Redis Settings
+
+In `osm-settings.yaml`:
+
+```yaml
+redis:
+  url: "redis://localhost:6379"
+  password: ""
+  db: 0
+```
+
+Environment variables:
+```bash
+export OSM_REDIS_URL=redis://redis-host:6379
+export OSM_REDIS_PASSWORD=secret
+```
+
+### Worker Configuration
+
+Workers inherit configuration from local `osm-settings.yaml`:
+
+```yaml
+# Ensure same paths on all workers
+base_folder: "/opt/osmedeus"
+
+environments:
+  binaries: "/opt/osmedeus/binaries"
+  workflows: "/opt/osmedeus/workflows"
+```
+
+## Task Distribution
+
+### Task Lifecycle
+
+```
+1. Client submits task to master
+2. Master queues task in Redis
+3. Available worker claims task
+4. Worker executes workflow
+5. Worker reports progress/results
+6. Master aggregates results
+7. Results available via API
+```
+
+### Load Balancing
+
+Tasks are distributed using a pull model:
+- Workers poll for available tasks
+- First available worker claims task
+- No central scheduling required
+
+### Task Priority
+
+(Future feature) Tasks can have priority levels:
+- High: Security-critical scans
+- Normal: Regular assessments
+- Low: Background enumeration
+
+## Monitoring
+
+### Worker Status
+
+```bash
+# CLI
+osmedeus worker status
+
+# API
+curl http://master:8002/osm/api/workers \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Task Status
+
+```bash
+# List tasks
+curl http://master:8002/osm/api/tasks \
+  -H "Authorization: Bearer $TOKEN"
+
+# Get task details
+curl http://master:8002/osm/api/tasks/task-123 \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Health Checks
+
+```bash
+# Master health
+curl http://master:8002/health
+
+# Worker health (local)
+osmedeus health
+```
+
+## Docker Compose Setup
+
+```yaml
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+
+  master:
+    build: .
+    command: osmedeus server --master
+    ports:
+      - "8002:8002"
+    environment:
+      - OSM_REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    volumes:
+      - master-data:/root/osmedeus-base
+
+  worker:
+    build: .
+    command: osmedeus worker join
+    environment:
+      - OSM_REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+      - master
+    volumes:
+      - worker-data:/root/osmedeus-base
+    deploy:
+      replicas: 3
+
+volumes:
+  redis-data:
+  master-data:
+  worker-data:
+```
+
+Run:
+```bash
+# Start services
+docker-compose up -d
+
+# Scale workers
+docker-compose up -d --scale worker=5
+
+# View logs
+docker-compose logs -f worker
+```
+
+## Kubernetes Deployment
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: osmedeus-master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: osmedeus-master
+  template:
+    metadata:
+      labels:
+        app: osmedeus-master
+    spec:
+      containers:
+      - name: master
+        image: osmedeus:latest
+        args: ["server", "--master"]
+        ports:
+        - containerPort: 8002
+        env:
+        - name: OSM_REDIS_URL
+          value: "redis://redis:6379"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: osmedeus-worker
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: osmedeus-worker
+  template:
+    metadata:
+      labels:
+        app: osmedeus-worker
+    spec:
+      containers:
+      - name: worker
+        image: osmedeus:latest
+        args: ["worker", "join"]
+        env:
+        - name: OSM_REDIS_URL
+          value: "redis://redis:6379"
+```
+
+## Best Practices
+
+1. **Use persistent Redis** for production
+2. **Monitor worker health** regularly
+3. **Same tooling on all workers** - ensure consistent binaries
+4. **Shared storage** for results (S3, NFS)
+5. **Network isolation** - secure Redis access
+6. **Resource limits** - prevent worker overload
+
+## Troubleshooting
+
+### Workers not connecting
+
+```bash
+# Check Redis connectivity
+redis-cli -h redis-host ping
+
+# Check worker logs
+osmedeus worker join --debug
+```
+
+### Tasks stuck
+
+```bash
+# Check task queue
+redis-cli LLEN osmedeus:tasks:pending
+
+# Check worker status
+curl http://master:8002/osm/api/workers
+```
+
+### Results not appearing
+
+```bash
+# Check task completion
+curl http://master:8002/osm/api/tasks/task-123
+
+# Check Redis for results
+redis-cli GET osmedeus:results:task-123
+```
+
+## Next Steps
+
+- [Deployment](../getting-started/deployment.md) - Server setup
+- [Server CLI](../cli/server.md) - Server commands
+- [Scheduling](scheduling.md) - Automated triggers

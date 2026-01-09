@@ -1,0 +1,198 @@
+---
+title: "osmedeus workflow"
+icon: "diagram-project"
+---
+
+Manage and inspect workflows.
+
+## Synopsis
+
+```bash
+osmedeus workflow <command> [flags]
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `list` | List all available workflows |
+| `show <name>` | Show workflow details |
+| `validate <name>` | Validate workflow syntax |
+
+## workflow list
+
+List all available workflows.
+
+```bash
+osmedeus workflow list [flags]
+```
+
+Aliases: `ls`
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--tags <tags>` | Filter by tags (comma-separated) |
+| `--show-tags` | Display tags column |
+
+### Examples
+
+```bash
+# List all workflows
+osmedeus workflow list
+
+# Filter by tags
+osmedeus workflow list --tags reconnaissance
+osmedeus workflow list --tags "subdomain,passive"
+
+# Show tags column
+osmedeus workflow list --show-tags
+```
+
+### Output
+
+```
+┌──────────────────────┬──────────┬─────────────────────────────────────────┐
+│ Name                 │ Kind     │ Description                             │
+├──────────────────────┼──────────┼─────────────────────────────────────────┤
+│ subdomain-enum       │ module   │ Enumerate subdomains for a target       │
+│ http-probe           │ module   │ Probe hosts for HTTP services           │
+│ nuclei-scan          │ module   │ Run Nuclei vulnerability scanner        │
+│ general              │ flow     │ General reconnaissance flow             │
+│ full-assessment      │ flow     │ Complete security assessment            │
+└──────────────────────┴──────────┴─────────────────────────────────────────┘
+```
+
+## workflow show
+
+Show workflow details.
+
+```bash
+osmedeus workflow show <name> [flags]
+```
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `-v, --verbose` | Show detailed variable descriptions |
+| `--yaml` | Display raw YAML |
+| `--table` | Show metadata table |
+
+### Examples
+
+```bash
+# Show workflow details
+osmedeus workflow show subdomain-enum
+
+# Verbose with variable descriptions
+osmedeus workflow show subdomain-enum -v
+
+# Show raw YAML
+osmedeus workflow show subdomain-enum --yaml
+
+# Metadata table format
+osmedeus workflow show subdomain-enum --table
+```
+
+### Output (Default)
+
+```
+Workflow: subdomain-enum
+Kind: module
+Description: Enumerate subdomains for a target
+
+Parameters:
+┌────────────┬──────────┬─────────────────────────────┐
+│ Name       │ Required │ Default                     │
+├────────────┼──────────┼─────────────────────────────┤
+│ target     │ yes      │                             │
+│ threads    │ no       │ 10                          │
+└────────────┴──────────┴─────────────────────────────┘
+
+Steps: 3
+  1. run-subfinder (bash)
+  2. run-amass (bash)
+  3. merge-results (bash)
+```
+
+### Output (Verbose)
+
+```
+Workflow: subdomain-enum
+Kind: module
+Description: Enumerate subdomains for a target
+
+Parameters:
+┌────────────┬──────────┬─────────┬────────────────────────────────┐
+│ Name       │ Required │ Default │ Description                    │
+├────────────┼──────────┼─────────┼────────────────────────────────┤
+│ target     │ yes      │         │ Target domain to enumerate     │
+│ threads    │ no       │ 10      │ Number of concurrent threads   │
+└────────────┴──────────┴─────────┴────────────────────────────────┘
+...
+```
+
+## workflow validate
+
+Validate workflow syntax and structure.
+
+```bash
+osmedeus workflow validate <name> [flags]
+```
+
+Aliases: `val`
+
+### Examples
+
+```bash
+# Validate a workflow
+osmedeus workflow validate subdomain-enum
+
+# Validate with verbose output
+osmedeus workflow validate subdomain-enum -v
+```
+
+### Output (Valid)
+
+```
+✓ Workflow 'subdomain-enum' is valid
+```
+
+### Output (Invalid)
+
+```
+✗ Workflow validation failed:
+  - Line 15: Step 'scan' missing required field 'command'
+  - Line 23: Unknown step type 'invalid'
+  - Line 30: Circular dependency detected: A -> B -> A
+```
+
+## Workflow Discovery
+
+Workflows are discovered from:
+
+1. `{workflow-folder}/` - Direct files
+2. `{workflow-folder}/modules/` - Module workflows
+3. `{workflow-folder}/flows/` - Flow workflows
+
+Default workflow folder: `~/osmedeus-base/workflows/`
+
+Override with:
+```bash
+osmedeus workflow list -F /custom/workflows/
+```
+
+## Notes
+
+- Use `list` to discover available workflows
+- Use `show` to understand parameters and steps
+- Use `validate` before running new workflows
+- Tags help categorize and filter workflows
+
+## See Also
+
+- [Workflows Overview](../workflows/overview.md)
+- [run](run.md) - Execute workflows
+- [Configuration](../getting-started/configuration.md)

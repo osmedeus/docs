@@ -1,0 +1,323 @@
+---
+title: "osmedeus server"
+icon: "server"
+---
+
+Start the REST API server and manage workers.
+
+## Synopsis
+
+```bash
+osmedeus server [flags]
+osmedeus worker <command> [flags]
+```
+
+## server
+
+Start the REST API server.
+
+```bash
+osmedeus server [flags]
+```
+
+Aliases: `serve`
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--host <address>` | Bind address (default from config) |
+| `--port <port>` | Listen port (default from config) |
+| `-A, --no-auth` | Disable authentication (dev only) |
+| `--master` | Run as distributed master node |
+| `--redis-url <url>` | Redis URL for distributed mode |
+
+### Examples
+
+```bash
+# Start with defaults
+osmedeus server
+
+# Custom host and port
+osmedeus server --host 0.0.0.0 --port 8080
+
+# Disable authentication (development only)
+osmedeus server -A
+
+# Start as distributed master
+osmedeus server --master
+
+# Master with custom Redis
+osmedeus server --master --redis-url redis://redis-host:6379
+```
+
+### Output
+
+```bash
+$ osmedeus server
+Starting Osmedeus Server...
+  Host: 0.0.0.0
+  Port: 8002
+  Auth: enabled
+
+Server endpoints:
+  - API: http://localhost:8002/osm/api/
+  - Swagger: http://localhost:8002/swagger/
+  - Health: http://localhost:8002/health
+
+Press Ctrl+C to stop
+```
+
+### Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `/health` | Health check |
+| `/health/ready` | Readiness probe |
+| `/server-info` | Server information |
+| `/swagger/*` | API documentation |
+| `/osm/api/*` | API endpoints (auth required) |
+| `/ws/{prefix}/*` | Workspace files |
+
+## worker join
+
+Join as a distributed worker.
+
+```bash
+osmedeus worker join [flags]
+```
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--redis-url <url>` | Redis URL override |
+
+### Examples
+
+```bash
+# Join with default Redis
+osmedeus worker join
+
+# Join with custom Redis
+osmedeus worker join --redis-url redis://redis-host:6379
+```
+
+### Output
+
+```bash
+$ osmedeus worker join
+Joining worker pool...
+  Redis: redis://localhost:6379
+  Worker ID: worker-abc123
+
+✓ Connected to master
+Waiting for tasks...
+```
+
+## worker status
+
+Check worker pool status.
+
+```bash
+osmedeus worker status [flags]
+```
+
+### Output
+
+```bash
+$ osmedeus worker status
+Worker Pool Status:
+
+Master: redis://localhost:6379
+Connected Workers: 3
+
+┌─────────────────┬────────────┬───────────┬─────────────────────┐
+│ Worker ID       │ Status     │ Tasks     │ Last Seen           │
+├─────────────────┼────────────┼───────────┼─────────────────────┤
+│ worker-abc123   │ idle       │ 15        │ 2024-01-15 14:30:00 │
+│ worker-def456   │ busy       │ 23        │ 2024-01-15 14:30:05 │
+│ worker-ghi789   │ idle       │ 12        │ 2024-01-15 14:29:55 │
+└─────────────────┴────────────┴───────────┴─────────────────────┘
+
+Queue: 2 pending tasks
+```
+
+## health
+
+Check server or worker health.
+
+```bash
+osmedeus health [flags]
+```
+
+### Examples
+
+```bash
+# Check local server health
+osmedeus health
+
+# Check remote server
+osmedeus health --host http://remote:8002
+```
+
+### Output
+
+```bash
+$ osmedeus health
+Server Health Check:
+
+✓ API Server: healthy
+✓ Database: connected
+✓ Workflows: 12 loaded
+✓ Binaries: 15/20 available
+
+Status: healthy
+```
+
+## Distributed Mode
+
+### Architecture
+
+```
+┌─────────────────┐     ┌─────────────────┐
+│     Master      │     │     Redis       │
+│   (API Server)  │────▶│   (Task Queue)  │
+└─────────────────┘     └────────┬────────┘
+                                 │
+        ┌────────────────────────┼────────────────────────┐
+        │                        │                        │
+        ▼                        ▼                        ▼
+┌───────────────┐       ┌───────────────┐       ┌───────────────┐
+│   Worker 1    │       │   Worker 2    │       │   Worker N    │
+└───────────────┘       └───────────────┘       └───────────────┘
+```
+
+### Setup
+
+1. Start Redis:
+   ```bash
+   docker run -d -p 6379:6379 redis:7-alpine
+   ```
+
+2. Start master:
+   ```bash
+   osmedeus server --master
+   ```
+
+3. Start workers (on each machine):
+   ```bash
+   osmedeus worker join --redis-url redis://master-host:6379
+   ```
+
+4. Submit distributed scans:
+   ```bash
+   osmedeus run -f general -t example.com -D
+   ```
+
+### API Endpoints (Master Mode)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /osm/api/workers` | List workers |
+| `GET /osm/api/workers/:id` | Worker details |
+| `GET /osm/api/tasks` | List tasks |
+| `GET /osm/api/tasks/:id` | Task details |
+| `POST /osm/api/tasks` | Submit task |
+
+## Authentication
+
+### Default Credentials
+
+Configure in `osm-settings.yaml`:
+```yaml
+server:
+  username: osmedeus
+  password: [REDACTED:password]
+```
+
+### Get Token
+
+```bash
+curl -X POST http://localhost:8002/osm/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "osmedeus", "password": "osmedeus-admin"}'
+```
+
+### Use Token
+
+```bash
+curl http://localhost:8002/osm/api/workflows \
+  -H "Authorization: Bearer <token>"
+```
+
+## Configuration
+
+Server settings in `osm-settings.yaml`:
+
+```yaml
+server:
+  host: "0.0.0.0"
+  port: 8002
+  ui_path: "{{base_folder}}/ui/"
+  workspace_prefix: ""      # Auto-generated
+  username: osmedeus
+  password: [REDACTED:password]
+
+redis:
+  url: "redis://localhost:6379"
+  password: ""
+  db: 0
+```
+
+## Docker Deployment
+
+### Single Server
+
+```bash
+docker run -d \
+  --name osmedeus \
+  -p 8002:8002 \
+  -v osmedeus-data:/root/osmedeus-base \
+  osmedeus:latest server
+```
+
+### Distributed (Docker Compose)
+
+```yaml
+version: '3.8'
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  master:
+    image: osmedeus:latest
+    command: server --master
+    ports: ["8002:8002"]
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on: [redis]
+
+  worker:
+    image: osmedeus:latest
+    command: worker join
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on: [redis, master]
+    deploy:
+      replicas: 3
+```
+
+## Notes
+
+- Use `--no-auth` only for development
+- Master mode requires Redis
+- Workers auto-reconnect on connection loss
+- Graceful shutdown on SIGINT/SIGTERM
+
+## See Also
+
+- [Deployment](../getting-started/deployment.md)
+- [API Overview](../api/overview.md)
+- [Distributed Execution](../advanced/distributed.md)

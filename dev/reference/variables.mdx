@@ -1,0 +1,231 @@
+---
+title: "Built-in Variables"
+icon: "code-simple"
+---
+
+Complete reference for template variables.
+
+## Core Variables
+
+| Variable | Description | Example Value |
+|----------|-------------|---------------|
+| `{{Target}}` | Current scan target | `example.com` |
+| `{{TargetSpace}}` | Sanitized target (filesystem safe) | `example_com` |
+| `{{Output}}` | Workspace output directory | `/home/user/osmedeus-base/workspaces/example.com` |
+| `{{BaseFolder}}` | Osmedeus base directory | `/home/user/osmedeus-base` |
+| `{{TaskID}}` | Unique task/run identifier | `run-abc123` |
+
+## Path Variables
+
+| Variable | Description | Example Value |
+|----------|-------------|---------------|
+| `{{Binaries}}` | Path to tool binaries | `/home/user/osmedeus-base/binaries` |
+| `{{Data}}` | Path to data files | `/home/user/osmedeus-base/data` |
+| `{{Workflows}}` | Path to workflows | `/home/user/osmedeus-base/workflows` |
+| `{{Workspaces}}` | Path to workspaces | `/home/user/osmedeus-base/workspaces` |
+| `{{Storages}}` | Path to storage/snapshots | `/home/user/osmedeus-base/storages` |
+
+## Thread Variables
+
+| Variable | Description | Example Value |
+|----------|-------------|---------------|
+| `{{threads}}` | Thread count (based on tactic) | `50` |
+| `{{baseThreads}}` | Base thread count | `25` |
+
+Affected by tactic (`-B` flag):
+- `aggressive`: threads=100, baseThreads=50
+- `default`: threads=50, baseThreads=25
+- `gently`: threads=10, baseThreads=5
+
+## Time Variables
+
+| Variable | Description | Example Value |
+|----------|-------------|---------------|
+| `{{Today}}` | Current date (YYYY-MM-DD) | `2024-01-15` |
+| `{{TimeStamp}}` | Unix timestamp | `1705312000` |
+| `{{RandomString}}` | Random 8-character string | `xK9mPq2r` |
+
+## Step Export Variables
+
+Available after step execution:
+
+| Variable | Source | Description |
+|----------|--------|-------------|
+| `{{stdout}}` | bash | Command standard output |
+| `{{stderr}}` | bash | Command standard error |
+| `{{exit_code}}` | bash | Command exit code |
+| `{{result}}` | function | Function return value |
+| `{{http_status_code}}` | http | HTTP response status |
+| `{{http_response_body}}` | http | HTTP response body |
+| `{{http_response_headers}}` | http | HTTP headers (JSON) |
+| `{{llm_response}}` | llm | LLM chat response |
+| `{{llm_tool_calls}}` | llm | LLM tool calls (JSON) |
+| `{{llm_embeddings}}` | llm | LLM embeddings (JSON) |
+
+## Generator Functions
+
+Use in parameter defaults:
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `{{uuid()}}` | Generate UUID v4 | `a1b2c3d4-e5f6-...` |
+| `{{currentDate()}}` | Current date | `2024-01-15` |
+| `{{currentDate("format")}}` | Formatted date | `currentDate("02-Jan-2006")` |
+| `{{currentTimestamp()}}` | Unix timestamp | `1705312000` |
+| `{{randomInt(min, max)}}` | Random integer | `randomInt(1, 100)` |
+| `{{randomString(len)}}` | Random string | `randomString(8)` |
+| `{{getEnvVar("key")}}` | Environment variable | `getEnvVar("HOME")` |
+| `{{getEnvVar("key", "default")}}` | With default | `getEnvVar("API_KEY", "none")` |
+| `{{concat(a, b, ...)}}` | Concatenate strings | `concat("a", "b")` |
+| `{{toLower(s)}}` | Lowercase | `toLower("ABC")` → `abc` |
+| `{{toUpper(s)}}` | Uppercase | `toUpper("abc")` → `ABC` |
+| `{{trim(s)}}` | Trim whitespace | `trim("  a  ")` → `a` |
+| `{{replace(s, old, new)}}` | Replace string | `replace("a.b", ".", "_")` |
+| `{{split(s, sep)}}` | Split string | `split("a,b", ",")` |
+| `{{join(arr, sep)}}` | Join array | `join(["a","b"], "-")` |
+| `{{execCmd(cmd)}}` | Execute command | `execCmd("whoami")` |
+
+## Foreach Variables
+
+Inside foreach loops, use double brackets:
+
+| Variable | Description |
+|----------|-------------|
+| `[[variable]]` | Current iteration value |
+
+Example:
+```yaml
+- name: process
+  type: foreach
+  input: "{{Output}}/hosts.txt"
+  variable: host
+  step:
+    command: scan [[host]] -o {{Output}}/[[host]].txt
+```
+
+## Variable Resolution Order
+
+1. **Exports** from previous steps (highest priority)
+2. **Parameters** from user input (`-p key=value`)
+3. **Built-in variables** (Target, Output, etc.)
+4. **Environment variables** (lowest priority)
+
+## Usage Examples
+
+### In Commands
+
+```yaml
+command: nuclei -u {{Target}} -o {{Output}}/nuclei.txt -t {{Data}}/templates/
+```
+
+### In Parameters
+
+```yaml
+params:
+  - name: output_dir
+    default: "{{Output}}/scans/{{Today}}"
+
+  - name: threads
+    default: "{{threads}}"
+```
+
+### In Conditions
+
+```yaml
+pre_condition: 'fileLength("{{Output}}/hosts.txt") > 0'
+```
+
+### In Exports
+
+```yaml
+exports:
+  scan_output: "{{Output}}/scan-{{Target}}-{{TimeStamp}}.txt"
+```
+
+### Nested Variables
+
+```yaml
+params:
+  - name: scan_dir
+    default: "{{Output}}/{{scan_type}}"
+
+# Resolves: {{Output}}/vulnerability -> /home/.../workspaces/target/vulnerability
+```
+
+### With Generators
+
+```yaml
+params:
+  - name: scan_id
+    default: "{{uuid()}}"
+
+  - name: report_date
+    default: "{{currentDate()}}"
+
+  - name: api_key
+    default: "{{getEnvVar('API_KEY', 'not-set')}}"
+```
+
+## Common Patterns
+
+### Output Organization
+
+```yaml
+# Per-module output
+command: subfinder -d {{Target}} -o {{Output}}/subdomain-enum/subs.txt
+
+# Timestamped output
+command: nmap {{Target}} -o {{Output}}/nmap-{{TimeStamp}}.txt
+
+# Target-safe filenames
+command: scan -o {{Output}}/{{TargetSpace}}-results.txt
+```
+
+### Tool Paths
+
+```yaml
+# Use installed binaries
+command: "{{Binaries}}/nuclei -u {{Target}}"
+
+# Use data files
+command: "ffuf -w {{Data}}/wordlists/common.txt -u {{Target}}/FUZZ"
+```
+
+### Dynamic Configuration
+
+```yaml
+params:
+  - name: scan_profile
+    default: "{{getEnvVar('SCAN_PROFILE', 'default')}}"
+
+steps:
+  - name: scan
+    type: bash
+    command: nuclei -t {{Data}}/profiles/{{scan_profile}}/ -u {{Target}}
+```
+
+## Environment Variable Access
+
+```yaml
+# Direct access
+command: curl -H "Authorization: Bearer $API_KEY" {{Target}}
+
+# Via template
+params:
+  - name: api_key
+    default: "{{getEnvVar('API_KEY')}}"
+```
+
+## Best Practices
+
+1. **Use built-in paths** instead of hardcoded values
+2. **Use TargetSpace** for filenames to avoid special characters
+3. **Organize output** with meaningful directory structure
+4. **Provide defaults** for optional parameters
+5. **Document custom variables** in workflow description
+
+## Next Steps
+
+- [Templates](../concepts/templates.md) - Template syntax details
+- [Variables](../workflows/variables.md) - Exports and propagation
+- [Workflow Schema](workflow-schema.md) - Complete schema

@@ -1,0 +1,345 @@
+---
+title: "Variables and Exports"
+description: "Data flow and parameter management"
+icon: "arrow-right-arrow-left"
+---
+
+Manage data flow between steps using parameters and exports.
+
+## Parameters
+
+### Defining Parameters
+
+```yaml
+params:
+  - name: target
+    required: true
+    description: Target domain
+
+  - name: threads
+    default: "10"
+    description: Thread count
+
+  - name: wordlist
+    default: "{{Data}}/wordlists/common.txt"
+```
+
+### Using Parameters
+
+```yaml
+steps:
+  - name: scan
+    type: bash
+    command: subfinder -d {{target}} -t {{threads}} -w {{wordlist}}
+```
+
+### Passing Parameters
+
+```bash
+# Single parameter
+osmedeus run -m scan -t example.com -p 'threads=20'
+
+# Multiple parameters
+osmedeus run -m scan -t example.com -p 'threads=20' -p 'wordlist=/path/list.txt'
+
+# From file
+osmedeus run -m scan -t example.com -P params.yaml
+```
+
+## Exports
+
+Exports pass values from one step to the next.
+
+### Basic Export
+
+```yaml
+steps:
+  - name: count-lines
+    type: bash
+    command: wc -l {{Output}}/hosts.txt | cut -d' ' -f1
+    exports:
+      host_count: "{{stdout}}"
+
+  - name: log-count
+    type: function
+    function: log_info("Found {{host_count}} hosts")
+```
+
+### Export Sources
+
+| Source | Description |
+|--------|-------------|
+| `{{stdout}}` | Command standard output |
+| `{{stderr}}` | Command standard error |
+| `{{exit_code}}` | Command exit code |
+| `{{http_status_code}}` | HTTP response status |
+| `{{http_response_body}}` | HTTP response body |
+| `{{llm_response}}` | LLM chat response |
+
+### HTTP Exports
+
+```yaml
+- name: api-call
+  type: http
+  url: "https://api.example.com/data"
+  method: GET
+  exports:
+    response_data: "{{http_response_body}}"
+    status: "{{http_status_code}}"
+
+- name: process
+  type: function
+  function: log_info("Status: {{status}}, Data: {{response_data}}")
+```
+
+### Function Exports
+
+```yaml
+- name: read-file
+  type: function
+  function: readFile("{{Output}}/data.txt")
+  exports:
+    file_content: "{{result}}"
+
+- name: use-content
+  type: bash
+  command: echo "Content: {{file_content}}"
+```
+
+## Variable Scope
+
+### Step-Level Scope
+
+Exports are available to all subsequent steps:
+
+```yaml
+steps:
+  - name: step1
+    type: bash
+    command: echo "value1"
+    exports:
+      var1: "{{stdout}}"
+
+  - name: step2
+    type: bash
+    command: echo "value2"
+    exports:
+      var2: "{{stdout}}"
+
+  - name: step3
+    type: bash
+    command: echo "{{var1}} and {{var2}}"  # Both available
+```
+
+### Foreach Variable Scope
+
+Loop variables use `[[]]` syntax and are only available inside the loop:
+
+```yaml
+- name: process-hosts
+  type: foreach
+  input: "{{Output}}/hosts.txt"
+  variable: host
+  step:
+    name: scan
+    type: bash
+    command: nmap [[host]] -o {{Output}}/nmap-[[host]].txt
+    # [[host]] = current iteration value
+    # {{Output}} = regular template variable
+```
+
+## Resolution Order
+
+Variables are resolved in this order:
+
+1. **Exports** from previous steps
+2. **Parameters** from user input
+3. **Built-in variables** (Target, Output, etc.)
+4. **Environment variables**
+
+```yaml
+params:
+  - name: threads
+    default: "10"
+
+steps:
+  - name: first
+    type: bash
+    command: echo "20"
+    exports:
+      threads: "{{stdout}}"   # Export named 'threads'
+
+  - name: second
+    type: bash
+    command: run -t {{threads}}  # Uses export (20), not param (10)
+```
+
+## Nested Variables
+
+Variables can contain other variables:
+
+```yaml
+params:
+  - name: scan_type
+    default: "basic"
+  - name: output_path
+    default: "{{Output}}/{{scan_type}}"
+
+steps:
+  - name: scan
+    type: bash
+    command: scan -o {{output_path}}/results.txt
+    # Resolves to: {{Output}}/basic/results.txt
+```
+
+## Generator Functions
+
+Use in parameter defaults:
+
+```yaml
+params:
+  - name: scan_id
+    default: "{{uuid()}}"
+
+  - name: timestamp
+    default: "{{currentTimestamp()}}"
+
+  - name: user
+    default: "{{getEnvVar('USER', 'unknown')}}"
+```
+
+Available generators:
+- `uuid()` - UUID v4
+- `currentDate()` - YYYY-MM-DD
+- `currentTimestamp()` - Unix timestamp
+- `randomInt(min, max)` - Random integer
+- `randomString(len)` - Random string
+- `getEnvVar(key, default)` - Environment variable
+
+## Flow Variable Propagation
+
+### Flow to Module
+
+```yaml
+# Flow
+kind: flow
+params:
+  - name: target
+  - name: threads
+    default: "50"
+
+modules:
+  - name: scan
+    path: modules/scan.yaml
+    params:
+      threads: "{{threads}}"   # Pass flow param to module
+```
+
+### Module Exports in Flow
+
+Module exports are not automatically available to other modules. Use shared output files:
+
+```yaml
+# Module A writes
+command: subfinder -d {{target}} -o {{Output}}/subs.txt
+
+# Module B reads (depends_on: [A])
+command: httpx -l {{Output}}/subs.txt
+```
+
+## Common Patterns
+
+### Chained Processing
+
+```yaml
+steps:
+  - name: enumerate
+    type: bash
+    command: subfinder -d {{target}} -silent
+    exports:
+      raw_subs: "{{stdout}}"
+
+  - name: filter
+    type: function
+    function: |
+      split("{{raw_subs}}", "\n")
+        .filter(s => s.endsWith(".{{target}}"))
+        .join("\n")
+    exports:
+      filtered_subs: "{{result}}"
+
+  - name: save
+    type: bash
+    command: echo "{{filtered_subs}}" > {{Output}}/subs.txt
+```
+
+### Conditional on Export
+
+```yaml
+steps:
+  - name: count
+    type: bash
+    command: wc -l < {{Output}}/hosts.txt
+    exports:
+      count: "{{stdout}}"
+
+  - name: scan-if-hosts
+    type: bash
+    pre_condition: '{{count}} > 0'
+    command: nuclei -l {{Output}}/hosts.txt
+```
+
+### Environment Variables
+
+```yaml
+params:
+  - name: api_key
+    default: "{{getEnvVar('API_KEY', '')}}"
+
+steps:
+  - name: api-call
+    type: http
+    url: "https://api.example.com/scan"
+    headers:
+      Authorization: "Bearer {{api_key}}"
+```
+
+## Best Practices
+
+1. **Use descriptive export names**
+   ```yaml
+   exports:
+     subdomain_count: "{{stdout}}"  # Good
+     x: "{{stdout}}"                # Bad
+   ```
+
+2. **Document parameter meanings**
+   ```yaml
+   params:
+     - name: severity
+       default: "high,critical"
+       description: Nuclei severity filter
+   ```
+
+3. **Provide sensible defaults**
+   ```yaml
+   params:
+     - name: threads
+       default: "10"   # Works without explicit parameter
+   ```
+
+4. **Use files for large data**
+   ```yaml
+   # Good: write to file
+   command: subfinder -d {{target}} -o {{Output}}/subs.txt
+
+   # Avoid: large stdout exports
+   exports:
+     all_subs: "{{stdout}}"  # Could be huge
+   ```
+
+## Next Steps
+
+- [Control Flow](control-flow) - Using exports in conditions
+- [Templates](../concepts/templates) - Template syntax
+- [Functions Reference](../functions/reference) - Available functions

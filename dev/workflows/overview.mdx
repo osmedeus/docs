@@ -1,0 +1,225 @@
+---
+title: "Workflow Overview"
+description: "Introduction to workflow structure and concepts"
+icon: "square-list"
+---
+
+Workflows are YAML files that define automated scanning pipelines.
+
+## Basic Structure
+
+### Module
+
+```yaml
+kind: module                    # Type: module or flow
+name: my-workflow               # Unique workflow name
+description: What it does       # Human-readable description
+tags:                           # Optional categorization
+  - reconnaissance
+  - subdomain
+
+params:                         # Input parameters
+  - name: target
+    required: true
+
+runner: host                    # Execution environment
+runner_config: {}               # Runner options
+
+trigger:                        # Scheduling options
+  - name: daily
+    on: cron
+    schedule: "0 2 * * *"
+
+steps:                          # Execution steps
+  - name: step-one
+    type: bash
+    command: echo "Hello"
+```
+
+### Flow
+
+```yaml
+kind: flow
+name: my-pipeline
+description: Multi-module pipeline
+
+params:
+  - name: target
+    required: true
+
+modules:                        # Module references
+  - name: recon
+    path: modules/recon.yaml
+  - name: scan
+    path: modules/scan.yaml
+    depends_on: [recon]
+```
+
+## Field Reference
+
+### Top-Level Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `kind` | Yes | `module` or `flow` |
+| `name` | Yes | Unique workflow identifier |
+| `description` | No | Human-readable description |
+| `tags` | No | Array of category tags |
+| `params` | No | Input parameter definitions |
+| `runner` | No | Default runner type (`host`, `docker`, `ssh`) |
+| `runner_config` | No | Runner configuration object |
+| `trigger` | No | Scheduling trigger definitions |
+| `steps` | Module | List of execution steps |
+| `modules` | Flow | List of module references |
+
+### Parameters
+
+```yaml
+params:
+  - name: target              # Parameter name (required)
+    required: true            # Must be provided (default: false)
+    default: ""               # Default value
+    description: Target domain
+```
+
+Use in templates as `{{target}}`.
+
+### Tags
+
+```yaml
+tags:
+  - reconnaissance
+  - subdomain
+  - passive
+```
+
+Filter workflows:
+```bash
+osmedeus workflow list --tags reconnaissance
+```
+
+## Workflow Kinds
+
+### Module Workflows
+
+For single, focused tasks:
+
+```yaml
+kind: module
+name: subdomain-enum
+
+params:
+  - name: target
+    required: true
+
+steps:
+  - name: subfinder
+    type: bash
+    command: subfinder -d {{target}} -o {{Output}}/subs.txt
+
+  - name: amass
+    type: bash
+    command: amass enum -passive -d {{target}} >> {{Output}}/subs.txt
+
+  - name: dedupe
+    type: bash
+    command: sort -u {{Output}}/subs.txt -o {{Output}}/subdomains.txt
+```
+
+### Flow Workflows
+
+For multi-stage pipelines:
+
+```yaml
+kind: flow
+name: full-recon
+
+params:
+  - name: target
+    required: true
+
+modules:
+  - name: subdomain-enum
+    path: modules/subdomain-enum.yaml
+
+  - name: http-probe
+    path: modules/http-probe.yaml
+    depends_on: [subdomain-enum]
+
+  - name: screenshot
+    path: modules/screenshot.yaml
+    depends_on: [http-probe]
+    condition: 'fileLength("{{Output}}/live.txt") > 0'
+```
+
+## Module References (Flows)
+
+```yaml
+modules:
+  - name: module-name          # Reference name
+    path: modules/file.yaml    # Path to module YAML
+    depends_on: [dep1, dep2]   # Wait for these modules
+    condition: 'expression'    # Skip if false
+    params:                    # Override parameters
+      key: value
+```
+
+## Workflow Location
+
+Store workflows in the workflow folder (default: `~/osmedeus-base/workflows/`):
+
+```
+workflows/
+├── modules/
+│   ├── subdomain-enum.yaml
+│   ├── http-probe.yaml
+│   └── nuclei-scan.yaml
+└── flows/
+    ├── basic-recon.yaml
+    └── full-assessment.yaml
+```
+
+## Running Workflows
+
+```bash
+# Run a module
+osmedeus run -m subdomain-enum -t example.com
+
+# Run a flow
+osmedeus run -f full-recon -t example.com
+
+# List available workflows
+osmedeus workflow list
+
+# Show workflow details
+osmedeus workflow show subdomain-enum
+
+# Validate workflow
+osmedeus workflow validate subdomain-enum
+```
+
+## Validation Rules
+
+The parser validates:
+
+1. **Required fields**: `kind`, `name`, `steps` (module) or `modules` (flow)
+2. **Valid kind**: Must be `module` or `flow`
+3. **Step names**: Each step must have a unique name
+4. **Step types**: Must be valid (bash, function, foreach, etc.)
+5. **Module paths**: Referenced modules must exist (flows)
+6. **Circular dependencies**: No cycles in dependency graph (flows)
+
+## Best Practices
+
+1. **One task per module** - Keep modules focused
+2. **Use flows for pipelines** - Orchestrate with dependencies
+3. **Descriptive names** - `subdomain-enum` not `step1`
+4. **Document parameters** - Add descriptions
+5. **Use tags** - Enable filtering
+
+## Next Steps
+
+- [Step Types](step-types) - All step types
+- [Flows](flows) - Module orchestration
+- [Variables](variables) - Parameters and exports
+- [Control Flow](control-flow) - Conditions and routing

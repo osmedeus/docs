@@ -1,0 +1,284 @@
+---
+title: "Adding Step Types"
+icon: "layer-group"
+---
+
+Add custom step executors to extend workflow capabilities.
+
+## Overview
+
+Step types are handlers that execute specific step configurations. Each type has a dedicated executor in `internal/executor/`.
+
+## Steps to Add a New Step Type
+
+### 1. Define the Type Constant
+
+Add to `internal/core/types.go`:
+
+```go
+// StepType represents the type of step
+type StepType string
+
+const (
+    StepTypeBash          StepType = "bash"
+    StepTypeFunction      StepType = "function"
+    StepTypeForeach       StepType = "foreach"
+    StepTypeParallelSteps StepType = "parallel-steps"
+    StepTypeRemoteBash    StepType = "remote-bash"
+    StepTypeHTTP          StepType = "http"
+    StepTypeLLM           StepType = "llm"
+    StepTypeMyNew         StepType = "mynew"  // Add your new type
+)
+```
+
+### 2. Add Step Fields (if needed)
+
+Add fields to `internal/core/step.go`:
+
+```go
+type Step struct {
+    // Existing fields...
+
+    // New fields for your step type
+    MyNewField     string            `yaml:"my_new_field,omitempty"`
+    MyNewConfig    *MyNewConfig      `yaml:"my_new_config,omitempty"`
+}
+
+type MyNewConfig struct {
+    Option1 string `yaml:"option1,omitempty"`
+    Option2 int    `yaml:"option2,omitempty"`
+}
+```
+
+### 3. Create the Executor
+
+Create `internal/executor/mynew_executor.go`:
+
+```go
+package executor
+
+import (
+    "context"
+
+    "github.com/osmedeus/osmedeus-ng/internal/core"
+    "github.com/osmedeus/osmedeus-ng/internal/template"
+)
+
+type MyNewExecutor struct {
+    templateEngine *template.Engine
+}
+
+func NewMyNewExecutor(templateEngine *template.Engine) *MyNewExecutor {
+    return &MyNewExecutor{
+        templateEngine: templateEngine,
+    }
+}
+
+func (e *MyNewExecutor) Execute(
+    ctx context.Context,
+    step *core.Step,
+    execCtx *core.ExecutionContext,
+) (*core.StepResult, error) {
+    // 1. Render templates in step fields
+    renderedField, err := e.templateEngine.Render(step.MyNewField, execCtx.Variables)
+    if err != nil {
+        return nil, fmt.Errorf("template render failed: %w", err)
+    }
+
+    // 2. Perform your step logic
+    output, err := e.doSomething(ctx, renderedField, step.MyNewConfig)
+    if err != nil {
+        return &core.StepResult{
+            Success: false,
+            Error:   err,
+        }, nil
+    }
+
+    // 3. Return result
+    return &core.StepResult{
+        Success: true,
+        Output:  output,
+    }, nil
+}
+
+func (e *MyNewExecutor) doSomething(
+    ctx context.Context,
+    field string,
+    config *core.MyNewConfig,
+) (string, error) {
+    // Implementation here
+    return "result", nil
+}
+```
+
+### 4. Register in Dispatcher
+
+Update `internal/executor/dispatcher.go`:
+
+```go
+type StepDispatcher struct {
+    bashExecutor       *BashExecutor
+    functionExecutor   *FunctionExecutor
+    foreachExecutor    *ForeachExecutor
+    parallelExecutor   *ParallelExecutor
+    remoteBashExecutor *RemoteBashExecutor
+    httpExecutor       *HTTPExecutor
+    llmExecutor        *LLMExecutor
+    myNewExecutor      *MyNewExecutor  // Add your executor
+    runner             runner.Runner
+}
+
+func NewStepDispatcher(
+    templateEngine *template.Engine,
+    functionRegistry *functions.Registry,
+    runner runner.Runner,
+) *StepDispatcher {
+    return &StepDispatcher{
+        // Existing executors...
+        myNewExecutor: NewMyNewExecutor(templateEngine),
+        runner:        runner,
+    }
+}
+
+func (d *StepDispatcher) Dispatch(
+    ctx context.Context,
+    step *core.Step,
+    execCtx *core.ExecutionContext,
+) (*core.StepResult, error) {
+    switch step.Type {
+    case core.StepTypeBash:
+        return d.bashExecutor.Execute(ctx, step, execCtx, d.runner)
+    // ... other cases ...
+    case core.StepTypeMyNew:
+        return d.myNewExecutor.Execute(ctx, step, execCtx)
+    default:
+        return nil, fmt.Errorf("unknown step type: %s", step.Type)
+    }
+}
+```
+
+### 5. Add Validation
+
+Update `internal/parser/validator.go`:
+
+```go
+func (v *Validator) validateStep(step *core.Step) error {
+    switch step.Type {
+    // ... existing cases ...
+    case core.StepTypeMyNew:
+        return v.validateMyNewStep(step)
+    }
+    return nil
+}
+
+func (v *Validator) validateMyNewStep(step *core.Step) error {
+    if step.MyNewField == "" {
+        return fmt.Errorf("step '%s': my_new_field is required for mynew step type", step.Name)
+    }
+    return nil
+}
+```
+
+### 6. Write Tests
+
+Create `internal/executor/mynew_executor_test.go`:
+
+```go
+package executor
+
+import (
+    "context"
+    "testing"
+
+    "github.com/osmedeus/osmedeus-ng/internal/core"
+    "github.com/osmedeus/osmedeus-ng/internal/template"
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/require"
+)
+
+func TestMyNewExecutor_Execute(t *testing.T) {
+    engine := template.NewEngine()
+    executor := NewMyNewExecutor(engine)
+
+    step := &core.Step{
+        Name:       "test-step",
+        Type:       core.StepTypeMyNew,
+        MyNewField: "test-value",
+    }
+
+    execCtx := &core.ExecutionContext{
+        Variables: map[string]interface{}{
+            "target": "example.com",
+        },
+    }
+
+    result, err := executor.Execute(context.Background(), step, execCtx)
+
+    require.NoError(t, err)
+    assert.True(t, result.Success)
+    assert.NotEmpty(t, result.Output)
+}
+```
+
+## Example: Custom Notification Step
+
+```go
+// internal/executor/notify_executor.go
+
+type NotifyExecutor struct {
+    templateEngine *template.Engine
+}
+
+func (e *NotifyExecutor) Execute(
+    ctx context.Context,
+    step *core.Step,
+    execCtx *core.ExecutionContext,
+) (*core.StepResult, error) {
+    // Render message template
+    message, err := e.templateEngine.Render(step.NotifyMessage, execCtx.Variables)
+    if err != nil {
+        return nil, err
+    }
+
+    // Send notification based on channel
+    switch step.NotifyChannel {
+    case "slack":
+        err = e.sendSlack(ctx, step.NotifyConfig.WebhookURL, message)
+    case "discord":
+        err = e.sendDiscord(ctx, step.NotifyConfig.WebhookURL, message)
+    case "telegram":
+        err = e.sendTelegram(ctx, step.NotifyConfig, message)
+    }
+
+    if err != nil {
+        return &core.StepResult{Success: false, Error: err}, nil
+    }
+
+    return &core.StepResult{Success: true, Output: "Notification sent"}, nil
+}
+```
+
+Usage in workflow:
+```yaml
+- name: notify-complete
+  type: notify
+  notify_channel: slack
+  notify_message: "Scan completed for {{target}}"
+  notify_config:
+    webhook_url: "{{slack_webhook}}"
+```
+
+## Best Practices
+
+1. **Always render templates** before using step fields
+2. **Support context cancellation** via `ctx.Done()`
+3. **Return meaningful errors** with context
+4. **Export useful values** via StepResult
+5. **Write comprehensive tests**
+6. **Add validation rules** for required fields
+
+## Next Steps
+
+- [Adding Runners](runners.md) - Custom execution environments
+- [Adding Functions](functions.md) - Utility functions
+- [Architecture](../concepts/architecture.md) - System overview

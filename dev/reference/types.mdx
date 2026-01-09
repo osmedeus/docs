@@ -1,0 +1,402 @@
+---
+title: "Type Definitions"
+icon: "brackets"
+---
+
+Go type definitions from `internal/core/`.
+
+## Workflow Types
+
+### WorkflowKind
+
+```go
+type WorkflowKind string
+
+const (
+    WorkflowKindModule WorkflowKind = "module"
+    WorkflowKindFlow   WorkflowKind = "flow"
+)
+```
+
+| Value | Description |
+|-------|-------------|
+| `module` | Single execution unit with steps |
+| `flow` | Multi-module orchestration |
+
+### Workflow
+
+```go
+type Workflow struct {
+    Kind         WorkflowKind   `yaml:"kind"`
+    Name         string         `yaml:"name"`
+    Description  string         `yaml:"description,omitempty"`
+    Tags         []string       `yaml:"tags,omitempty"`
+    Params       []Param        `yaml:"params,omitempty"`
+    Runner       RunnerType     `yaml:"runner,omitempty"`
+    RunnerConfig *RunnerConfig  `yaml:"runner_config,omitempty"`
+    Triggers     []Trigger      `yaml:"trigger,omitempty"`
+    Steps        []Step         `yaml:"steps,omitempty"`      // For modules
+    Modules      []ModuleRef    `yaml:"modules,omitempty"`    // For flows
+}
+```
+
+## Step Types
+
+### StepType
+
+```go
+type StepType string
+
+const (
+    StepTypeBash          StepType = "bash"
+    StepTypeFunction      StepType = "function"
+    StepTypeForeach       StepType = "foreach"
+    StepTypeParallelSteps StepType = "parallel-steps"
+    StepTypeRemoteBash    StepType = "remote-bash"
+    StepTypeHTTP          StepType = "http"
+    StepTypeLLM           StepType = "llm"
+)
+```
+
+| Value | Description |
+|-------|-------------|
+| `bash` | Execute shell commands |
+| `function` | Run utility functions |
+| `foreach` | Iterate over file lines |
+| `parallel-steps` | Run steps concurrently |
+| `remote-bash` | Per-step Docker/SSH execution |
+| `http` | Make HTTP requests |
+| `llm` | AI-powered processing |
+
+### Step
+
+```go
+type Step struct {
+    Name             string            `yaml:"name"`
+    Type             StepType          `yaml:"type"`
+    PreCondition     string            `yaml:"pre_condition,omitempty"`
+
+    // Bash
+    Command          string            `yaml:"command,omitempty"`
+    Commands         []string          `yaml:"commands,omitempty"`
+    ParallelCommands []string          `yaml:"parallel_commands,omitempty"`
+    StdFile          string            `yaml:"std_file,omitempty"`
+
+    // Function
+    Function         string            `yaml:"function,omitempty"`
+    Functions        []string          `yaml:"functions,omitempty"`
+    ParallelFunctions []string         `yaml:"parallel_functions,omitempty"`
+
+    // Foreach
+    Input            string            `yaml:"input,omitempty"`
+    Variable         string            `yaml:"variable,omitempty"`
+    Threads          int               `yaml:"threads,omitempty"`
+    Step             *Step             `yaml:"step,omitempty"`
+
+    // Parallel-steps
+    ParallelSteps    []Step            `yaml:"parallel_steps,omitempty"`
+
+    // Remote-bash
+    StepRunner       RunnerType        `yaml:"step_runner,omitempty"`
+    StepRunnerConfig *StepRunnerConfig `yaml:"step_runner_config,omitempty"`
+    StepRemoteFile   string            `yaml:"step_remote_file,omitempty"`
+    HostOutputFile   string            `yaml:"host_output_file,omitempty"`
+
+    // HTTP
+    URL              string            `yaml:"url,omitempty"`
+    Method           string            `yaml:"method,omitempty"`
+    Headers          map[string]string `yaml:"headers,omitempty"`
+    RequestBody      string            `yaml:"request_body,omitempty"`
+
+    // LLM
+    Messages         []Message         `yaml:"messages,omitempty"`
+    Tools            []Tool            `yaml:"tools,omitempty"`
+    IsEmbedding      bool              `yaml:"is_embedding,omitempty"`
+    EmbeddingInput   []string          `yaml:"embedding_input,omitempty"`
+    LLMConfig        *LLMConfig        `yaml:"llm_config,omitempty"`
+    ExtraLLMParams   map[string]any    `yaml:"extra_llm_parameters,omitempty"`
+    ResponseFormat   *ResponseFormat   `yaml:"response_format,omitempty"`
+
+    // Handlers
+    Exports          map[string]string `yaml:"exports,omitempty"`
+    OnSuccess        []Action          `yaml:"on_success,omitempty"`
+    OnError          []Action          `yaml:"on_error,omitempty"`
+    Decision         []Decision        `yaml:"decision,omitempty"`
+}
+```
+
+## Runner Types
+
+### RunnerType
+
+```go
+type RunnerType string
+
+const (
+    RunnerTypeHost   RunnerType = "host"
+    RunnerTypeDocker RunnerType = "docker"
+    RunnerTypeSSH    RunnerType = "ssh"
+)
+```
+
+| Value | Description |
+|-------|-------------|
+| `host` | Local machine execution |
+| `docker` | Container execution |
+| `ssh` | Remote SSH execution |
+
+### RunnerConfig
+
+```go
+type RunnerConfig struct {
+    // Docker
+    Image       string            `yaml:"image,omitempty"`
+    Volumes     []string          `yaml:"volumes,omitempty"`
+    Environment []string          `yaml:"environment,omitempty"`
+    Persistent  bool              `yaml:"persistent,omitempty"`
+    Network     string            `yaml:"network,omitempty"`
+    ExtraArgs   []string          `yaml:"extra_args,omitempty"`
+
+    // SSH
+    Host        string            `yaml:"host,omitempty"`
+    Port        int               `yaml:"port,omitempty"`
+    User        string            `yaml:"user,omitempty"`
+    KeyFile     string            `yaml:"key_file,omitempty"`
+    Password    string            `yaml:"password,omitempty"`
+    KnownHosts  string            `yaml:"known_hosts,omitempty"`
+}
+```
+
+## Trigger Types
+
+### TriggerType
+
+```go
+type TriggerType string
+
+const (
+    TriggerManual TriggerType = "manual"
+    TriggerCron   TriggerType = "cron"
+    TriggerEvent  TriggerType = "event"
+    TriggerWatch  TriggerType = "watch"
+)
+```
+
+| Value | Description |
+|-------|-------------|
+| `manual` | On-demand execution |
+| `cron` | Time-based scheduling |
+| `event` | Event-driven execution |
+| `watch` | File change detection |
+
+### Trigger
+
+```go
+type Trigger struct {
+    Name     string       `yaml:"name"`
+    On       TriggerType  `yaml:"on"`
+    Enabled  bool         `yaml:"enabled"`
+
+    // Cron
+    Schedule string       `yaml:"schedule,omitempty"`
+
+    // Event
+    Event    *EventConfig `yaml:"event,omitempty"`
+    Input    *InputConfig `yaml:"input,omitempty"`
+
+    // Watch
+    Watch    *WatchConfig `yaml:"watch,omitempty"`
+}
+
+type EventConfig struct {
+    Topic   string   `yaml:"topic"`
+    Filters []string `yaml:"filters,omitempty"`
+}
+
+type WatchConfig struct {
+    Path    string   `yaml:"path"`
+    Pattern string   `yaml:"pattern,omitempty"`
+    Events  []string `yaml:"events,omitempty"`
+}
+
+type InputConfig struct {
+    Type  string `yaml:"type"`
+    Field string `yaml:"field"`
+    Name  string `yaml:"name"`
+}
+```
+
+## Status Types
+
+### RunStatus
+
+```go
+type RunStatus string
+
+const (
+    RunStatusPending   RunStatus = "pending"
+    RunStatusRunning   RunStatus = "running"
+    RunStatusCompleted RunStatus = "completed"
+    RunStatusFailed    RunStatus = "failed"
+    RunStatusCancelled RunStatus = "cancelled"
+)
+```
+
+### StepStatus
+
+```go
+type StepStatus string
+
+const (
+    StepStatusPending   StepStatus = "pending"
+    StepStatusRunning   StepStatus = "running"
+    StepStatusCompleted StepStatus = "completed"
+    StepStatusFailed    StepStatus = "failed"
+    StepStatusSkipped   StepStatus = "skipped"
+)
+```
+
+## Result Types
+
+### WorkflowResult
+
+```go
+type WorkflowResult struct {
+    Success      bool
+    RunID        string
+    WorkflowName string
+    Target       string
+    StartedAt    time.Time
+    CompletedAt  time.Time
+    Steps        []StepResult
+    Error        error
+}
+```
+
+### StepResult
+
+```go
+type StepResult struct {
+    Success   bool
+    StepName  string
+    Output    string
+    ExitCode  int
+    Duration  time.Duration
+    Error     error
+    Exports   map[string]interface{}
+}
+```
+
+### CommandResult
+
+```go
+type CommandResult struct {
+    Output   string
+    ExitCode int
+    Error    error
+}
+```
+
+## Execution Context
+
+```go
+type ExecutionContext struct {
+    WorkflowName string
+    WorkflowKind WorkflowKind
+    RunID        string
+    Target       string
+    Variables    map[string]interface{}
+    Params       map[string]string
+    Exports      map[string]interface{}
+    StepIndex    int
+    Logger       *zap.Logger
+}
+```
+
+## Flow Types
+
+### ModuleRef
+
+```go
+type ModuleRef struct {
+    Name      string            `yaml:"name"`
+    Path      string            `yaml:"path"`
+    DependsOn []string          `yaml:"depends_on,omitempty"`
+    Condition string            `yaml:"condition,omitempty"`
+    Params    map[string]string `yaml:"params,omitempty"`
+}
+```
+
+## Action Types
+
+### Action
+
+```go
+type Action struct {
+    Action  string `yaml:"action"`
+    Message string `yaml:"message,omitempty"`
+    Key     string `yaml:"key,omitempty"`
+    Value   string `yaml:"value,omitempty"`
+    Command string `yaml:"command,omitempty"`
+}
+```
+
+### Decision
+
+```go
+type Decision struct {
+    Condition string `yaml:"condition"`
+    Jump      string `yaml:"jump"`
+}
+```
+
+## Parameter Types
+
+### Param
+
+```go
+type Param struct {
+    Name        string `yaml:"name"`
+    Required    bool   `yaml:"required,omitempty"`
+    Default     string `yaml:"default,omitempty"`
+    Description string `yaml:"description,omitempty"`
+}
+```
+
+## LLM Types
+
+### Message
+
+```go
+type Message struct {
+    Role    string      `yaml:"role"`
+    Content interface{} `yaml:"content"` // string or []ContentPart
+}
+
+type ContentPart struct {
+    Type     string    `yaml:"type"`
+    Text     string    `yaml:"text,omitempty"`
+    ImageURL *ImageURL `yaml:"image_url,omitempty"`
+}
+```
+
+### Tool
+
+```go
+type Tool struct {
+    Type     string    `yaml:"type"`
+    Function *Function `yaml:"function,omitempty"`
+}
+
+type Function struct {
+    Name        string                 `yaml:"name"`
+    Description string                 `yaml:"description,omitempty"`
+    Parameters  map[string]interface{} `yaml:"parameters,omitempty"`
+}
+```
+
+## Next Steps
+
+- [Architecture](../concepts/architecture.md) - System overview
+- [Workflow Schema](workflow-schema.md) - YAML schema
+- [Variables Reference](variables.md) - Built-in variables

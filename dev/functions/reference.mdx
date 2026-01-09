@@ -1,0 +1,476 @@
+---
+title: "Functions Reference"
+icon: "list"
+---
+
+Complete reference for all utility functions.
+
+## File Functions
+
+### fileExists(path)
+
+Check if a file exists.
+
+```javascript
+fileExists("/path/to/file.txt")  // Returns: true or false
+```
+
+### fileLength(path)
+
+Count non-empty lines in a file.
+
+```javascript
+fileLength("/path/to/hosts.txt")  // Returns: 42
+```
+
+### dirLength(path)
+
+Count entries in a directory.
+
+```javascript
+dirLength("/path/to/dir")  // Returns: 15
+```
+
+### readFile(path)
+
+Read entire file contents.
+
+```javascript
+readFile("/path/to/file.txt")  // Returns: file contents as string
+```
+
+### readLines(path)
+
+Read file as array of lines.
+
+```javascript
+readLines("/path/to/file.txt")  // Returns: ["line1", "line2", ...]
+```
+
+### writeFile(path, content)
+
+Write content to file (overwrites).
+
+```javascript
+writeFile("/path/to/output.txt", "Hello World")
+```
+
+### appendFile(path, content)
+
+Append content to file.
+
+```javascript
+appendFile("/path/to/log.txt", "New line\n")
+```
+
+### fileContains(path, pattern)
+
+Check if file contains a pattern.
+
+```javascript
+fileContains("/path/to/file.txt", "error")  // Returns: true or false
+```
+
+### regexExtract(path, regex)
+
+Extract lines matching a regex.
+
+```javascript
+regexExtract("/path/to/file.txt", "^https://")  // Returns: matching lines
+```
+
+## String Functions
+
+### trim(str)
+
+Remove leading/trailing whitespace.
+
+```javascript
+trim("  hello world  ")  // Returns: "hello world"
+```
+
+### split(str, separator)
+
+Split string into array.
+
+```javascript
+split("a,b,c", ",")  // Returns: ["a", "b", "c"]
+```
+
+### join(array, separator)
+
+Join array into string.
+
+```javascript
+join(["a", "b", "c"], "-")  // Returns: "a-b-c"
+```
+
+### replace(str, old, new)
+
+Replace all occurrences.
+
+```javascript
+replace("hello world", "world", "there")  // Returns: "hello there"
+```
+
+### contains(str, substr)
+
+Check if string contains substring.
+
+```javascript
+contains("hello world", "world")  // Returns: true
+```
+
+### startsWith(str, prefix)
+
+Check if string starts with prefix.
+
+```javascript
+startsWith("hello", "hel")  // Returns: true
+```
+
+### endsWith(str, suffix)
+
+Check if string ends with suffix.
+
+```javascript
+endsWith("hello", "lo")  // Returns: true
+```
+
+### toLowerCase(str)
+
+Convert to lowercase.
+
+```javascript
+toLowerCase("HELLO")  // Returns: "hello"
+```
+
+### toUpperCase(str)
+
+Convert to uppercase.
+
+```javascript
+toUpperCase("hello")  // Returns: "HELLO"
+```
+
+### match(str, regex)
+
+Test if string matches regex.
+
+```javascript
+match("hello123", "\\d+")  // Returns: true
+```
+
+### length(str)
+
+Get string or array length.
+
+```javascript
+length("hello")  // Returns: 5
+length([1,2,3])  // Returns: 3
+```
+
+### isEmpty(str)
+
+Check if string is empty.
+
+```javascript
+isEmpty("")      // Returns: true
+isEmpty("hello") // Returns: false
+```
+
+## Output Functions
+
+### log_info(message)
+
+Log informational message.
+
+```javascript
+log_info("Scanning target: example.com")
+```
+
+### log_warning(message)
+
+Log warning message.
+
+```javascript
+log_warning("File not found, using defaults")
+```
+
+### log_error(message)
+
+Log error message.
+
+```javascript
+log_error("Failed to connect to target")
+```
+
+### printf(message)
+
+Print message to stdout.
+
+```javascript
+printf("Processing item: " + item)
+```
+
+### cat_file(path)
+
+Print file contents to stdout.
+
+```javascript
+cat_file("/path/to/results.txt")
+```
+
+## Control Functions
+
+### exit(code)
+
+Exit the scan with specified code.
+
+```javascript
+exit(0)  // Success
+exit(1)  // Error
+```
+
+## JSON Functions
+
+### jq(json, query)
+
+Query JSON with jq syntax.
+
+```javascript
+jq('{"name":"test","version":"1.0"}', '.name')  // Returns: "test"
+jq('{"items":[1,2,3]}', '.items[]')             // Returns: [1,2,3]
+jq('{"a":{"b":"c"}}', '.a.b')                   // Returns: "c"
+```
+
+## HTTP Functions
+
+### http_get(url)
+
+Make GET request.
+
+```javascript
+http_get("https://api.example.com/data")  // Returns: response body
+```
+
+### http_post(url, body)
+
+Make POST request.
+
+```javascript
+http_post("https://api.example.com/submit", '{"key":"value"}')
+```
+
+### http_request(method, url, headers, body)
+
+Make custom HTTP request.
+
+```javascript
+http_request("PUT", "https://api.example.com/update",
+  {"Authorization": "Bearer token"},
+  '{"data":"value"}')
+```
+
+## Database Functions
+
+### db_select_assets(workspace, format)
+
+Query assets from database.
+
+```javascript
+// Format: "markdown" or "jsonl"
+db_select_assets("example.com", "markdown")
+```
+
+### db_select_assets_filtered(workspace, where, format)
+
+Query assets with WHERE clause.
+
+```javascript
+db_select_assets_filtered("example.com", "status_code = 200", "jsonl")
+```
+
+### db_select_vulnerabilities(workspace, format)
+
+Query vulnerabilities from database.
+
+```javascript
+db_select_vulnerabilities("example.com", "markdown")
+```
+
+### db_select_vulnerabilities_filtered(workspace, where, format)
+
+Query vulnerabilities with WHERE clause.
+
+```javascript
+db_select_vulnerabilities_filtered("example.com", "severity = 'high'", "markdown")
+```
+
+### db_select(table, where, format)
+
+Generic database query.
+
+```javascript
+db_select("assets", "workspace = 'example.com'", "jsonl")
+```
+
+### db_select_one(table, where)
+
+Query single record.
+
+```javascript
+db_select_one("workspaces", "name = 'example.com'")
+```
+
+### db_delete(table, where)
+
+Delete records.
+
+```javascript
+db_delete("assets", "workspace = 'old-workspace'")
+```
+
+## Markdown Functions
+
+### render_markdown_report(templatePath, data)
+
+Render markdown from template.
+
+```javascript
+render_markdown_report("{{Data}}/templates/report.md", {
+  "target": "example.com",
+  "findings": readFile("{{Output}}/findings.txt")
+})
+```
+
+### convert_jsonl_to_markdown(filePath)
+
+Convert JSONL to markdown table.
+
+```javascript
+convert_jsonl_to_markdown("{{Output}}/assets.jsonl")
+```
+
+### convert_csv_to_markdown(filePath)
+
+Convert CSV to markdown table.
+
+```javascript
+convert_csv_to_markdown("{{Output}}/results.csv")
+```
+
+## Utility Functions
+
+### getEnvVar(key, default)
+
+Get environment variable.
+
+```javascript
+getEnvVar("HOME")                    // Returns: "/home/user"
+getEnvVar("API_KEY", "not-set")      // Returns: value or "not-set"
+```
+
+### execCmd(command)
+
+Execute shell command.
+
+```javascript
+execCmd("whoami")  // Returns: command output
+```
+
+## Usage Examples
+
+### Conditional Execution
+
+```yaml
+- name: scan-if-hosts
+  type: bash
+  pre_condition: 'fileLength("{{Output}}/hosts.txt") > 0 && fileExists("{{Output}}/hosts.txt")'
+  command: nuclei -l {{Output}}/hosts.txt
+```
+
+### Chain Functions
+
+```yaml
+- name: process
+  type: function
+  functions:
+    - log_info("Starting processing")
+    - writeFile("{{Output}}/status.txt", "processing")
+    - log_info("Processing complete")
+```
+
+### Export Results
+
+```yaml
+- name: count
+  type: function
+  function: fileLength("{{Output}}/results.txt")
+  exports:
+    result_count: "{{result}}"
+
+- name: report
+  type: function
+  function: log_info("Found {{result_count}} results")
+```
+
+### Decision Based on Function
+
+```yaml
+- name: check-size
+  type: function
+  function: fileLength("{{Output}}/data.txt")
+  exports:
+    size: "{{result}}"
+  decision:
+    - condition: '{{size}} > 1000'
+      jump: large-dataset
+    - condition: '{{size}} <= 1000'
+      jump: small-dataset
+```
+
+### HTTP API Integration
+
+```yaml
+- name: submit-results
+  type: function
+  function: |
+    http_post("https://api.example.com/results",
+      '{"target": "{{target}}", "count": {{result_count}}}')
+```
+
+### Database Reporting
+
+```yaml
+- name: generate-report
+  type: function
+  functions:
+    - writeFile("{{Output}}/report.md", "# Vulnerability Report\n\n")
+    - appendFile("{{Output}}/report.md", db_select_vulnerabilities("{{target}}", "markdown"))
+    - log_info("Report generated at {{Output}}/report.md")
+```
+
+## CLI Testing
+
+```bash
+# Test file functions
+osmedeus func e 'fileExists("/etc/passwd")'
+osmedeus func e 'fileLength("/etc/passwd")'
+
+# Test string functions
+osmedeus func e 'trim("  hello  ")'
+osmedeus func e 'split("a,b,c", ",")'
+
+# Test with target
+osmedeus func e 'log_info("Target: {{target}}")' -t example.com
+
+# Test JSON
+osmedeus func e 'jq("{\"a\":1}", ".a")'
+```
+
+## Next Steps
+
+- [Functions Overview](overview.md) - How to use functions
+- [Step Types](../workflows/step-types.md) - Function steps
+- [Control Flow](../workflows/control-flow.md) - Conditions

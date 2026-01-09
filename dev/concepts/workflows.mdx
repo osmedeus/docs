@@ -1,0 +1,269 @@
+---
+title: "Workflows"
+description: "YAML-based workflow definitions and execution"
+icon: "diagram-project"
+---
+
+Osmedeus workflows define automated security scanning pipelines using YAML.
+
+## Workflow Types
+
+### Module
+
+A **module** is a single execution unit containing a sequence of steps.
+
+```yaml
+kind: module
+name: subdomain-enum
+description: Enumerate subdomains for a target
+
+params:
+  - name: target
+    required: true
+
+steps:
+  - name: run-subfinder
+    type: bash
+    command: subfinder -d {{target}} -o {{Output}}/subdomains.txt
+```
+
+Use modules for:
+- Single scanning tasks
+- Atomic operations
+- Building blocks for flows
+
+### Flow
+
+A **flow** orchestrates multiple modules with dependencies.
+
+```yaml
+kind: flow
+name: full-recon
+description: Complete reconnaissance pipeline
+
+params:
+  - name: target
+    required: true
+
+modules:
+  - name: subdomain-enum
+    path: modules/subdomain-enum.yaml
+
+  - name: http-probe
+    path: modules/http-probe.yaml
+    depends_on:
+      - subdomain-enum
+
+  - name: screenshot
+    path: modules/screenshot.yaml
+    depends_on:
+      - http-probe
+```
+
+Use flows for:
+- Multi-stage pipelines
+- Dependency management
+- Conditional execution
+
+## Execution Lifecycle
+
+### Module Execution
+
+```
+1. Parse workflow YAML
+2. Validate structure and required params
+3. Create workspace directory
+4. Initialize execution context
+   - Inject built-in variables (Target, Output, etc.)
+   - Merge user parameters
+5. For each step:
+   a. Evaluate pre_condition (skip if false)
+   b. Render templates in step fields
+   c. Dispatch to step executor
+   d. Process exports
+   e. Evaluate decision routing
+   f. Handle on_success/on_error actions
+6. Return result
+```
+
+### Flow Execution
+
+```
+1. Parse flow YAML
+2. Build dependency graph (DAG)
+3. For each module (topologically sorted):
+   a. Check if dependencies completed
+   b. Evaluate condition (skip if false)
+   c. Execute module
+   d. Continue to dependent modules
+4. Aggregate results
+```
+
+## Workflow Structure
+
+### Module YAML
+
+```yaml
+kind: module                    # Required: "module"
+name: my-module                 # Required: workflow name
+description: What it does       # Optional: description
+tags:                          # Optional: categorization
+  - reconnaissance
+  - subdomain
+
+params:                        # Parameters
+  - name: target
+    required: true
+    description: Target domain
+  - name: threads
+    default: "10"
+    description: Thread count
+
+runner: host                   # Optional: default runner (host|docker|ssh)
+runner_config:                 # Optional: runner configuration
+  image: alpine:latest
+
+trigger:                       # Optional: scheduling triggers
+  - name: daily
+    on: cron
+    schedule: "0 2 * * *"
+
+steps:                         # Required: list of steps
+  - name: step-one
+    type: bash
+    command: echo "Hello"
+```
+
+### Flow YAML
+
+```yaml
+kind: flow                     # Required: "flow"
+name: my-flow                  # Required: workflow name
+description: Pipeline          # Optional: description
+
+params:                        # Flow-level parameters
+  - name: target
+    required: true
+
+modules:                       # Required: list of module references
+  - name: first-module
+    path: modules/first.yaml
+    params:                    # Override module params
+      threads: "20"
+
+  - name: second-module
+    path: modules/second.yaml
+    depends_on:
+      - first-module
+    condition: 'fileLength("{{Output}}/data.txt") > 0'
+```
+
+## Workspace Structure
+
+Each scan creates a workspace directory:
+
+```
+~/osmedeus-base/workspaces/
+└── example.com/                    # Target workspace
+    ├── workflow.yaml               # Executed workflow (copy)
+    ├── subdomain-enum/             # Module output directory
+    │   ├── subdomains.txt
+    │   └── amass.txt
+    ├── http-probe/
+    │   └── live-hosts.txt
+    └── screenshot/
+        └── screenshots/
+```
+
+Output paths:
+- `{{Output}}` - Points to workspace root
+- `{{Output}}/module-name/` - Recommended per-module output
+
+## Dependency Graph
+
+Flows create a directed acyclic graph (DAG):
+
+```yaml
+modules:
+  - name: A                    # No dependencies - runs first
+    path: modules/a.yaml
+
+  - name: B                    # Depends on A
+    path: modules/b.yaml
+    depends_on: [A]
+
+  - name: C                    # Depends on A
+    path: modules/c.yaml
+    depends_on: [A]
+
+  - name: D                    # Depends on B and C
+    path: modules/d.yaml
+    depends_on: [B, C]
+```
+
+Execution order:
+```
+    A
+   / \
+  B   C
+   \ /
+    D
+```
+
+- A runs first
+- B and C run in parallel (both depend only on A)
+- D runs after both B and C complete
+
+## Conditional Execution
+
+### Pre-conditions (Steps)
+
+Skip a step based on a condition:
+
+```yaml
+- name: nuclei-scan
+  type: bash
+  pre_condition: 'fileLength("{{Output}}/live-hosts.txt") > 0'
+  command: nuclei -l {{Output}}/live-hosts.txt
+```
+
+### Conditions (Modules in Flow)
+
+Skip a module based on a condition:
+
+```yaml
+modules:
+  - name: vuln-scan
+    path: modules/vuln.yaml
+    depends_on: [http-probe]
+    condition: 'fileLength("{{Output}}/live-hosts.txt") > 0'
+```
+
+## Workflow Resolution
+
+When you run `osmedeus run -m <name>`, the loader searches:
+
+1. `workflows/<name>.yaml`
+2. `workflows/<name>-module.yaml`
+3. `workflows/modules/<name>.yaml`
+4. `workflows/modules/<name>-module.yaml`
+
+For flows (`-f <name>`):
+1. `workflows/<name>.yaml`
+2. `workflows/<name>-flow.yaml`
+3. `workflows/flows/<name>.yaml`
+4. `workflows/flows/<name>-flow.yaml`
+
+## Best Practices
+
+1. **One task per module** - Keep modules focused
+2. **Use flows for pipelines** - Orchestrate with dependencies
+3. **Parameterize everything** - Make workflows reusable
+4. **Check file existence** - Use pre_condition to avoid errors
+5. **Organize output** - Use `{{Output}}/module-name/` paths
+
+## Next Steps
+
+- [Step Types](../workflows/step-types) - Available step types
+- [Variables](../workflows/variables) - Parameters and exports
+- [Control Flow](../workflows/control-flow) - Conditions and routing

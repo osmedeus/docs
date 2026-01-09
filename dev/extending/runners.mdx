@@ -1,0 +1,351 @@
+---
+title: "Adding Runners"
+icon: "sliders"
+---
+
+Add custom execution environments for workflow commands.
+
+## Overview
+
+Runners execute bash commands in different environments. Osmedeus includes Host, Docker, and SSH runners.
+
+## Runner Interface
+
+All runners implement this interface in `internal/runner/runner.go`:
+
+```go
+type Runner interface {
+    Execute(ctx context.Context, command string) (*CommandResult, error)
+    Setup(ctx context.Context) error
+    Cleanup(ctx context.Context) error
+    Type() core.RunnerType
+    IsRemote() bool
+}
+
+type CommandResult struct {
+    Output   string
+    ExitCode int
+    Error    error
+}
+```
+
+## Steps to Add a New Runner
+
+### 1. Define the Type Constant
+
+Add to `internal/core/types.go`:
+
+```go
+type RunnerType string
+
+const (
+    RunnerTypeHost   RunnerType = "host"
+    RunnerTypeDocker RunnerType = "docker"
+    RunnerTypeSSH    RunnerType = "ssh"
+    RunnerTypeMyNew  RunnerType = "mynew"  // Add your type
+)
+```
+
+### 2. Add Configuration (if needed)
+
+Update `internal/core/workflow.go`:
+
+```go
+type RunnerConfig struct {
+    // Existing fields...
+
+    // MyNew runner specific
+    MyNewOption1 string `yaml:"mynew_option1,omitempty"`
+    MyNewOption2 int    `yaml:"mynew_option2,omitempty"`
+}
+```
+
+### 3. Create the Runner
+
+Create `internal/runner/mynew_runner.go`:
+
+```go
+package runner
+
+import (
+    "context"
+    "fmt"
+
+    "github.com/osmedeus/osmedeus-ng/internal/core"
+)
+
+type MyNewRunner struct {
+    config *core.RunnerConfig
+    // Add any connection/state fields
+    client *SomeClient
+}
+
+func NewMyNewRunner(config *core.RunnerConfig) (*MyNewRunner, error) {
+    if config.MyNewOption1 == "" {
+        return nil, fmt.Errorf("mynew_option1 is required")
+    }
+
+    return &MyNewRunner{
+        config: config,
+    }, nil
+}
+
+func (r *MyNewRunner) Setup(ctx context.Context) error {
+    // Initialize connection, create resources, etc.
+    client, err := connectToService(r.config.MyNewOption1)
+    if err != nil {
+        return fmt.Errorf("failed to connect: %w", err)
+    }
+    r.client = client
+    return nil
+}
+
+func (r *MyNewRunner) Execute(ctx context.Context, command string) (*CommandResult, error) {
+    // Check for context cancellation
+    select {
+    case <-ctx.Done():
+        return nil, ctx.Err()
+    default:
+    }
+
+    // Execute command in your environment
+    output, exitCode, err := r.client.RunCommand(ctx, command)
+    if err != nil {
+        return &CommandResult{
+            Output:   output,
+            ExitCode: exitCode,
+            Error:    err,
+        }, nil
+    }
+
+    return &CommandResult{
+        Output:   output,
+        ExitCode: exitCode,
+    }, nil
+}
+
+func (r *MyNewRunner) Cleanup(ctx context.Context) error {
+    // Clean up resources
+    if r.client != nil {
+        return r.client.Close()
+    }
+    return nil
+}
+
+func (r *MyNewRunner) Type() core.RunnerType {
+    return core.RunnerTypeMyNew
+}
+
+func (r *MyNewRunner) IsRemote() bool {
+    return true // or false for local execution
+}
+
+// Optional: implement CopyFromRemote for remote runners
+func (r *MyNewRunner) CopyFromRemote(ctx context.Context, remotePath, localPath string) error {
+    return r.client.DownloadFile(ctx, remotePath, localPath)
+}
+```
+
+### 4. Register in Factory
+
+Update `internal/runner/runner.go`:
+
+```go
+func NewRunnerFromType(
+    runnerType core.RunnerType,
+    config *core.RunnerConfig,
+    binaryPath string,
+) (Runner, error) {
+    switch runnerType {
+    case core.RunnerTypeHost:
+        return NewHostRunner()
+    case core.RunnerTypeDocker:
+        return NewDockerRunner(config)
+    case core.RunnerTypeSSH:
+        return NewSSHRunner(config, binaryPath)
+    case core.RunnerTypeMyNew:
+        return NewMyNewRunner(config)
+    default:
+        return nil, fmt.Errorf("unknown runner type: %s", runnerType)
+    }
+}
+```
+
+### 5. Add Validation
+
+Update `internal/parser/validator.go`:
+
+```go
+func (v *Validator) validateRunnerConfig(runnerType core.RunnerType, config *core.RunnerConfig) error {
+    switch runnerType {
+    case core.RunnerTypeMyNew:
+        if config == nil {
+            return fmt.Errorf("runner_config required for mynew runner")
+        }
+        if config.MyNewOption1 == "" {
+            return fmt.Errorf("mynew_option1 is required")
+        }
+    }
+    return nil
+}
+```
+
+### 6. Write Tests
+
+Create `internal/runner/mynew_runner_test.go`:
+
+```go
+package runner
+
+import (
+    "context"
+    "testing"
+
+    "github.com/osmedeus/osmedeus-ng/internal/core"
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/require"
+)
+
+func TestMyNewRunner_Execute(t *testing.T) {
+    config := &core.RunnerConfig{
+        MyNewOption1: "test-value",
+    }
+
+    runner, err := NewMyNewRunner(config)
+    require.NoError(t, err)
+
+    ctx := context.Background()
+    err = runner.Setup(ctx)
+    require.NoError(t, err)
+    defer runner.Cleanup(ctx)
+
+    result, err := runner.Execute(ctx, "echo hello")
+    require.NoError(t, err)
+    assert.Contains(t, result.Output, "hello")
+    assert.Equal(t, 0, result.ExitCode)
+}
+```
+
+## Example: Kubernetes Runner
+
+```go
+// internal/runner/k8s_runner.go
+
+type K8sRunner struct {
+    config    *core.RunnerConfig
+    clientset *kubernetes.Clientset
+    pod       *v1.Pod
+}
+
+func NewK8sRunner(config *core.RunnerConfig) (*K8sRunner, error) {
+    kubeconfig, err := clientcmd.BuildConfigFromFlags("", config.KubeConfigPath)
+    if err != nil {
+        return nil, err
+    }
+
+    clientset, err := kubernetes.NewForConfig(kubeconfig)
+    if err != nil {
+        return nil, err
+    }
+
+    return &K8sRunner{
+        config:    config,
+        clientset: clientset,
+    }, nil
+}
+
+func (r *K8sRunner) Setup(ctx context.Context) error {
+    // Create pod for execution
+    pod := &v1.Pod{
+        ObjectMeta: metav1.ObjectMeta{
+            Name:      fmt.Sprintf("osmedeus-%s", uuid.New().String()[:8]),
+            Namespace: r.config.Namespace,
+        },
+        Spec: v1.PodSpec{
+            Containers: []v1.Container{{
+                Name:    "runner",
+                Image:   r.config.Image,
+                Command: []string{"sleep", "infinity"},
+            }},
+            RestartPolicy: v1.RestartPolicyNever,
+        },
+    }
+
+    created, err := r.clientset.CoreV1().Pods(r.config.Namespace).Create(ctx, pod, metav1.CreateOptions{})
+    if err != nil {
+        return err
+    }
+    r.pod = created
+
+    // Wait for pod to be ready
+    return r.waitForPod(ctx)
+}
+
+func (r *K8sRunner) Execute(ctx context.Context, command string) (*CommandResult, error) {
+    req := r.clientset.CoreV1().RESTClient().Post().
+        Resource("pods").
+        Name(r.pod.Name).
+        Namespace(r.config.Namespace).
+        SubResource("exec").
+        VersionedParams(&v1.PodExecOptions{
+            Container: "runner",
+            Command:   []string{"sh", "-c", command},
+            Stdout:    true,
+            Stderr:    true,
+        }, scheme.ParameterCodec)
+
+    exec, err := remotecommand.NewSPDYExecutor(r.config, "POST", req.URL())
+    if err != nil {
+        return nil, err
+    }
+
+    var stdout, stderr bytes.Buffer
+    err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+        Stdout: &stdout,
+        Stderr: &stderr,
+    })
+
+    return &CommandResult{
+        Output: stdout.String() + stderr.String(),
+        // Extract exit code from error if available
+    }, err
+}
+
+func (r *K8sRunner) Cleanup(ctx context.Context) error {
+    if r.pod != nil {
+        return r.clientset.CoreV1().Pods(r.config.Namespace).Delete(ctx, r.pod.Name, metav1.DeleteOptions{})
+    }
+    return nil
+}
+```
+
+Usage in workflow:
+```yaml
+kind: module
+name: k8s-scan
+runner: k8s
+runner_config:
+  kubeconfig_path: ~/.kube/config
+  namespace: osmedeus
+  image: alpine:latest
+
+steps:
+  - name: scan
+    type: bash
+    command: nmap -sV {{target}}
+```
+
+## Best Practices
+
+1. **Implement context cancellation** - Check `ctx.Done()` for graceful shutdown
+2. **Clean up resources** - Always cleanup in `Cleanup()` method
+3. **Handle reconnection** - For remote runners, handle connection drops
+4. **Log operations** - Use structured logging for debugging
+5. **Validate configuration** - Check required fields early
+6. **Support file transfer** - Implement `CopyFromRemote` if applicable
+
+## Next Steps
+
+- [Adding Step Types](step-types.md) - Custom step executors
+- [Adding Functions](functions.md) - Utility functions
+- [Runners Concept](../concepts/runners.md) - Runner overview

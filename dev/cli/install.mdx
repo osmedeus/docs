@@ -1,0 +1,307 @@
+---
+title: "osmedeus install"
+icon: "download"
+---
+
+Install binaries, workflows, and manage the environment.
+
+## Synopsis
+
+```bash
+osmedeus install <command> [flags]
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `binary` | Install binary tools from registry |
+| `workflow <source>` | Install workflows from URL/file |
+| `base <source>` | Install base folder from URL/file |
+| `env` | Add binaries to shell PATH |
+| `validate` | Check environment health |
+
+## install binary
+
+Install security tools from the binary registry.
+
+```bash
+osmedeus install binary [flags]
+```
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `-n, --name <name>` | Binary name(s) to install (repeatable) |
+| `--all` | Install all required binaries |
+| `--check` | Check installation status only |
+| `--install-optional` | Include optional binaries |
+| `--nix-installation` | Install Nix package manager |
+| `--nix-build-install` | Install binaries via Nix |
+| `--list-registry-direct-fetch` | List direct-fetch binaries |
+| `--list-registry-nix-build` | List Nix-compatible binaries |
+
+### Direct Fetch Mode
+
+Downloads pre-built binaries:
+
+```bash
+# Install specific binary
+osmedeus install binary --name nuclei
+
+# Install multiple binaries
+osmedeus install binary --name nuclei --name httpx --name ffuf
+
+# Install all required binaries
+osmedeus install binary --all
+
+# Include optional binaries
+osmedeus install binary --all --install-optional
+
+# Check status without installing
+osmedeus install binary --name nuclei --check
+osmedeus install binary --all --check
+
+# List available binaries
+osmedeus install binary --list-registry-direct-fetch
+```
+
+### Nix Mode
+
+Uses Nix package manager for reproducible builds:
+
+```bash
+# Install Nix package manager first
+osmedeus install binary --nix-installation
+
+# List Nix-compatible binaries
+osmedeus install binary --list-registry-nix-build
+
+# Install all via Nix
+osmedeus install binary --nix-build-install
+
+# Install specific binary via Nix
+osmedeus install binary --name nuclei --nix-build-install
+```
+
+### Output
+
+```bash
+$ osmedeus install binary --all --check
+Binary Installation Status:
+
+┌────────────┬──────────┬─────────────────────────────┐
+│ Name       │ Status   │ Path                        │
+├────────────┼──────────┼─────────────────────────────┤
+│ nuclei     │ ✓        │ ~/osmedeus-base/binaries/   │
+│ httpx      │ ✓        │ ~/osmedeus-base/binaries/   │
+│ subfinder  │ ✗        │ -                           │
+│ amass      │ ✗        │ -                           │
+└────────────┴──────────┴─────────────────────────────┘
+
+Missing: 2 binaries
+```
+
+## install workflow
+
+Install workflows from external sources.
+
+```bash
+osmedeus install workflow <source> [flags]
+```
+
+### Sources
+
+- Git repository URL
+- ZIP file URL
+- Local file path
+
+### Examples
+
+```bash
+# From Git repository
+osmedeus install workflow https://github.com/example/osmedeus-workflows.git
+
+# From ZIP URL
+osmedeus install workflow https://example.com/workflows.zip
+
+# From local file
+osmedeus install workflow ~/downloads/custom-workflows.zip
+```
+
+## install base
+
+Install or replace the entire base folder.
+
+```bash
+osmedeus install base <source> [flags]
+```
+
+### Notes
+
+- Backs up existing database
+- Restores database after installation
+- Use for complete environment setup
+
+### Examples
+
+```bash
+# From URL
+osmedeus install base https://example.com/osmedeus-base.zip
+
+# From local file
+osmedeus install base ~/downloads/osmedeus-base.zip
+```
+
+## install env
+
+Add binaries folder to shell PATH.
+
+```bash
+osmedeus install env [flags]
+```
+
+### Effects
+
+Adds to shell config (`.bashrc`, `.zshrc`):
+```bash
+export PATH="$HOME/osmedeus-base/binaries:$PATH"
+```
+
+### Usage
+
+```bash
+# Add to PATH
+osmedeus install env
+
+# Reload shell
+source ~/.bashrc  # or ~/.zshrc
+```
+
+## install validate
+
+Check environment health.
+
+```bash
+osmedeus install validate [flags]
+```
+
+Aliases: `val`
+
+### Checks
+
+- Base folder exists
+- Required directories present
+- Database accessible
+- Binaries installed
+- Workflows available
+
+### Output
+
+```bash
+$ osmedeus install validate
+Environment Validation:
+
+✓ Base folder: ~/osmedeus-base
+✓ Binaries folder: ~/osmedeus-base/binaries
+✓ Workflows folder: ~/osmedeus-base/workflows
+✓ Workspaces folder: ~/osmedeus-base/workspaces
+✓ Database: ~/osmedeus-base/database-osm.sqlite
+✓ Settings: ~/osmedeus-base/osm-settings.yaml
+
+Binaries: 15/20 installed
+Workflows: 12 available (8 modules, 4 flows)
+
+Status: Ready (some binaries missing)
+```
+
+## Binary Registry
+
+### Direct Fetch Binaries
+
+```bash
+$ osmedeus install binary --list-registry-direct-fetch
+
+Direct Fetch Binaries:
+┌────────────────┬──────────────────────────────────────────────────┐
+│ Name           │ Description                                      │
+├────────────────┼──────────────────────────────────────────────────┤
+│ nuclei         │ Fast vulnerability scanner                       │
+│ httpx          │ HTTP probe tool                                  │
+│ subfinder      │ Subdomain enumeration                            │
+│ amass          │ Attack surface mapping                           │
+│ ffuf           │ Web fuzzer                                       │
+│ ...            │ ...                                              │
+└────────────────┴──────────────────────────────────────────────────┘
+```
+
+### Nix Binaries
+
+```bash
+$ osmedeus install binary --list-registry-nix-build
+
+Nix Package Binaries:
+┌────────────────┬──────────────────────────────────────────────────┐
+│ Name           │ Nix Package                                      │
+├────────────────┼──────────────────────────────────────────────────┤
+│ nuclei         │ nixpkgs#nuclei                                   │
+│ httpx          │ nixpkgs#httpx                                    │
+│ ...            │ ...                                              │
+└────────────────┴──────────────────────────────────────────────────┘
+```
+
+## Common Workflows
+
+### Initial Setup
+
+```bash
+# Install all binaries
+osmedeus install binary --all
+
+# Add to PATH
+osmedeus install env
+source ~/.bashrc
+
+# Validate
+osmedeus install validate
+```
+
+### Update Binaries
+
+```bash
+# Check current status
+osmedeus install binary --all --check
+
+# Reinstall all
+osmedeus install binary --all
+```
+
+### Nix Setup
+
+```bash
+# Install Nix first
+osmedeus install binary --nix-installation
+
+# Then install binaries via Nix
+osmedeus install binary --nix-build-install
+```
+
+## API Equivalent
+
+```bash
+# Get registry info
+curl http://localhost:8002/osm/api/registry-info \
+  -H "Authorization: Bearer $TOKEN"
+
+# Install binary
+curl -X POST http://localhost:8002/osm/api/install \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "binary", "name": "nuclei"}'
+```
+
+## See Also
+
+- [Installation](../getting-started/installation.md)
+- [Configuration](../getting-started/configuration.md)

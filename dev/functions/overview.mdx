@@ -1,0 +1,222 @@
+---
+title: "Functions Overview"
+icon: "lightbulb"
+---
+
+Osmedeus provides utility functions via an Otto JavaScript VM runtime.
+
+## Usage
+
+### In Steps
+
+```yaml
+- name: log-start
+  type: function
+  function: log_info("Scanning {{target}}")
+
+- name: check-file
+  type: function
+  functions:
+    - log_info("Checking files")
+    - fileExists("{{Output}}/data.txt")
+```
+
+### In Conditions
+
+```yaml
+- name: scan
+  type: bash
+  pre_condition: 'fileLength("{{Output}}/hosts.txt") > 0'
+  command: nuclei -l {{Output}}/hosts.txt
+```
+
+### In Flow Conditions
+
+```yaml
+modules:
+  - name: vuln-scan
+    path: modules/vuln.yaml
+    condition: 'fileExists("{{Output}}/live.txt")'
+```
+
+## Function Step Types
+
+### Single Function
+
+```yaml
+- name: log
+  type: function
+  function: log_info("Message")
+```
+
+### Multiple Functions (Sequential)
+
+```yaml
+- name: setup
+  type: function
+  functions:
+    - log_info("Step 1")
+    - log_info("Step 2")
+    - log_info("Step 3")
+```
+
+### Parallel Functions
+
+```yaml
+- name: parallel-checks
+  type: function
+  parallel_functions:
+    - fileLength("{{Output}}/file1.txt")
+    - fileLength("{{Output}}/file2.txt")
+    - fileLength("{{Output}}/file3.txt")
+```
+
+## Return Values
+
+Functions return values that can be:
+
+### Used in Exports
+
+```yaml
+- name: count-lines
+  type: function
+  function: fileLength("{{Output}}/hosts.txt")
+  exports:
+    host_count: "{{result}}"
+```
+
+### Used in Conditions
+
+```yaml
+- name: scan
+  type: bash
+  pre_condition: 'fileLength("{{Output}}/hosts.txt") > 0'
+  command: scan {{Output}}/hosts.txt
+```
+
+### Used in Decision Routing
+
+```yaml
+- name: check
+  type: function
+  function: fileExists("{{Output}}/critical.txt")
+  exports:
+    has_critical: "{{result}}"
+  decision:
+    - condition: '{{has_critical}}'
+      jump: handle-critical
+```
+
+## CLI Evaluation
+
+Test functions from the command line:
+
+```bash
+# List all functions
+osmedeus func list
+
+# Evaluate a function
+osmedeus func e 'fileExists("/path/to/file")'
+
+# With target variable
+osmedeus func e 'log_info("Scanning {{target}}")' -t example.com
+
+# Read from stdin
+echo 'trim("  hello  ")' | osmedeus func e -
+
+# With custom parameters
+osmedeus func e 'log_info("{{message}}")' --params 'message=Hello World'
+```
+
+## API Evaluation
+
+Evaluate functions via REST API:
+
+```bash
+curl -X POST http://localhost:8002/osm/api/functions/eval \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"script": "fileLength(\"/path/to/file\")"}'
+```
+
+List available functions:
+
+```bash
+curl http://localhost:8002/osm/api/functions/list \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## Context Variables
+
+Functions have access to execution context:
+
+```javascript
+// Built-in variables are available
+log_info("Target: " + "{{target}}")
+log_info("Output: " + "{{Output}}")
+
+// Exports from previous steps
+log_info("Previous result: " + "{{previous_export}}")
+```
+
+## Error Handling
+
+Functions that fail don't stop workflow execution unless you configure error handling:
+
+```yaml
+- name: risky-function
+  type: function
+  function: readFile("/possibly/missing/file.txt")
+  on_error:
+    - action: log
+      message: "Function failed"
+    - action: continue
+```
+
+## Function Categories
+
+| Category | Functions |
+|----------|-----------|
+| **File** | `fileExists`, `fileLength`, `readFile`, `writeFile`, `appendFile`, `dirLength` |
+| **String** | `trim`, `split`, `join`, `replace`, `contains`, `startsWith`, `endsWith`, `match` |
+| **Database** | `db_select`, `db_select_one`, `db_select_assets`, `db_select_vulnerabilities` |
+| **Output** | `log_info`, `log_warning`, `log_error`, `printf`, `cat_file` |
+| **Control** | `exit` |
+| **JSON** | `jq` |
+| **HTTP** | `http_get`, `http_post`, `http_request` |
+| **Markdown** | `render_markdown_report`, `convert_jsonl_to_markdown`, `convert_csv_to_markdown` |
+| **Unix** | Various system utilities |
+
+## Best Practices
+
+1. **Use functions for conditions**
+   ```yaml
+   pre_condition: 'fileExists("{{Output}}/input.txt")'
+   ```
+
+2. **Log meaningful messages**
+   ```yaml
+   function: log_info("Found {{host_count}} hosts for {{target}}")
+   ```
+
+3. **Export function results**
+   ```yaml
+   exports:
+     line_count: "{{result}}"
+   ```
+
+4. **Handle missing files gracefully**
+   ```yaml
+   pre_condition: 'fileExists("{{Output}}/data.txt")'
+   ```
+
+5. **Use appropriate function types**
+   - `log_info` for informational messages
+   - `log_warning` for warnings
+   - `log_error` for errors
+
+## Next Steps
+
+- [Functions Reference](reference.md) - Complete function list
+- [Control Flow](../workflows/control-flow.md) - Using conditions
+- [Variables](../workflows/variables.md) - Exports and parameters

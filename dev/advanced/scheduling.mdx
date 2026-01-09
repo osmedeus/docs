@@ -1,0 +1,339 @@
+---
+title: "Scheduling"
+icon: "clock"
+---
+
+Automate workflow execution with triggers.
+
+## Trigger Types
+
+| Type | Description | Use Case |
+|------|-------------|----------|
+| `cron` | Time-based scheduling | Daily/weekly scans |
+| `event` | Event-driven execution | React to discoveries |
+| `watch` | File change detection | Process new data |
+| `manual` | On-demand only | Placeholder trigger |
+
+## Cron Triggers
+
+Execute workflows on a schedule using cron expressions.
+
+### Workflow Definition
+
+```yaml
+kind: module
+name: scheduled-scan
+
+trigger:
+  - name: daily-scan
+    on: cron
+    schedule: "0 2 * * *"    # Daily at 2 AM
+    enabled: true
+
+params:
+  - name: target
+    required: true
+
+steps:
+  - name: scan
+    type: bash
+    command: nuclei -u {{target}}
+```
+
+### Cron Expression Format
+
+```
+┌───────────── minute (0 - 59)
+│ ┌───────────── hour (0 - 23)
+│ │ ┌───────────── day of month (1 - 31)
+│ │ │ ┌───────────── month (1 - 12)
+│ │ │ │ ┌───────────── day of week (0 - 6) (Sunday = 0)
+│ │ │ │ │
+* * * * *
+```
+
+### Common Schedules
+
+| Expression | Description |
+|------------|-------------|
+| `0 * * * *` | Every hour |
+| `0 2 * * *` | Daily at 2 AM |
+| `0 0 * * 0` | Weekly on Sunday |
+| `0 0 1 * *` | Monthly on the 1st |
+| `*/15 * * * *` | Every 15 minutes |
+| `0 9-17 * * 1-5` | Hourly 9-5 weekdays |
+
+## Event Triggers
+
+Execute workflows in response to events.
+
+### Workflow Definition
+
+```yaml
+kind: module
+name: on-asset-discovered
+
+trigger:
+  - name: new-asset
+    on: event
+    event:
+      topic: "assets.new"
+      filters:
+        - "event.source == 'subfinder'"
+        - "event.data.type == 'subdomain'"
+    input:
+      type: event_data
+      field: "url"
+      name: target
+    enabled: true
+
+steps:
+  - name: probe
+    type: bash
+    command: httpx -u {{target}}
+```
+
+### Event Topics
+
+| Topic | Description |
+|-------|-------------|
+| `run.started` | Workflow run started |
+| `run.completed` | Workflow run completed |
+| `run.failed` | Workflow run failed |
+| `step.completed` | Step completed |
+| `assets.new` | New asset discovered |
+| `vulnerabilities.new` | New vulnerability found |
+
+### Event Filters
+
+JavaScript expressions to filter events:
+
+```yaml
+filters:
+  - "event.source == 'nuclei'"
+  - "event.data.severity == 'critical'"
+  - "event.workspace == 'example.com'"
+```
+
+### Event Input Mapping
+
+Map event data to workflow parameters:
+
+```yaml
+input:
+  type: event_data
+  field: "target"      # Field in event data
+  name: target         # Workflow parameter name
+```
+
+## Watch Triggers
+
+Execute workflows when files change.
+
+### Workflow Definition
+
+```yaml
+kind: module
+name: process-new-targets
+
+trigger:
+  - name: new-targets
+    on: watch
+    watch:
+      path: "/data/targets/"
+      pattern: "*.txt"
+      events: ["create", "modify"]
+    input:
+      type: file_path
+      name: target_file
+    enabled: true
+
+steps:
+  - name: process
+    type: foreach
+    input: "{{target_file}}"
+    variable: target
+    step:
+      type: bash
+      command: scan {{target}}
+```
+
+### Watch Events
+
+| Event | Description |
+|-------|-------------|
+| `create` | New file created |
+| `modify` | File modified |
+| `delete` | File deleted |
+| `rename` | File renamed |
+
+## API Management
+
+### List Schedules
+
+```bash
+curl http://localhost:8002/osm/api/schedules \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Create Schedule
+
+```bash
+curl -X POST http://localhost:8002/osm/api/schedules \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "daily-scan",
+    "workflow_name": "full-recon",
+    "trigger_type": "cron",
+    "schedule": "0 2 * * *",
+    "input_config": {
+      "target": "example.com"
+    },
+    "is_enabled": true
+  }'
+```
+
+### Enable/Disable
+
+```bash
+# Enable
+curl -X POST http://localhost:8002/osm/api/schedules/sched-123/enable \
+  -H "Authorization: Bearer $TOKEN"
+
+# Disable
+curl -X POST http://localhost:8002/osm/api/schedules/sched-123/disable \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Trigger Manually
+
+```bash
+curl -X POST http://localhost:8002/osm/api/schedules/sched-123/trigger \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Delete Schedule
+
+```bash
+curl -X DELETE http://localhost:8002/osm/api/schedules/sched-123 \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## Combined Triggers
+
+A workflow can have multiple triggers:
+
+```yaml
+kind: module
+name: flexible-scan
+
+trigger:
+  # Run daily
+  - name: daily
+    on: cron
+    schedule: "0 2 * * *"
+    enabled: true
+
+  # Run on new assets
+  - name: on-asset
+    on: event
+    event:
+      topic: "assets.new"
+    input:
+      type: event_data
+      field: "url"
+      name: target
+    enabled: true
+
+  # Manual trigger placeholder
+  - name: manual
+    on: manual
+    enabled: true
+
+params:
+  - name: target
+    required: true
+
+steps:
+  - name: scan
+    type: bash
+    command: scan {{target}}
+```
+
+## Event Emission
+
+Emit events from workflows:
+
+```yaml
+- name: scan
+  type: bash
+  command: nuclei -u {{target}} -o {{Output}}/vulns.json
+  on_success:
+    - action: emit_event
+      topic: "scan.completed"
+      data:
+        target: "{{target}}"
+        results: "{{Output}}/vulns.json"
+```
+
+## Database Storage
+
+Schedules are stored in the database:
+
+```sql
+-- schedules table
+id, name, workflow_name, workflow_path, trigger_type,
+schedule, event_topic, watch_path, input_config,
+is_enabled, last_run, next_run, run_count,
+created_at, updated_at
+```
+
+Query schedules:
+```bash
+osmedeus db query "SELECT * FROM schedules WHERE is_enabled = true"
+```
+
+## Best Practices
+
+1. **Use descriptive trigger names**
+2. **Start with disabled triggers** during testing
+3. **Set reasonable intervals** to avoid overload
+4. **Use event filters** to reduce noise
+5. **Monitor trigger execution** via event logs
+6. **Combine with distributed mode** for scale
+
+## Troubleshooting
+
+### Schedule not running
+
+```bash
+# Check if enabled
+curl http://localhost:8002/osm/api/schedules/sched-123
+
+# Check next_run time
+# Ensure server is running
+```
+
+### Events not triggering
+
+```bash
+# Check event logs
+curl "http://localhost:8002/osm/api/event-logs?topic=assets.new"
+
+# Verify filter expressions
+```
+
+### Watch not detecting changes
+
+```bash
+# Verify path exists
+# Check file permissions
+# Ensure pattern matches
+```
+
+## Next Steps
+
+- [Distributed Execution](distributed.md) - Scale with workers
+- [Server CLI](../cli/server.md) - Server setup
+- [API Overview](../api/overview.md) - Schedule endpoints

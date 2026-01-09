@@ -1,0 +1,415 @@
+---
+title: "Workflow Schema"
+icon: "diagram-project"
+---
+
+Complete YAML schema reference for workflows.
+
+## Module Schema
+
+```yaml
+# Required
+kind: module                     # "module" for single execution unit
+name: string                     # Unique workflow name
+
+# Optional metadata
+description: string              # Human-readable description
+tags:                           # Categorization tags
+  - string
+
+# Parameters
+params:
+  - name: string                 # Required: parameter name
+    required: boolean            # Default: false
+    default: string              # Default value
+    description: string          # Parameter description
+
+# Execution environment
+runner: string                   # "host" | "docker" | "ssh" (default: "host")
+runner_config:                   # Runner-specific configuration
+  # Docker options
+  image: string                  # Docker image
+  volumes:                       # Volume mounts
+    - string                     # "host:container"
+  environment:                   # Environment variables
+    - string                     # "KEY=value"
+  persistent: boolean            # Keep container running (default: false)
+  network: string                # Docker network
+  extra_args:                    # Additional docker args
+    - string
+
+  # SSH options
+  host: string                   # SSH hostname
+  port: integer                  # SSH port (default: 22)
+  user: string                   # SSH username
+  key_file: string               # Path to private key
+  password: string               # SSH password (not recommended)
+
+# Scheduling triggers
+trigger:
+  - name: string                 # Trigger name
+    on: string                   # "cron" | "event" | "watch" | "manual"
+    enabled: boolean             # Default: true
+
+    # Cron trigger
+    schedule: string             # Cron expression
+
+    # Event trigger
+    event:
+      topic: string              # Event topic
+      filters:                   # JavaScript filter expressions
+        - string
+    input:                       # Map event to param
+      type: string               # "event_data"
+      field: string              # Field in event
+      name: string               # Parameter name
+
+    # Watch trigger
+    watch:
+      path: string               # Directory to watch
+      pattern: string            # File pattern (e.g., "*.txt")
+      events:                    # "create" | "modify" | "delete"
+        - string
+
+# Execution steps
+steps:
+  - name: string                 # Required: unique step name
+    type: string                 # Required: step type
+
+    # Common fields
+    pre_condition: string        # Skip condition (JavaScript)
+    exports:                     # Export values
+      key: string                # "{{stdout}}" | "{{result}}" | etc.
+    on_success:                  # Success handlers
+      - action: string           # "log" | "export" | "run" | "notify"
+        # action-specific fields
+    on_error:                    # Error handlers
+      - action: string           # "log" | "abort" | "continue" | "run"
+    decision:                    # Conditional routing
+      - condition: string        # JavaScript expression
+        jump: string             # Step name or "_end"
+
+    # Type-specific fields (see Step Types below)
+```
+
+## Flow Schema
+
+```yaml
+# Required
+kind: flow                       # "flow" for multi-module orchestration
+name: string                     # Unique workflow name
+
+# Optional metadata
+description: string
+tags:
+  - string
+
+# Parameters (flow-level)
+params:
+  - name: string
+    required: boolean
+    default: string
+    description: string
+
+# Module references
+modules:
+  - name: string                 # Required: reference name
+    path: string                 # Required: path to module YAML
+
+    # Dependencies
+    depends_on:                  # Wait for these modules
+      - string                   # Module names
+
+    # Conditional execution
+    condition: string            # Skip if false (JavaScript)
+
+    # Parameter overrides
+    params:                      # Override module params
+      key: value
+```
+
+## Step Types
+
+### bash
+
+```yaml
+- name: string
+  type: bash
+
+  # Single command
+  command: string
+
+  # Multiple sequential commands
+  commands:
+    - string
+
+  # Parallel commands
+  parallel_commands:
+    - string
+
+  # Structured arguments
+  input_args:
+    - name: string
+      flag: string
+      value: string
+  output_args:
+    - name: string
+      flag: string
+      value: string
+  config_args:
+    - name: string
+      flag: string
+      value: string
+  speed_args:
+    - name: string
+      flag: string
+      value: string
+
+  # Save output
+  std_file: string               # Path to save stdout
+```
+
+### function
+
+```yaml
+- name: string
+  type: function
+
+  # Single function
+  function: string
+
+  # Multiple sequential functions
+  functions:
+    - string
+
+  # Parallel functions
+  parallel_functions:
+    - string
+```
+
+### foreach
+
+```yaml
+- name: string
+  type: foreach
+  input: string                  # Path to input file
+  variable: string               # Loop variable name (use [[variable]])
+  threads: integer               # Concurrent iterations (default: 1)
+  step:                          # Nested step to execute
+    name: string
+    type: string
+    # ... step fields
+```
+
+### parallel-steps
+
+```yaml
+- name: string
+  type: parallel-steps
+  parallel_steps:                # Steps to run concurrently
+    - name: string
+      type: string
+      # ... step fields
+```
+
+### remote-bash
+
+```yaml
+- name: string
+  type: remote-bash
+  step_runner: string            # "docker" | "ssh"
+  step_runner_config:            # Same as runner_config
+    # ... runner options
+  command: string
+
+  # File transfer (SSH)
+  step_remote_file: string       # Remote file to copy back
+  host_output_file: string       # Local destination
+```
+
+### http
+
+```yaml
+- name: string
+  type: http
+  url: string                    # Request URL
+  method: string                 # "GET" | "POST" | "PUT" | "DELETE" etc.
+  headers:                       # Request headers
+    key: value
+  request_body: string           # Request body
+
+  # Auto-exports: http_status_code, http_response_body, http_response_headers
+```
+
+### llm
+
+```yaml
+- name: string
+  type: llm
+
+  # Chat completion
+  messages:
+    - role: string               # "system" | "user" | "assistant" | "tool"
+      content: string            # Or content array for multimodal
+
+  # Embeddings
+  is_embedding: boolean
+  embedding_input:
+    - string
+
+  # Tool calling
+  tools:
+    - type: function
+      function:
+        name: string
+        description: string
+        parameters:              # JSON Schema
+          type: object
+          properties: {}
+          required: []
+
+  # Response format
+  response_format:
+    type: string                 # "json_object" | "json_schema"
+    json_schema:                 # For structured output
+      name: string
+      schema: {}                 # JSON Schema
+
+  # Configuration override
+  llm_config:
+    provider: string
+    api_key: [REDACTED:api-key]
+    model: string
+    base_url: string
+
+  extra_llm_parameters:
+    temperature: number
+    max_tokens: integer
+    # ... other LLM params
+
+  # Auto-exports: llm_response, llm_tool_calls, llm_embeddings
+```
+
+## Action Schema
+
+### on_success / on_error
+
+```yaml
+on_success:
+  - action: log
+    message: string
+
+  - action: export
+    key: string
+    value: string
+
+  - action: run
+    command: string
+
+  - action: notify
+    message: string
+
+  - action: continue           # Continue execution (error only)
+
+  - action: abort              # Stop workflow (error only)
+```
+
+### decision
+
+```yaml
+decision:
+  - condition: string          # JavaScript expression
+    jump: string               # Step name or "_end"
+```
+
+## Parameter Schema
+
+```yaml
+params:
+  - name: string               # Required
+    required: boolean          # Default: false
+    default: string            # Default value (supports templates)
+    description: string        # Human-readable description
+```
+
+## Trigger Schema
+
+### Cron
+
+```yaml
+trigger:
+  - name: string
+    on: cron
+    schedule: string           # Cron expression
+    enabled: boolean
+```
+
+### Event
+
+```yaml
+trigger:
+  - name: string
+    on: event
+    event:
+      topic: string
+      filters:
+        - string
+    input:
+      type: event_data
+      field: string
+      name: string
+    enabled: boolean
+```
+
+### Watch
+
+```yaml
+trigger:
+  - name: string
+    on: watch
+    watch:
+      path: string
+      pattern: string
+      events:
+        - string
+    input:
+      type: file_path
+      name: string
+    enabled: boolean
+```
+
+## Runner Config Schema
+
+### Docker
+
+```yaml
+runner: docker
+runner_config:
+  image: string                # Required
+  volumes:
+    - "host:container"
+  environment:
+    - "KEY=value"
+  persistent: boolean
+  network: string
+  extra_args:
+    - string
+```
+
+### SSH
+
+```yaml
+runner: ssh
+runner_config:
+  host: string                 # Required
+  port: integer                # Default: 22
+  user: string                 # Required
+  key_file: string             # Path to private key
+  password: [REDACTED:password]             # Not recommended
+```
+
+## Next Steps
+
+- [Variables Reference](variables.md) - Built-in variables
+- [Types Reference](types.md) - Go type definitions
+- [Step Types](../workflows/step-types.md) - Step type details
