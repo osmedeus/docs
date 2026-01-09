@@ -17,91 +17,91 @@
             "group": "Getting Started",
             "icon": "rocket",
             "pages": [
-              "dev/index",
-              "dev/getting-started/quickstart",
-              "dev/getting-started/installation",
-              "dev/getting-started/configuration",
-              "dev/getting-started/deployment",
-              "dev/getting-started/development"
+              "index",
+              "getting-started/quickstart",
+              "getting-started/installation",
+              "getting-started/configuration",
+              "getting-started/deployment",
+              "getting-started/development"
             ]
           },
           {
             "group": "Concepts",
             "icon": "lightbulb",
             "pages": [
-              "dev/concepts/architecture",
-              "dev/concepts/workflows",
-              "dev/concepts/runners",
-              "dev/concepts/templates"
+              "concepts/architecture",
+              "concepts/workflows",
+              "concepts/runners",
+              "concepts/templates"
             ]
           },
           {
             "group": "Workflows",
             "icon": "chart-diagram",
             "pages": [
-              "dev/workflows/overview",
-              "dev/workflows/flows",
-              "dev/workflows/variables",
-              "dev/workflows/control-flow",
-              "dev/workflows/step-types"
+              "workflows/overview",
+              "workflows/flows",
+              "workflows/variables",
+              "workflows/control-flow",
+              "workflows/step-types"
             ]
           },
           {
             "group": "CLI Usage",
             "icon": "terminal",
             "pages": [
-              "dev/cli/run",
-              "dev/cli/install",
-              "dev/cli/server",
-              "dev/cli/workflow",
-              "dev/cli/function",
-              "dev/cli/snapshot"
+              "cli/run",
+              "cli/install",
+              "cli/server",
+              "cli/workflow",
+              "cli/function",
+              "cli/snapshot"
             ]
           },
           {
             "group": "Functions",
             "icon": "cube",
             "pages": [
-              "dev/functions/overview",
-              "dev/functions/reference"
+              "functions/overview",
+              "functions/reference"
             ]
           },
           {
             "group": "Extending",
             "icon": "hammer",
             "pages": [
-              "dev/extending/runners",
-              "dev/extending/step-types",
-              "dev/extending/functions",
-              "dev/extending/cli-commands",
-              "dev/extending/api-endpoints"
+              "extending/runners",
+              "extending/step-types",
+              "extending/functions",
+              "extending/cli-commands",
+              "extending/api-endpoints"
             ]
           },
           {
             "group": "Advanced",
             "icon": "gear",
             "pages": [
-              "dev/advanced/distributed",
-              "dev/advanced/scheduling",
-              "dev/advanced/snapshots",
-              "dev/advanced/llm"
+              "advanced/distributed",
+              "advanced/scheduling",
+              "advanced/snapshots",
+              "advanced/llm"
             ]
           },
           {
             "group": "Reference",
             "icon": "book",
             "pages": [
-              "dev/reference/workflow-schema",
-              "dev/reference/types",
-              "dev/reference/variables"
+              "reference/workflow-schema",
+              "reference/types",
+              "reference/variables"
             ]
           },
           {
             "group": "API Server",
             "icon": "book-open",
             "pages": [
-              "dev/api/overview",
-              "dev/api/quick-reference"
+              "api/overview",
+              "api/quick-reference"
             ]
           },
           {
@@ -145,7 +145,7 @@
         },
         {
           "anchor": "Sponring",
-          "href": "/dev/others/sponsor",
+          "href": "/others/sponsor",
           "icon": "hands-holding-diamond"
         }
       ]
@@ -191,7 +191,14 @@
     }
   },
   "banner": {
-  "content": "🛠️ This document is under active maintenance in preparation for the major Osmedeus **v5.0.0** upgrade",
-  "dismissible": true 
-}
+    "content": "🛠️ This document is under active maintenance in preparation for the major Osmedeus **v5.0.0** upgrade",
+    "dismissible": true
+  },
+  "errors": {
+    "404": {
+      "redirect": false,
+      "title": "Oh my, the page has gone missing all on its own!",
+      "description": "Oh dear! I'm terribly sorry for the mix-up. Perhaps try the main path home, or check your directions again. Yours politely, with a tip of the hat."
+    }
+  }
 }
