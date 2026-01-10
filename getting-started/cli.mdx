@@ -1,0 +1,412 @@
+---
+title: "CLI Interface"
+description: "Command-line interface for Osmedeus"
+icon: "terminal"
+---
+
+<Frame caption="CLI Run Progress">
+  <img src="/images/cli/cli-run-progress.png" alt="Descriptive alt text" />
+</Frame>
+
+This document describes the command-line interface (CLI) for Osmedeus which is the main entry point for running workflows and modules and some other utilities.
+
+It provides usage examples and explanations for each command. Below are all available commands:
+
+```bash
+j3ssie ▶ osmedeus -h
+
+Usage:
+  osmedeus [flags]
+  osmedeus [command]
+
+Available Commands:
+  completion  Generate the autocompletion script for the specified shell
+  config      Manage osmedeus configuration
+  db          Database management commands
+  function    Execute and test utility functions
+  health      Check and fix environment health (alias for 'osmedeus install validate')
+  help        Help about any command
+  install     Install workflows, base folder, or binaries
+  run         Execute a workflow
+  scan        Execute a workflow (alias for 'run')
+  serve       Start the Osmedeus web server
+  snapshot    Export and import workspace snapshots
+  version     Print version information
+  worker      Worker node commands for distributed scanning
+  workflow    Manage workflows
+```
+
+
+## Osmedeus Run
+
+Execute a workflow against one or more targets
+
+<Frame caption="CLI Run with LLM Step">
+  <img src="/images/cli/cli-run-with-llm-step.png" alt="Descriptive alt text" />
+</Frame>
+
+```bash
+
+▷ Examples
+  # Run against a single target
+  osmedeus run -f recon-workflow -t example.com
+
+  # Run against multiple targets
+  osmedeus run -m simple-module -t target1.com -t target2.com
+
+  # Run with stdin input with concurrency
+  cat list-of-urls.txt | osmedeus run -m simple-module --concurrency 10
+
+  # Combine multiple input methods
+  echo "extra.com" | osmedeus run -m simple-module -t main.com -T more-targets.txt
+
+  # Run with custom parameters
+  osmedeus run -m simple-module -t example.com --params 'threads=20'
+
+  # Run with custom base folder
+  osmedeus run --base-folder /opt/osmedeus-base -f recon-workflow -t example.com
+
+  # Run with timeout (cancel if exceeds)
+  osmedeus run -m recon -t example.com --timeout 2h
+
+  # Repeat run every hour continuously
+  osmedeus run -m recon -t example.com --repeat --repeat-wait-time 1h
+
+  # Run multiple modules in sequence
+  osmedeus run -m subdomain -m portscan -m vulnscan -t example.com
+
+  # Combine timeout with repeat mode
+  osmedeus run -m recon -t example.com --timeout 3h --repeat --repeat-wait-time 30m
+
+  # Dry-run mode (preview without executing)
+  osmedeus run -m recon -t example.com --dry-run
+
+  # Run module from stdin (pipe YAML)
+  cat module.yaml | osmedeus run --std-module -t example.com
+
+  # Load parameters from YAML/JSON file
+  osmedeus run -m recon -t example.com --params-file params.yaml
+
+  # Custom workspace path
+  osmedeus run -m recon -t example.com --workspace /custom/workspace
+
+  # Skip heuristics checks
+  osmedeus run -m recon -t example.com --heuristics-check none
+
+  # Concurrent targets from file
+  osmedeus run -m recon -T targets.txt --concurrency 5
+```
+
+## Osmedeus Function Eval
+
+Execute and test utility functions available in workflows
+
+<Frame caption="CLI Function Eval to Query Database">
+  <img src="/images/cli/cli-func-eval-1.png" alt="Descriptive alt text" />
+</Frame>
+
+<Frame caption="CLI Function Eval to render markdown">
+  <img src="/images/cli/cli-func-eval-2.png" alt="Descriptive alt text" />
+</Frame>
+
+
+```bash
+▶ Subcommands
+  • list       - List all available functions
+  • eval (e)   - Evaluate scripts with template rendering
+
+▷ Examples
+  # List all available functions
+  osmedeus func list
+
+  # Evaluate a simple function
+  osmedeus func eval 'trim("  hello  ")'
+
+  # Short alias for eval
+  osmedeus func e 'log_info("Hello World")'
+
+  # Use with target variable
+  osmedeus func e 'fileExists("{{target}}")' -t /tmp/test.txt
+
+  # Print markdown file with syntax highlighting
+  osmedeus func e 'print_markdown_from_file("README.md")'
+
+  # Multi-line script with variable
+  osmedeus func e 'var x = trim("  test  "); log_info(x); x'
+
+  # Make HTTP request
+  osmedeus func e 'httpRequest("https://api.example.com", "GET", {}, "")'
+
+  # With custom params
+  osmedeus func e 'log_info("{{host}}:{{port}}")' --params 'host=localhost' --params 'port=8080'
+
+  # Query database with SQL
+  osmedeus func e 'db_select("SELECT severity, COUNT(*) FROM vulnerabilities GROUP BY severity", "markdown")'
+
+  # Query filtered assets from database
+  osmedeus func e 'db_select_assets_filtered("example.com", 200, "subdomain", "jsonl")'
+
+  # Read script from stdin
+  echo 'log_info("hello")' | osmedeus func e --stdin
+
+  # Alternative stdin syntax
+  echo 'trim("  test  ")' | osmedeus func e -
+```
+
+## Installation Command
+
+One-liner to install workflows, base folder, or binaries from various sources.
+
+```bash
+◆ Description
+  Install workflows, base folder, or binaries from various sources.
+
+▶ Subcommands
+  • workflow  - Install workflows from git URL, zip URL, or local zip
+  • base      - Install base folder (backs up and restores database)
+  • binary    - Install binaries from registry
+  • env       - Add binaries path to shell configuration
+  • validate  - Check and fix environment health
+
+▷ Examples
+  # List available binaries (direct-fetch mode)
+  osmedeus install binary --list-registry-direct-fetch
+
+  # List available binaries (nix-build mode)
+  osmedeus install binary --list-registry-nix-build
+
+  # Install specific binaries
+  osmedeus install binary --name nuclei --name httpx
+
+  # Install all required binaries
+  osmedeus install binary --all
+
+  # Install all binaries including optional ones
+  osmedeus install binary --all --install-optional
+
+  # Check if binaries are installed
+  osmedeus install binary --all --check
+
+  # Install Nix package manager
+  osmedeus install binary --nix-installation
+
+  # Install binary via Nix
+  osmedeus install binary --name nuclei --nix-mode
+
+  # Install all binaries via Nix
+  osmedeus install binary --all --nix-mode
+
+  # Install workflows from git
+  osmedeus install workflow https://github.com/user/osmedeus-workflows.git
+
+  # Install base folder from git
+  osmedeus install base https://github.com/user/osmedeus-base.git
+```
+
+<Expandable title="Full Usage Examples">
+  <ResponseField name="full_name" type="string">
+    The full name of the user
+  </ResponseField>
+  <ResponseField name="is_over_21" type="boolean">
+
+```
+
+                                        .;1tfLCL1,
+                                       .,,..;i;f0G;
+                                             ,:,tCC.  ...
+                                             ;i:fCL,1LLtf1i;,
+                                           .,::tCL1LC1::;, .,,
+                                           ;1:tCL,tLt,1:
+                                          ,::tLf, 1Lf;::.
+                                        .ii:tLt.  .1Lf;i1.
+                                        ,:;tf1      1ft;::
+                                     .1;:tf1  ,i1t1,  ift;;1,
+                                    ,i:t;f. ,LLffLL:  tft;i:
+                                    .;:;fff  .LCLLLf, 1ffi:;.
+                                    :fi;Lff1.  ,;;:  ifffi;f;
+                                     .:::tCLLfi:,,:ifLfLt::;.
+                                      ,11:1CCCCCLLLLLLf1;1t:
+                                      .it;:;1fLLLLfft1;:;ti.
+                                         ,:;::;;;;;;;;;;,
+                                           .,::::::::,.
+
+                            Osmedeus Next Generation v5.0.0 by @j3ssie
+
+                            A Modern Orchestration Engine for Security
+
+                                            ¯\_(ツ)_/¯
+
+═══════════════════════════════════════════════════════════════════
+                     OSMEDEUS FULL USAGE REFERENCE
+═══════════════════════════════════════════════════════════════════
+
+GLOBAL FLAGS (available for all commands)
+───────────────────────────────────────────────────────────────────
+  --settings-file        Path to settings file (default: $HOME/osmedeus-base/osm-settings.yaml)
+  -b, --base-folder      Base folder containing workflows and settings
+  -F, --workflow-folder  Custom workflow folder path
+  -v, --verbose          Enable verbose output
+  --debug                Enable debug mode (verbose + debug logging)
+  -q, --silent           Silent mode - suppress all output except errors
+  --log-file             Path to log file (logs to both console and file)
+  --log-file-tmp         Create temporary log file osmedeus-log-<timestamp>.log
+  -H, --usage-example    Show comprehensive usage examples
+  --full-usage-example   Show this full usage reference (pager mode)
+  --spinner              Show spinner animations during execution
+  --disable-logging      Disable all logging output
+  --disable-color        Disable colored output
+  --disable-notification Disable all notifications
+  --disable-db           Disable database connection (lightweight mode)
+  --ci-output-format     Output results in JSON format for CI pipelines
+
+RUN COMMAND - Execute workflows
+───────────────────────────────────────────────────────────────────
+  osmedeus run [flags]
+
+  Workflow Selection:
+  -f, --flow             Flow workflow name to execute
+  -m, --module           Module workflow(s) to execute (can specify multiple)
+  --std-module           Read module YAML from stdin
+
+  Target Selection:
+  -t, --target           Target(s) to run against (can specify multiple)
+  -T, --target-file      File containing targets (one per line)
+  --empty-target         Run without target (generates placeholder)
+
+  Parameters:
+  -p, --params           Additional parameters (key=value format)
+  -P, --params-file      File containing parameters (JSON or YAML)
+  -B, --tactic           Run tactic: aggressive, default, gently
+  --threads-hold         Override thread count (0 = use tactic default)
+
+  Execution Control:
+  -c, --concurrency      Number of targets to run concurrently (default: 1)
+  --timeout              Run timeout (e.g., 2h, 3h, 1d)
+  --repeat               Repeat run after completion
+  --repeat-wait-time     Wait time between repeats (default: 1h)
+  --dry-run              Show what would be executed without running
+  -G, --progress-bar     Show progress bar during execution
+
+  Workspace:
+  -w, --workspace        Custom workspace path
+  -W, --workspaces-folder Override {{Workspaces}} variable
+  -S, --space            Override {{TargetSpace}} variable
+  --disable-workspace-creation Skip workspace directory creation
+  --clean-up-workspace   Delete workspace directory after run completes
+
+  Filtering:
+  -x, --exclude          Module(s) to exclude from execution
+  --heuristics-check     Heuristics check level: none, basic, advanced
+
+  Distributed Mode:
+  -D, --distributed-run  Submit run to distributed worker queue
+  --redis-url            Redis connection URL for distributed mode
+
+SERVE COMMAND - Start REST API server
+───────────────────────────────────────────────────────────────────
+  osmedeus serve [flags]
+
+  --host                 Host to bind the server to (default: from config)
+  --port                 Port number for the API server
+  -A, --no-auth          Disable authentication (development only)
+  --master               Run as distributed master node
+  --redis-url            Redis connection URL for master mode
+
+WORKFLOW COMMAND - Manage workflows
+───────────────────────────────────────────────────────────────────
+  osmedeus workflow list              List available workflows
+  osmedeus workflow show <name>       Show workflow details
+  osmedeus workflow validate <name>   Validate a workflow (alias: val)
+
+  List Flags:
+  --tags                 Filter workflows by tags (comma-separated)
+  --show-tags            Show tags column in output
+
+  Show Flags:
+  -v, --verbose          Show detailed variable descriptions
+  --table                Show metadata table instead of YAML
+
+FUNCTION COMMAND - Execute utility functions
+───────────────────────────────────────────────────────────────────
+  osmedeus func list                  List all available functions (alias: ls)
+  osmedeus func eval <script>         Evaluate a script (alias: e)
+
+  Eval Flags:
+  -e, --eval             Script to evaluate
+  -t, --target           Target value for {{target}} variable
+  --params               Additional parameters (key=value format)
+  --stdin                Read script from stdin
+
+WORKER COMMAND - Distributed worker management
+───────────────────────────────────────────────────────────────────
+  osmedeus worker join                Join the distributed worker pool
+  osmedeus worker status              Show worker pool status
+
+  Join Flags:
+  --redis-url            Redis connection URL
+  --workers              Number of concurrent workers (default: 5)
+
+  Status Flags:
+  --redis-url            Redis connection URL
+
+DATABASE COMMAND - Database management
+───────────────────────────────────────────────────────────────────
+  osmedeus db list                    List tables with row counts (alias: ls)
+  osmedeus db list -t <table>         List records from a table
+  osmedeus db seed                    Seed database with sample data
+  osmedeus db clean --force           Remove all data from database
+  osmedeus db migrate                 Run database migrations
+  osmedeus db index workflow          Index workflows from filesystem to database
+
+  List Flags:
+  -t, --table            Table name to list records from
+  --offset               Number of records to skip (default: 0)
+  --limit                Maximum records to return (default: 50)
+  --json                 Output records as JSON only (bypasses TUI)
+  --no-tui               Disable interactive TUI mode, use plain text
+  --where                Filter records (key=value, can be repeated)
+  --columns              Comma-separated columns to display
+  --search               Search all columns for substring
+  --width                Max column width for table display (default: 30)
+  --all                  Show all columns including hidden ones
+
+  Clean Flags:
+  --force                Skip confirmation prompt
+
+  Index Workflow Flags:
+  --force                Force re-index all workflows regardless of checksum
+
+CONFIG COMMAND - Configuration management
+───────────────────────────────────────────────────────────────────
+  osmedeus config clean               Reset configuration to defaults
+  osmedeus config set <key> <value>   Set a configuration value
+
+INSTALL COMMAND - Install components
+───────────────────────────────────────────────────────────────────
+  osmedeus install workflow <source>  Install workflows from git/zip
+  osmedeus install base <source>      Install base folder
+  osmedeus install binary             Install binaries from registry
+  osmedeus install validate           Check and fix environment health (alias: val)
+  osmedeus install env                Display environment paths
+
+  Binary Flags:
+  -n, --name             Binary name(s) to install (can be repeated)
+  --all                  Install all binaries from registry
+  --check                Check if binaries are installed
+  -r, --registry         Custom registry JSON file path or URL
+  --nix-mode             Use Nix to install binaries instead of direct downloads
+  --nix-installation     Install Nix package manager (Determinate Systems installer)
+
+HEALTH COMMAND - Environment health check
+───────────────────────────────────────────────────────────────────
+  osmedeus health                     Check environment for issues
+
+═══════════════════════════════════════════════════════════════════
+📖 Documentation: https://docs.osmedeus.org
+
+```
+
+
+  </ResponseField>
+</Expandable>
+

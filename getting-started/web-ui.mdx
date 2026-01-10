@@ -1,0 +1,108 @@
+---
+title: "Web UI"
+description: "Web UI for Osmedeus"
+icon: "browsers"
+---
+
+# Web UI
+
+This document describes the web UI for Osmedeus which is the main entry point for running workflows and modules and some other utilities.
+
+Start the web UI by running the following command:
+
+```bash
+osmedeus serve
+```
+
+then open your browser and go to `https://localhost:8002`
+
+<Frame caption="Web UI Login">
+  <img src="/images/web-ui/web-ui-login.png" alt="web-ui-login" />
+</Frame>
+
+
+<Tip>Your default password is in `$HOME/osmedeus-base/osm-settings.yaml`</Tip>
+
+***
+
+
+## All Web UI Pages
+
+The web UI consists of the following pages that allow you to view and manage your assets, workspaces, vulnerabilities, and other utilities.
+
+### Assets and Workspace
+
+<Frame caption="Workspace List">
+  <img src="/images/web-ui/web-ui-workspace.png" alt="web-ui-workspace" />
+</Frame>
+
+<Columns cols={2}>
+
+<Frame caption="List of Assets">
+  <img src="/images/web-ui/web-ui-assets.png" alt="web-ui-assets" />
+</Frame>
+
+<Frame caption="List of Vulnerabilities">
+  <img src="/images/web-ui/web-ui-vuln.png" alt="web-ui-vuln" />
+</Frame>
+</Columns>
+
+### Settings, Install Registry 
+<Columns cols={2}>
+  <Frame caption="Web UI Install Registry">
+    <img src="/images/web-ui/web-ui-install-registry.png" alt="web-ui-install-registry" />
+  </Frame>
+
+  <Frame caption="Web UI Settings">
+    <img src="/images/web-ui/web-ui-settings.png" alt="web-ui-settings" />
+  </Frame>
+
+</Columns>
+
+### Utilities Functions & Scheduling
+
+<Columns cols={2}>
+
+  <Frame caption="Web UI Schedule">
+    <img src="/images/web-ui/web-ui-schedule.png" alt="web-ui-schedule" />
+  </Frame>
+
+
+  <Frame caption="Web UI LLM Chat">
+    <img src="/images/web-ui/web-ui-llm-chat.png" alt="web-ui-llm-chat" />
+  </Frame>
+</Columns>
+
+## Workflow Visualization and Editor
+
+Visualization and editor for workflows in the web UI through the beautifl representation of the workflow via xyflow.
+
+<Frame caption="Web UI Workflow 1">
+  <img src="/images/web-ui/web-ui-workflow1.png" alt="web-ui-workflow1" />
+</Frame>
+
+<Frame caption="Web UI Workflow 2">
+  <img src="/images/web-ui/web-ui-workflow2.png" alt="web-ui-workflow2" />
+</Frame>
+
+<Frame caption="Web UI Workflow 3">
+  <img src="/images/web-ui/web-ui-workflow3.png" alt="web-ui-workflow3" />
+</Frame>
+
+
+<Frame caption="Web UI Workflow 4">
+  <img src="/images/web-ui/web-ui-workflow4.png" alt="web-ui-workflow4" />
+</Frame>
+
+
+## Communication with Web UI
+
+Once you have logged in, you can use the web UI to run workflows, view the results, and manage your Osmedeus installation.
+
+```bash Request
+curl --request POST \
+  --url https://localhost:8002/osm/api/runs \
+  --header 'Authorization: Bearer $TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{"flow": "general", "target": "example.com", "distributed": true}'
+```

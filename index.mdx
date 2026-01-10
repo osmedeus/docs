@@ -8,10 +8,10 @@ icon: "hand-wave"
   <img src="images/introduction/intro.png" alt="Introduction Banner" />
 </Frame>
 
-Osmedeus is a security-focused declarative orchestration engine that simplifies complex workflow automation into auditable YAML definitions, complete with encrypted data handling, secure credential management, and sandboxed execution.
+
+[Osmedeus](https://github.com/j3ssie/osmedeus) is a security-focused declarative orchestration engine that simplifies complex workflow automation into auditable YAML definitions, complete with encrypted data handling, secure credential management, and sandboxed execution.
 
 Built for both beginners and experts, it delivers powerful, composable automation without sacrificing the integrity and safety of your infrastructure.
-
 
 ## Key Features
 
@@ -24,23 +24,50 @@ Built for both beginners and experts, it delivers powerful, composable automatio
 - **REST API Server** - Manage and trigger workflows programmatically
 - **LLM Integration** - AI-powered workflow steps with chat completions and embeddings
 
-
 <Card>
   <img className="block dark:hidden rounded-t-lg w-full" src="/images/introduction/hall-of-fame-light.png" alt="Hall of fame in light mode" />
   <img className="hidden dark:block rounded-t-lg w-full" src="/images/introduction/hall-of-fame-dark.png" alt="Hall of fame in dark mode" />
 </Card>
 
+## Getting Started
 
-## Documentation Overview
+<Columns cols={2}>
+  <Tile href="/getting-started/cli" title="CLI Interface">
+    <img src="/images/cli/cli-run-progress.png" alt="CLI Run preview" />
+  </Tile>
+  <Tile href="/getting-started/web-ui" title="Web UI Interface">
+    <img src="/images/web-ui/web-ui-assets.png" alt="Web UI Assets preview" />
+  </Tile>
+</Columns>
 
-### Getting Started
+<Card title="Quickstart" href="/quickstart" icon="rocket" horizontal>
+Jump right in and run your first Osmedeus workflow in minutes.
+</Card>
 
-| Page | Description |
-|------|-------------|
-| [Quickstart](getting-started/quickstart.md) | Run your first workflow in 5 minutes |
-| [Installation](getting-started/installation.md) | Binary installation, building from source |
-| [Deployment](getting-started/deployment.md) | Server setup, distributed mode, Docker |
-| [Configuration](getting-started/configuration.md) | Settings file and environment variables |
+
+***
+
+## Advanced Installation and Configuration
+
+<Columns cols={2}>
+  <Card title="Installation" href="/getting-started/installation" icon="download">
+    Detailed instructions for installing Osmedeus on various platforms.
+  </Card>
+
+  <Card title="Configuration" href="/getting-started/configuration" icon="gear">
+    Configure the engine, runners, and environment variables.
+  </Card>
+  
+  <Card title="Deployment" href="/getting-started/deployment" icon="server">
+    Deploy Osmedeus in a distributed environment or production setup.
+  </Card>
+
+  <Card title="Development" href="/getting-started/development" icon="display-code">
+    Resources for developers contributing to or extending Osmedeus.
+  </Card>
+</Columns>
+
+## Understanding Osmedeus
 
 ### Core Concepts
 
@@ -50,6 +77,19 @@ Built for both beginners and experts, it delivers powerful, composable automatio
 | [Workflows](concepts/workflows.md) | Module vs Flow, execution lifecycle |
 | [Templates](concepts/templates.md) | Variable interpolation and built-in variables |
 | [Runners](concepts/runners.md) | Host, Docker, SSH execution environments |
+| [Functions](concepts/functions.md) | JavaScript utility functions that bind to the core engine for use in workflow steps |
+
+### Advanced Topics
+
+| Page | Description |
+|------|-------------|
+| [Distributed Execution](advanced/distributed.md) | Master-worker architecture |
+| [Scheduling](advanced/scheduling.md) | Cron, event, and file-watch triggers |
+| [LLM Integration](advanced/llm.md) | AI-powered workflow steps |
+| [Snapshots](advanced/snapshots.md) | Workspace export and import |
+
+
+*** 
 
 ### Workflows
 
@@ -61,31 +101,6 @@ Built for both beginners and experts, it delivers powerful, composable automatio
 | [Variables](workflows/variables.md) | Parameters, exports, variable propagation |
 | [Control Flow](workflows/control-flow.md) | Conditions, handlers, and decision routing |
 
-### Functions
-
-| Page | Description |
-|------|-------------|
-| [Overview](functions/overview.md) | Function evaluation and usage |
-| [Reference](functions/reference.md) | Complete function reference by category |
-
-### CLI Reference
-
-| Page | Description |
-|------|-------------|
-| [run](cli/run.md) | Core execution command |
-| [workflow](cli/workflow.md) | Workflow management |
-| [function](cli/function.md) | Function execution |
-| [install](cli/install.md) | Binary and workflow installation |
-| [snapshot](cli/snapshot.md) | Workspace backup and restore |
-| [server](cli/server.md) | API server and workers |
-
-### API Reference
-
-| Page | Description |
-|------|-------------|
-| [Overview](api/overview.md) | Server setup and authentication |
-| [Quick Reference](api/quick-reference.md) | All endpoints at a glance |
-
 ### Extending Osmedeus
 
 | Page | Description |
@@ -96,25 +111,10 @@ Built for both beginners and experts, it delivers powerful, composable automatio
 | [CLI Commands](extending/cli-commands.md) | Add new CLI commands |
 | [API Endpoints](extending/api-endpoints.md) | Add new REST endpoints |
 
-### Advanced Topics
-
-| Page | Description |
-|------|-------------|
-| [Distributed Execution](advanced/distributed.md) | Master-worker architecture |
-| [Scheduling](advanced/scheduling.md) | Cron, event, and file-watch triggers |
-| [LLM Integration](advanced/llm.md) | AI-powered workflow steps |
-| [Snapshots](advanced/snapshots.md) | Workspace export and import |
-
-### Reference
+## Reference
 
 | Page | Description |
 |------|-------------|
 | [Workflow Schema](reference/workflow-schema.md) | Complete YAML schema |
 | [Variables](reference/variables.md) | Built-in variables |
 | [Types](reference/types.md) | Go type definitions |
-
-## Quick Links
-
-- [GitHub Repository](https://github.com/osmedeus/osmedeus)
-- [Official Documentation](https://docs.osmedeus.org)
-- [API Documentation](../api/README.md)
