@@ -37,13 +37,23 @@ Available Commands:
 ```
 
 
-## Osmedeus Run
+## 1. Osmedeus Run (aliases: scan)
 
 Execute a workflow against one or more targets
 
 <Frame caption="CLI Run with LLM Step">
   <img src="/images/cli/cli-run-with-llm-step.png" alt="Descriptive alt text" />
 </Frame>
+
+<Columns cols={2}>
+  <Frame caption="CLI Run Progress">
+  <img src="/images/cli/cli-run-with-verbose-output.png" alt="Descriptive alt text" />
+</Frame>
+
+<Frame caption="CLI Run Progress">
+  <img src="/images/cli/cli-run-with-ci-friendly-output.png" alt="Descriptive alt text" />
+</Frame>
+</Columns>
 
 ```bash
 
@@ -97,7 +107,7 @@ Execute a workflow against one or more targets
   osmedeus run -m recon -T targets.txt --concurrency 5
 ```
 
-## Osmedeus Function Eval
+## 2. Osmedeus Function Eval
 
 Execute and test utility functions available in workflows
 
@@ -153,7 +163,7 @@ Execute and test utility functions available in workflows
   echo 'trim("  test  ")' | osmedeus func e -
 ```
 
-## Installation Command
+## 3. Installation Command
 
 One-liner to install workflows, base folder, or binaries from various sources.
 
@@ -203,6 +213,57 @@ One-liner to install workflows, base folder, or binaries from various sources.
   osmedeus install base https://github.com/user/osmedeus-base.git
 ```
 
+## 4. Database Management
+
+View and manage the database, including clean up, and schema operations.
+
+<Frame caption="CLI Database List">
+  <img src="/images/cli/cli-db-list.png" alt="cli-db-list" />
+</Frame>
+
+<Frame caption="CLI Database Table View">
+  <img src="/images/cli/cli-db-table-view.png" alt="cli-db-view" />
+</Frame>
+
+
+
+```bash
+◆ Description
+  List all database tables with their row counts, or list records from a
+  specific table with pagination support.
+
+▶ Options
+  -t, --table         Table name to list records from
+  --offset            Number of records to skip (default: 0)
+  --limit             Maximum records to return (default: 20, max: 100)
+  --list-columns      List all available columns for the specified table
+  --exclude-columns   Comma-separated column names to exclude from output
+
+▶ Valid Tables
+  runs, step_results, artifacts, assets, event_logs, schedules
+
+▷ Examples
+  # List all tables with row counts
+  osmedeus db list
+
+  # List records from runs table
+  osmedeus db list -t runs
+
+  # List available columns for assets table
+  osmedeus db list -t assets --list-columns
+
+  # List assets excluding specific columns
+  osmedeus db list -t assets --exclude-columns id,created_at,updated_at
+
+  # List assets with pagination
+  osmedeus db list -t assets --offset 0 --limit 10
+
+  # Get next page of results
+  osmedeus db list -t assets --offset 10 --limit 10
+```
+
+## Full Usage Examples
+
 <Expandable title="Full Usage Examples">
   <ResponseField name="full_name" type="string">
     The full name of the user
@@ -247,7 +308,7 @@ GLOBAL FLAGS (available for all commands)
   -F, --workflow-folder  Custom workflow folder path
   -v, --verbose          Enable verbose output
   --debug                Enable debug mode (verbose + debug logging)
-  -q, --silent           Silent mode - suppress all output except errors
+  -q, --silent           Silent mode - suppress all output (including nix/git/apt output) except errors
   --log-file             Path to log file (logs to both console and file)
   --log-file-tmp         Create temporary log file osmedeus-log-<timestamp>.log
   -H, --usage-example    Show comprehensive usage examples
@@ -409,4 +470,3 @@ HEALTH COMMAND - Environment health check
 
   </ResponseField>
 </Expandable>
-

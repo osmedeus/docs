@@ -29,6 +29,28 @@ Install security tools from the binary registry.
 osmedeus install binary [flags]
 ```
 
+### Help Output
+
+```bash {1,3-4,6-7,9-16}
+$ osmedeus install binary -h
+
+◆ Description
+  Install binaries from registry (direct fetch or Nix).
+
+▶ Usage
+  osmedeus install binary [flags]
+
+▶ Flags
+  -n, --name <name>                  Binary name(s) to install (repeatable)
+  --all                              Install all required binaries
+  --check                            Check installation status only
+  --install-optional                 Include optional binaries
+  --nix-installation                 Install Nix package manager
+  --nix-build-install                Install binaries via Nix
+  --list-registry-direct-fetch       List direct-fetch binaries
+  --list-registry-nix-build          List Nix-compatible binaries
+```
+
 ### Flags
 
 | Flag | Description |
@@ -56,6 +78,9 @@ osmedeus install binary --name nuclei --name httpx --name ffuf
 # Install all required binaries
 osmedeus install binary --all
 
+# Install quietly (suppress nix/git/apt output)
+osmedeus install binary --all -q
+
 # Include optional binaries
 osmedeus install binary --all --install-optional
 
@@ -80,6 +105,9 @@ osmedeus install binary --list-registry-nix-build
 
 # Install all via Nix
 osmedeus install binary --nix-build-install
+
+# Install quietly (suppress nix build output)
+osmedeus install binary --nix-build-install -q
 
 # Install specific binary via Nix
 osmedeus install binary --name nuclei --nix-build-install

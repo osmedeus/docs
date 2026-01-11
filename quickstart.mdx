@@ -4,27 +4,67 @@ description: "Get up and running with Osmedeus in 5 minutes"
 icon: "rocket"
 ---
 
-<Check>Currently supports Linux and macOS natively. Windows users please use WSL.</Check>
+<Callout icon="cauldron" color="#FFC107" iconType="regular">The installtion script is not published yet. Stay tuned for the official release.</Callout>
 
-<Steps>
-  <Step title="Install the latest version of Osmedeus">
+## Step 1: Install the latest version of Osmedeus
 
-  ```bash Install the Osmedeus Binary
-  curl -sSL https://docs.osmedeus.org/install.sh | bash
-  ```
-
-  </Step>
-  <Step title="Fetch the latest version">
+<Tabs>
+  <Tab title="Navtive Installation (Recommended)">
   ```bash
-  osmedeus install
+  curl -sSL http://host.docker.internal:8888/install.sh | bash
   ```
-  </Step>
-  <Step title="Run your first workflow">
+  </Tab>
+  <Tab title="Homebrew Installation" icon="leaf">
   ```bash
-  osmedeus run -m subdomain-enum -t example.com
+  curl -sSL http://host.docker.internal:8888/install.sh | bash
   ```
-  </Step>
-</Steps>
+  </Tab>
+  <Tab title="Windows">
+    <Check>Currently supports Linux and macOS natively. Windows users please use WSL.</Check>
+  </Tab>
+</Tabs>
+
+<Frame caption="Installation Osmedeus Core Engine">
+  <img src="/images/installation/install-native.png" />
+</Frame>
+
+## Step 2: Install the default workflows
+
+<Tabs>
+  <Tab title="Use default preset workflows">
+  ```bash
+  osmedeus install base --preset
+  ```
+  </Tab>
+  <Tab title="Install custom workflows from Git repository">
+  ```bash
+  osmedeus install base https://github.com/osmedeus/osmedeus-base.git
+  ```
+  </Tab>
+</Tabs>
 
 
-See [CLI Reference](/cli) for more details.
+## Step 3: Validate the installation
+```bash
+osmedeus health
+```
+
+<Frame caption="Installation Validation">
+  <img src="/images/installation/install-validation.png" />
+</Frame>
+
+
+## Step 4: Run your first workflow
+```bash
+osmedeus run -m subdomain-enum -t example.com
+```
+
+
+<Columns cols={2}>
+  <Tile href="/getting-started/cli" title="CLI Interface">
+    <img src="/images/cli/cli-run-progress.png" alt="CLI Run preview" />
+  </Tile>
+  <Tile href="/getting-started/web-ui" title="Web UI Interface">
+    <img src="/images/web-ui/web-ui-assets.png" alt="Web UI Assets preview" />
+  </Tile>
+</Columns>
