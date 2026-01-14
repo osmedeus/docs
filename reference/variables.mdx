@@ -86,38 +86,110 @@ From configuration (`osm-settings.yaml`):
 
 When `heuristics_check` is not `"none"`, additional variables are auto-detected.
 
-### URL Target Variables
 
-| Variable | Description |
-|----------|-------------|
-| `{{TargetType}}` | `"url"` |
-| `{{TargetBaseURL}}` | Base URL (scheme + host + port) |
-| `{{TargetRootURL}}` | Root URL (scheme + host + port) |
-| `{{TargetHostname}}` | Full hostname |
-| `{{TargetRootDomain}}` | Root domain extracted from hostname |
-| `{{TargetHost}}` | Host (hostname + port) |
-| `{{TargetPort}}` | Port number |
-| `{{TargetPath}}` | URL path component |
-| `{{TargetFileExt}}` | File extension if present |
-| `{{TargetScheme}}` | HTTP scheme (http/https) |
-| `{{TargetStatusCode}}` | HTTP status code (if reachable) |
-| `{{TargetContentLength}}` | Content length of response |
+**Example Target:** `https://api.shop.example.com:8443/v2/products/search?q=test#results`
 
-### Domain Target Variables
+| Variable | Description | Example Value |
+|----------|-------------|---------------|
+| `{{TargetType}}` | Target type identifier | `"url"` |
+| `{{TargetBaseURL}}` | Base URL (scheme + host + port) | `https://api.shop.example.com:8443` |
+| `{{TargetRootURL}}` | Root URL (scheme + host + port) | `https://api.shop.example.com:8443` |
+| `{{TargetHostname}}` | Full hostname | `api.shop.example.com` |
+| `{{TargetRootDomain}}` | Root domain extracted from hostname | `example.com` |
+| `{{TargetHost}}` | Host (hostname + port) | `api.shop.example.com:8443` |
+| `{{TargetPort}}` | Port number | `8443` |
+| `{{TargetPath}}` | URL path component | `/v2/products/search` |
+| `{{TargetFileExt}}` | File extension if present | `` (empty) |
+| `{{TargetScheme}}` | HTTP scheme | `https` |
+| `{{TargetStatusCode}}` | HTTP status code (if reachable) | `200` |
+| `{{TargetContentLength}}` | Content length of response | `4521` |
+| `{{TargetTLD}}` | Top-level domain | `com` |
 
-| Variable | Description |
-|----------|-------------|
+### Additional URL Examples
+
+**Example with file path:** `https://cdn.example.org/assets/images/logo.png`
+
+| Variable | Example Value |
+|----------|---------------|
+| `{{TargetBaseURL}}` | `https://cdn.example.org` |
+| `{{TargetHostname}}` | `cdn.example.org` |
+| `{{TargetRootDomain}}` | `example.org` |
+| `{{TargetHost}}` | `cdn.example.org` |
+| `{{TargetPort}}` | `443` |
+| `{{TargetPath}}` | `/assets/images/logo.png` |
+| `{{TargetFileExt}}` | `png` |
+| `{{TargetScheme}}` | `https` |
+| `{{TargetTLD}}` | `org` |
+
+**Example with HTTP and explicit port:** `http://staging.app.example.io:3000/api/health`
+
+| Variable | Example Value |
+|----------|---------------|
+| `{{TargetBaseURL}}` | `http://staging.app.example.io:3000` |
+| `{{TargetHostname}}` | `staging.app.example.io` |
+| `{{TargetRootDomain}}` | `example.io` |
+| `{{TargetHost}}` | `staging.app.example.io:3000` |
+| `{{TargetPort}}` | `3000` |
+| `{{TargetPath}}` | `/api/health` |
+| `{{TargetFileExt}}` | `` (empty) |
+| `{{TargetScheme}}` | `http` |
+| `{{TargetTLD}}` | `io` |
+
+---
+
+## Domain Target Variables
+
+**Example Target:** `mail.corp.example.com`
+
+| Variable | Description | Example Value |
+|----------|-------------|---------------|
+| `{{TargetType}}` | Target type identifier | `"domain"` |
+| `{{TargetRootDomain}}` | Root domain | `example.com` |
+| `{{TargetIsWildcard}}` | Boolean indicating wildcard domain | `false` |
+| `{{TargetResolvedIP}}` | Resolved IP address (if DNS succeeds) | `93.184.216.34` |
+| `{{TargetTLD}}` | Top-level domain | `com` |
+
+### Additional Domain Examples
+
+**Example wildcard domain:** `*.example.net`
+
+| Variable | Example Value |
+|----------|---------------|
 | `{{TargetType}}` | `"domain"` |
-| `{{TargetRootDomain}}` | Root domain |
-| `{{TargetIsWildcard}}` | Boolean indicating wildcard domain |
-| `{{TargetResolvedIP}}` | Resolved IP address (if DNS succeeds) |
+| `{{TargetRootDomain}}` | `example.net` |
+| `{{TargetIsWildcard}}` | `true` |
+| `{{TargetResolvedIP}}` | `` (empty - wildcard cannot be resolved) |
+| `{{TargetTLD}}` | `net` |
 
-### IP Target Variables
+**Example subdomain:** `dev.api.example.co.uk`
 
-| Variable | Description |
-|----------|-------------|
-| `{{TargetType}}` | `"ip"` |
-| `{{TargetRootDomain}}` | Same as original target |
+| Variable | Example Value |
+|----------|---------------|
+| `{{TargetType}}` | `"domain"` |
+| `{{TargetRootDomain}}` | `example.co.uk` |
+| `{{TargetIsWildcard}}` | `false` |
+| `{{TargetResolvedIP}}` | `185.199.108.153` |
+| `{{TargetTLD}}` | `co.uk` |
+
+---
+
+## Usage in Workflows
+
+```yaml
+steps:
+  - name: probe-url
+    type: bash
+    cmd: |
+      echo "Scanning {{TargetHostname}} on port {{TargetPort}}"
+      curl -s -o /dev/null -w "%{http_code}" {{TargetBaseURL}}{{TargetPath}}
+
+  - name: enumerate-domain
+    type: bash
+    cmd: |
+      echo "Root domain: {{TargetRootDomain}}"
+      echo "Resolved IP: {{TargetResolvedIP}}"
+      subfinder -d {{TargetRootDomain}} -o {{Output}}/subdomains.txt
+```
 
 ## Foreach Loop Variables
 

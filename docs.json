@@ -26,16 +26,16 @@
             ]
           },
           {
-            "group": "Advanced Configuration",
+            "group": "Extra Configuration",
             "icon": "hat-wizard",
             "pages": [
-              "advanced/advanced-configuration",
+              "advanced/api-key-configuration",
               "advanced/deployment",
               "advanced/development"
             ]
           },
           {
-            "group": "Architecture",
+            "group": "Understand Architecture",
             "icon": "lightbulb",
             "pages": [
               "architecture/index",
@@ -64,56 +64,28 @@
             ]
           },
           {
-            "group": "Extending Osmedeus",
+            "group": "Advanced Topics & Extending Osmedeus",
             "icon": "cube",
             "pages": [
               "extending/runners",
               "extending/step-types",
               "extending/functions",
               "extending/cli-commands",
-              "extending/rest-api",
               "advanced/distributed",
               "advanced/scheduling",
               "advanced/snapshots",
               "advanced/llm"
             ]
           },
-
           {
             "group": "Reference",
             "icon": "book",
             "pages": [
               "reference/workflow-schema",
               "reference/types",
-              "reference/variables"
-            ]
-          },
-          {
-            "group": "API Server",
-            "icon": "book-open",
-            "pages": [
-              "api/overview",
-              "api/quick-reference"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "API reference",
-        "groups": [
-          {
-            "group": "API documentation",
-            "pages": [
-              "api-reference/introduction"
-            ]
-          },
-          {
-            "group": "Endpoint examples",
-            "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "reference/variables",
+              "reference/rest-api",
+              "others/faq"
             ]
           }
         ]

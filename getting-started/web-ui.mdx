@@ -4,8 +4,6 @@ description: "Web UI for Osmedeus"
 icon: "browsers"
 ---
 
-# Web UI
-
 This document describes the web UI for Osmedeus which is the main entry point for running workflows and modules and some other utilities.
 
 Start the web UI by running the following command:
@@ -16,19 +14,30 @@ osmedeus serve
 
 then open your browser and go to `https://localhost:8002`
 
+## How to Login into Web UI
+
 <Frame caption="Web UI Login">
   <img src="/images/web-ui/web-ui-login.png" alt="web-ui-login" />
 </Frame>
 
 <Tip>Your default password is in `$HOME/osmedeus-base/osm-settings.yaml`</Tip>
 
-You can also change the default password by running the following command:
+You can also change the default password and set API key authentication by running the following command:
 
 ```bash
 osmedeus config set server.username "osmedeus"
 osmedeus config set server.password "$(openssl rand -hex 12)"
-```
+# api key auth requires a jwt secret signing key
+osmedeus config set server.jwt.secret_signing_key "$(openssl rand -hex 32)"
+osmedeus config set server.enabled_auth_api true
+osmedeus config set server.auth_api_key "$(openssl rand -hex 12)"
 
+## API Key Authentication Settings
+# server:
+#   enabled_auth_api: true
+#   auth_api_key: "your-secure-api-key"
+
+```
 
 ***
 

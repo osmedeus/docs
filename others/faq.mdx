@@ -1,0 +1,362 @@
+---
+title: "FAQs"
+description: "Frequently Asked Questions"
+icon: "block-question"
+---
+
+# Frequently Asked Questions
+
+## General
+
+<ResponseField name="1. What is Osmedeus?" type="Answer">
+  <Expandable title="properties">
+    Osmedeus is a workflow engine for security automation. It executes YAML-defined workflows with support for multiple execution environments (host, Docker, SSH), scheduling, and distributed scanning.
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="2. What are the system requirements?" type="Answer">
+  <Expandable title="properties">
+    - Go 1.21+ (for building from source)
+    - Linux, macOS, or Windows
+    - Docker (optional, for container-based execution)
+    - SSH access (optional, for remote execution)
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="3. How do I install Osmedeus?" type="Answer">
+  <Expandable title="properties">
+    ```bash
+    # Build from source
+    make build
+
+    # Install to $GOBIN
+    make install
+
+    # Install security tools
+    osmedeus install binary --all
+    ```
+  </Expandable>
+</ResponseField>
+
+---
+
+## Workflows
+
+<ResponseField name="4. What is the difference between a flow and a module?" type="Answer">
+  <Expandable title="properties">
+    - **Module**: A single workflow unit containing steps that execute sequentially
+    - **Flow**: Orchestrates multiple modules, allowing parallel execution and dependencies between modules
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="5. Where are workflows stored?" type="Answer">
+  <Expandable title="properties">
+    Workflows are stored in `~/osmedeus-base/workflows/`:
+    - `flows/` - Flow workflows
+    - `modules/` - Module workflows
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="6. How do I create a custom workflow?" type="Answer">
+  <Expandable title="properties">
+    Create a YAML file in the workflows directory:
+
+    ```yaml
+    name: my-workflow
+    kind: module
+    description: My custom workflow
+    params:
+      - name: target
+        required: true
+    steps:
+      - name: scan-target
+        type: bash
+        command: nmap {{target}}
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="7. What step types are available?" type="Answer">
+  <Expandable title="properties">
+    | Type | Description |
+    |------|-------------|
+    | `bash` | Execute shell commands |
+    | `function` | Execute JavaScript utility functions |
+    | `parallel-steps` | Run steps concurrently |
+    | `foreach` | Iterate over items |
+    | `remote-bash` | Execute in Docker or via SSH |
+    | `http` | Make HTTP requests |
+    | `llm` | Execute LLM API calls |
+  </Expandable>
+</ResponseField>
+
+---
+
+## Running Scans
+
+<ResponseField name="8. How do I run a basic scan?" type="Answer">
+  <Expandable title="properties">
+    ```bash
+    # Run a flow workflow
+    osmedeus run -f subdomain-enum -t example.com
+
+    # Run a module workflow
+    osmedeus run -m port-scan -t example.com
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="9. How do I scan multiple targets?" type="Answer">
+  <Expandable title="properties">
+    ```bash
+    # From command line
+    osmedeus run -m port-scan -t target1.com -t target2.com
+
+    # From file
+    osmedeus run -m port-scan -T targets.txt -c 5
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="10. How do I set a timeout?" type="Answer">
+  <Expandable title="properties">
+    ```bash
+    osmedeus run -m port-scan -t example.com --timeout 2h
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="11. Where are scan results stored?" type="Answer">
+  <Expandable title="properties">
+    Results are stored in workspaces at `~/osmedeus-base/workspaces/<target>/`.
+  </Expandable>
+</ResponseField>
+
+---
+
+## API & Server
+
+<ResponseField name="12. How do I start the API server?" type="Answer">
+  <Expandable title="properties">
+    ```bash
+    osmedeus server
+    ```
+
+    The server starts on port 8002 by default.
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="13. How do I authenticate with the API?" type="Answer">
+  <Expandable title="properties">
+    ```bash
+    # Get a JWT token
+    curl -X POST http://localhost:8002/osm/api/login \
+      -H "Content-Type: application/json" \
+      -d '{"username": "osmedeus", "password": "admin"}'
+
+    # Use the token
+    curl http://localhost:8002/osm/api/workflows \
+      -H "Authorization: Bearer <token>"
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="14. How do I disable authentication?" type="Answer">
+  <Expandable title="properties">
+    ```bash
+    osmedeus server --no-auth
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="15. Can I use API keys instead of JWT?" type="Answer">
+  <Expandable title="properties">
+    Yes, enable API key authentication in the server configuration. Then use the `X-API-Key` header instead of `Authorization: Bearer`.
+  </Expandable>
+</ResponseField>
+
+---
+
+## Scheduling
+
+<ResponseField name="16. How do I schedule a recurring scan?" type="Answer">
+  <Expandable title="properties">
+    ```bash
+    # Via CLI (creates a cron schedule)
+    osmedeus run -f subdomain-enum -t example.com --schedule "0 2 * * *"
+
+    # Via API
+    curl -X POST http://localhost:8002/osm/api/schedules \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "daily-scan",
+        "workflow_name": "subdomain-enum",
+        "target": "example.com",
+        "schedule": "0 2 * * *"
+      }'
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="17. What cron format is used?" type="Answer">
+  <Expandable title="properties">
+    Standard 5-field cron: `minute hour day-of-month month day-of-week`
+
+    Examples:
+    - `0 2 * * *` - Daily at 2 AM
+    - `0 0 * * 0` - Weekly on Sunday
+    - `*/30 * * * *` - Every 30 minutes
+  </Expandable>
+</ResponseField>
+
+---
+
+## Runners
+
+<ResponseField name="18. What runners are available?" type="Answer">
+  <Expandable title="properties">
+    | Runner | Description |
+    |--------|-------------|
+    | `host` | Execute on local machine (default) |
+    | `docker` | Execute in Docker containers |
+    | `ssh` | Execute on remote machines via SSH |
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="19. How do I run a scan in Docker?" type="Answer">
+  <Expandable title="properties">
+    ```bash
+    osmedeus run -m port-scan -t example.com --runner docker --docker-image osmedeus/osmedeus:latest
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="20. How do I run a scan on a remote host?" type="Answer">
+  <Expandable title="properties">
+    ```bash
+    osmedeus run -m port-scan -t example.com --runner ssh --ssh-host worker.example.com
+    ```
+  </Expandable>
+</ResponseField>
+
+---
+
+## Distributed Mode
+
+<ResponseField name="21. How do I set up distributed scanning?" type="Answer">
+  <Expandable title="properties">
+    Start the master:
+    ```bash
+    osmedeus server --master
+    ```
+
+    Join workers:
+    ```bash
+    osmedeus worker join --master http://master:8002
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="22. How do I submit tasks to the distributed pool?" type="Answer">
+  <Expandable title="properties">
+    ```bash
+    curl -X POST http://localhost:8002/osm/api/tasks \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "workflow_name": "subdomain-enum",
+        "target": "example.com"
+      }'
+    ```
+  </Expandable>
+</ResponseField>
+
+---
+
+## Troubleshooting
+
+<ResponseField name="23. How do I check if tools are installed?" type="Answer">
+  <Expandable title="properties">
+    ```bash
+    osmedeus install binary --all --check
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="24. How do I install missing tools?" type="Answer">
+  <Expandable title="properties">
+    ```bash
+    # Install specific tools
+    osmedeus install binary --name nuclei --name httpx
+
+    # Install all tools
+    osmedeus install binary --all
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="25. How do I view scan logs?" type="Answer">
+  <Expandable title="properties">
+    Logs are stored in the workspace:
+    ```bash
+    cat ~/osmedeus-base/workspaces/<target>/log/execution.log
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="26. How do I export a workspace for sharing?" type="Answer">
+  <Expandable title="properties">
+    ```bash
+    osmedeus snapshot export <workspace>
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="27. How do I import a shared workspace?" type="Answer">
+  <Expandable title="properties">
+    ```bash
+    osmedeus snapshot import snapshot.zip
+    ```
+  </Expandable>
+</ResponseField>
+
+---
+
+## Configuration
+
+<ResponseField name="28. Where is the configuration file?" type="Answer">
+  <Expandable title="properties">
+    `~/osmedeus-base/osm-settings.yaml`
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="29. How do I change the default port?" type="Answer">
+  <Expandable title="properties">
+    Edit `osm-settings.yaml`:
+    ```yaml
+    server:
+      port: 9000
+    ```
+
+    Or use the `--port` flag:
+    ```bash
+    osmedeus server --port 9000
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="30. How do I configure database settings?" type="Answer">
+  <Expandable title="properties">
+    Edit `osm-settings.yaml`:
+    ```yaml
+    database:
+      db_engine: sqlite3  # or postgres
+      host: localhost
+      port: 5432
+      name: osmedeus
+      username: user
+      password: pass
+    ```
+  </Expandable>
+</ResponseField>
