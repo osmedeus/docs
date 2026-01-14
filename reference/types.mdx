@@ -3,400 +3,276 @@ title: "Type Definitions"
 icon: "brackets"
 ---
 
-Go type definitions from `internal/core/`.
+This document describes all type constants and enums defined in `internal/core/`.
 
-## Workflow Types
+## WorkflowKind
 
-### WorkflowKind
+Defines the type of workflow.
 
 ```go
 type WorkflowKind string
-
-const (
-    WorkflowKindModule WorkflowKind = "module"
-    WorkflowKindFlow   WorkflowKind = "flow"
-)
 ```
 
-| Value | Description |
-|-------|-------------|
-| `module` | Single execution unit with steps |
-| `flow` | Multi-module orchestration |
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `KindModule` | `"module"` | Single execution unit with steps |
+| `KindFlow` | `"flow"` | Orchestrates multiple modules |
 
-### Workflow
+**Helper Methods:**
+- `IsModule()` - Returns true if workflow is a module
+- `IsFlow()` - Returns true if workflow is a flow
 
-```go
-type Workflow struct {
-    Kind         WorkflowKind   `yaml:"kind"`
-    Name         string         `yaml:"name"`
-    Description  string         `yaml:"description,omitempty"`
-    Tags         []string       `yaml:"tags,omitempty"`
-    Params       []Param        `yaml:"params,omitempty"`
-    Runner       RunnerType     `yaml:"runner,omitempty"`
-    RunnerConfig *RunnerConfig  `yaml:"runner_config,omitempty"`
-    Triggers     []Trigger      `yaml:"trigger,omitempty"`
-    Steps        []Step         `yaml:"steps,omitempty"`      // For modules
-    Modules      []ModuleRef    `yaml:"modules,omitempty"`    // For flows
-}
-```
+## StepType
 
-## Step Types
-
-### StepType
+Defines the execution type for a step.
 
 ```go
 type StepType string
-
-const (
-    StepTypeBash          StepType = "bash"
-    StepTypeFunction      StepType = "function"
-    StepTypeForeach       StepType = "foreach"
-    StepTypeParallelSteps StepType = "parallel-steps"
-    StepTypeRemoteBash    StepType = "remote-bash"
-    StepTypeHTTP          StepType = "http"
-    StepTypeLLM           StepType = "llm"
-)
 ```
 
-| Value | Description |
-|-------|-------------|
-| `bash` | Execute shell commands |
-| `function` | Run utility functions |
-| `foreach` | Iterate over file lines |
-| `parallel-steps` | Run steps concurrently |
-| `remote-bash` | Per-step Docker/SSH execution |
-| `http` | Make HTTP requests |
-| `llm` | AI-powered processing |
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `StepTypeBash` | `"bash"` | Execute shell commands |
+| `StepTypeFunction` | `"function"` | Execute utility functions |
+| `StepTypeParallel` | `"parallel-steps"` | Execute steps concurrently |
+| `StepTypeForeach` | `"foreach"` | Iterate over input items |
+| `StepTypeRemoteBash` | `"remote-bash"` | Execute via Docker/SSH |
+| `StepTypeHTTP` | `"http"` | Make HTTP requests |
+| `StepTypeLLM` | `"llm"` | LLM/AI interaction |
 
-### Step
+**Helper Methods:**
+- `IsBashStep()` - Check if step is bash
+- `IsFunctionStep()` - Check if step is function
+- `IsParallelStep()` - Check if step is parallel-steps
+- `IsForeachStep()` - Check if step is foreach
+- `IsRemoteBashStep()` - Check if step is remote-bash
+- `IsHTTPStep()` - Check if step is HTTP
+- `IsLLMStep()` - Check if step is LLM
 
-```go
-type Step struct {
-    Name             string            `yaml:"name"`
-    Type             StepType          `yaml:"type"`
-    PreCondition     string            `yaml:"pre_condition,omitempty"`
+## RunnerType
 
-    // Bash
-    Command          string            `yaml:"command,omitempty"`
-    Commands         []string          `yaml:"commands,omitempty"`
-    ParallelCommands []string          `yaml:"parallel_commands,omitempty"`
-    StdFile          string            `yaml:"std_file,omitempty"`
-
-    // Function
-    Function         string            `yaml:"function,omitempty"`
-    Functions        []string          `yaml:"functions,omitempty"`
-    ParallelFunctions []string         `yaml:"parallel_functions,omitempty"`
-
-    // Foreach
-    Input            string            `yaml:"input,omitempty"`
-    Variable         string            `yaml:"variable,omitempty"`
-    Threads          int               `yaml:"threads,omitempty"`
-    Step             *Step             `yaml:"step,omitempty"`
-
-    // Parallel-steps
-    ParallelSteps    []Step            `yaml:"parallel_steps,omitempty"`
-
-    // Remote-bash
-    StepRunner       RunnerType        `yaml:"step_runner,omitempty"`
-    StepRunnerConfig *StepRunnerConfig `yaml:"step_runner_config,omitempty"`
-    StepRemoteFile   string            `yaml:"step_remote_file,omitempty"`
-    HostOutputFile   string            `yaml:"host_output_file,omitempty"`
-
-    // HTTP
-    URL              string            `yaml:"url,omitempty"`
-    Method           string            `yaml:"method,omitempty"`
-    Headers          map[string]string `yaml:"headers,omitempty"`
-    RequestBody      string            `yaml:"request_body,omitempty"`
-
-    // LLM
-    Messages         []Message         `yaml:"messages,omitempty"`
-    Tools            []Tool            `yaml:"tools,omitempty"`
-    IsEmbedding      bool              `yaml:"is_embedding,omitempty"`
-    EmbeddingInput   []string          `yaml:"embedding_input,omitempty"`
-    LLMConfig        *LLMConfig        `yaml:"llm_config,omitempty"`
-    ExtraLLMParams   map[string]any    `yaml:"extra_llm_parameters,omitempty"`
-    ResponseFormat   *ResponseFormat   `yaml:"response_format,omitempty"`
-
-    // Handlers
-    Exports          map[string]string `yaml:"exports,omitempty"`
-    OnSuccess        []Action          `yaml:"on_success,omitempty"`
-    OnError          []Action          `yaml:"on_error,omitempty"`
-    Decision         []Decision        `yaml:"decision,omitempty"`
-}
-```
-
-## Runner Types
-
-### RunnerType
+Defines the execution environment.
 
 ```go
 type RunnerType string
-
-const (
-    RunnerTypeHost   RunnerType = "host"
-    RunnerTypeDocker RunnerType = "docker"
-    RunnerTypeSSH    RunnerType = "ssh"
-)
 ```
 
-| Value | Description |
-|-------|-------------|
-| `host` | Local machine execution |
-| `docker` | Container execution |
-| `ssh` | Remote SSH execution |
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `RunnerTypeHost` | `"host"` | Execute on local machine (default) |
+| `RunnerTypeDocker` | `"docker"` | Execute in Docker container |
+| `RunnerTypeSSH` | `"ssh"` | Execute on remote machine via SSH |
 
-### RunnerConfig
+## TriggerType
 
-```go
-type RunnerConfig struct {
-    // Docker
-    Image       string            `yaml:"image,omitempty"`
-    Volumes     []string          `yaml:"volumes,omitempty"`
-    Environment []string          `yaml:"environment,omitempty"`
-    Persistent  bool              `yaml:"persistent,omitempty"`
-    Network     string            `yaml:"network,omitempty"`
-    ExtraArgs   []string          `yaml:"extra_args,omitempty"`
-
-    // SSH
-    Host        string            `yaml:"host,omitempty"`
-    Port        int               `yaml:"port,omitempty"`
-    User        string            `yaml:"user,omitempty"`
-    KeyFile     string            `yaml:"key_file,omitempty"`
-    Password    string            `yaml:"password,omitempty"`
-    KnownHosts  string            `yaml:"known_hosts,omitempty"`
-}
-```
-
-## Trigger Types
-
-### TriggerType
+Defines when a workflow should execute.
 
 ```go
 type TriggerType string
-
-const (
-    TriggerManual TriggerType = "manual"
-    TriggerCron   TriggerType = "cron"
-    TriggerEvent  TriggerType = "event"
-    TriggerWatch  TriggerType = "watch"
-)
 ```
 
-| Value | Description |
-|-------|-------------|
-| `manual` | On-demand execution |
-| `cron` | Time-based scheduling |
-| `event` | Event-driven execution |
-| `watch` | File change detection |
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `TriggerCron` | `"cron"` | Schedule via cron expression |
+| `TriggerEvent` | `"event"` | Trigger on system event |
+| `TriggerWatch` | `"watch"` | Trigger on file/directory changes |
+| `TriggerManual` | `"manual"` | Manual CLI execution |
 
-### Trigger
+**Helper Methods:**
+- `IsCron()` - Returns true if cron trigger
+- `IsEvent()` - Returns true if event trigger
+- `IsWatch()` - Returns true if watch trigger
+- `IsManual()` - Returns true if manual trigger
+- `IsEnabled()` - Returns true if trigger is enabled
+- `MatchesTopic(topic)` - Check if event trigger matches topic
+- `HasFilters()` - Check if event trigger has filters
+- `GetFilters()` - Get filter expressions
+
+## VariableType
+
+Defines types for variable validation in dependencies.
 
 ```go
-type Trigger struct {
-    Name     string       `yaml:"name"`
-    On       TriggerType  `yaml:"on"`
-    Enabled  bool         `yaml:"enabled"`
-
-    // Cron
-    Schedule string       `yaml:"schedule,omitempty"`
-
-    // Event
-    Event    *EventConfig `yaml:"event,omitempty"`
-    Input    *InputConfig `yaml:"input,omitempty"`
-
-    // Watch
-    Watch    *WatchConfig `yaml:"watch,omitempty"`
-}
-
-type EventConfig struct {
-    Topic   string   `yaml:"topic"`
-    Filters []string `yaml:"filters,omitempty"`
-}
-
-type WatchConfig struct {
-    Path    string   `yaml:"path"`
-    Pattern string   `yaml:"pattern,omitempty"`
-    Events  []string `yaml:"events,omitempty"`
-}
-
-type InputConfig struct {
-    Type  string `yaml:"type"`
-    Field string `yaml:"field"`
-    Name  string `yaml:"name"`
-}
+type VariableType string
 ```
 
-## Status Types
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `VarTypeDomain` | `"domain"` | Domain name |
+| `VarTypePath` | `"path"` | File path |
+| `VarTypeNumber` | `"number"` | Numeric value |
+| `VarTypeFile` | `"file"` | File path (must exist) |
+| `VarTypeFolder` | `"folder"` | Folder path (must exist) |
+| `VarTypeString` | `"string"` | Arbitrary string |
+| `VarTypeSubdomain` | `"subdomain"` | Subdomain (domain with >=2 dots) |
+| `VarTypeURL` | `"url"` | HTTP/HTTPS URL |
+| `VarTypeCIDR` | `"cidr"` | CIDR notation (e.g., 192.168.0.0/24) |
+| `VarTypeRepo` | `"repo"` | Git repository URL |
 
-### RunStatus
+**Validation:**
+Use `MatchesVariableType(value, varType)` to validate values.
+
+## TargetType
+
+Defines allowed target types for workflows.
 
 ```go
-type RunStatus string
-
-const (
-    RunStatusPending   RunStatus = "pending"
-    RunStatusRunning   RunStatus = "running"
-    RunStatusCompleted RunStatus = "completed"
-    RunStatusFailed    RunStatus = "failed"
-    RunStatusCancelled RunStatus = "cancelled"
-)
+type TargetType string
 ```
 
-### StepStatus
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `TargetTypeDomain` | `"domain"` | Domain name |
+| `TargetTypeSubdomain` | `"subdomain"` | Subdomain |
+| `TargetTypeURL` | `"url"` | HTTP/HTTPS URL |
+| `TargetTypeCIDR` | `"cidr"` | CIDR notation |
+| `TargetTypeRepo` | `"repo"` | Git repository |
+| `TargetTypePath` | `"path"` | File path |
+| `TargetTypeFile` | `"file"` | File (must exist) |
+| `TargetTypeFolder` | `"folder"` | Folder (must exist) |
+| `TargetTypeNumber` | `"number"` | Numeric value |
+| `TargetTypeString` | `"string"` | Arbitrary string |
+
+**Validation:**
+Use `MatchesTargetType(target, targetType)` to validate targets.
+
+## ActionType
+
+Defines action types for on_success and on_error handlers.
+
+```go
+type ActionType string
+```
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `ActionLog` | `"log"` | Log a message |
+| `ActionAbort` | `"abort"` | Abort workflow execution |
+| `ActionContinue` | `"continue"` | Continue execution |
+| `ActionExport` | `"export"` | Export variable |
+| `ActionRun` | `"run"` | Run another step |
+| `ActionNotify` | `"notify"` | Send notification |
+
+## StepStatus
+
+Tracks individual step execution state.
 
 ```go
 type StepStatus string
-
-const (
-    StepStatusPending   StepStatus = "pending"
-    StepStatusRunning   StepStatus = "running"
-    StepStatusCompleted StepStatus = "completed"
-    StepStatusFailed    StepStatus = "failed"
-    StepStatusSkipped   StepStatus = "skipped"
-)
 ```
 
-## Result Types
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `StepStatusPending` | `"pending"` | Waiting to execute |
+| `StepStatusRunning` | `"running"` | Currently executing |
+| `StepStatusSuccess` | `"success"` | Completed successfully |
+| `StepStatusFailed` | `"failed"` | Execution failed |
+| `StepStatusSkipped` | `"skipped"` | Skipped (pre-condition failed) |
 
-### WorkflowResult
+## RunStatus
+
+Tracks overall workflow execution state.
 
 ```go
-type WorkflowResult struct {
-    Success      bool
-    RunID        string
-    WorkflowName string
-    Target       string
-    StartedAt    time.Time
-    CompletedAt  time.Time
-    Steps        []StepResult
-    Error        error
-}
+type RunStatus string
 ```
 
-### StepResult
-
-```go
-type StepResult struct {
-    Success   bool
-    StepName  string
-    Output    string
-    ExitCode  int
-    Duration  time.Duration
-    Error     error
-    Exports   map[string]interface{}
-}
-```
-
-### CommandResult
-
-```go
-type CommandResult struct {
-    Output   string
-    ExitCode int
-    Error    error
-}
-```
-
-## Execution Context
-
-```go
-type ExecutionContext struct {
-    WorkflowName string
-    WorkflowKind WorkflowKind
-    RunID        string
-    Target       string
-    Variables    map[string]interface{}
-    Params       map[string]string
-    Exports      map[string]interface{}
-    StepIndex    int
-    Logger       *zap.Logger
-}
-```
-
-## Flow Types
-
-### ModuleRef
-
-```go
-type ModuleRef struct {
-    Name      string            `yaml:"name"`
-    Path      string            `yaml:"path"`
-    DependsOn []string          `yaml:"depends_on,omitempty"`
-    Condition string            `yaml:"condition,omitempty"`
-    Params    map[string]string `yaml:"params,omitempty"`
-}
-```
-
-## Action Types
-
-### Action
-
-```go
-type Action struct {
-    Action  string `yaml:"action"`
-    Message string `yaml:"message,omitempty"`
-    Key     string `yaml:"key,omitempty"`
-    Value   string `yaml:"value,omitempty"`
-    Command string `yaml:"command,omitempty"`
-}
-```
-
-### Decision
-
-```go
-type Decision struct {
-    Condition string `yaml:"condition"`
-    Jump      string `yaml:"jump"`
-}
-```
-
-## Parameter Types
-
-### Param
-
-```go
-type Param struct {
-    Name        string `yaml:"name"`
-    Required    bool   `yaml:"required,omitempty"`
-    Default     string `yaml:"default,omitempty"`
-    Description string `yaml:"description,omitempty"`
-}
-```
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `RunStatusPending` | `"pending"` | Waiting to start |
+| `RunStatusRunning` | `"running"` | Currently executing |
+| `RunStatusCompleted` | `"completed"` | Completed successfully |
+| `RunStatusFailed` | `"failed"` | Execution failed |
+| `RunStatusCancelled` | `"cancelled"` | User-cancelled |
+| `RunStatusSkipped` | `"skipped"` | Skipped (pre-conditions) |
 
 ## LLM Types
 
-### Message
+### LLMMessageRole
+
+Defines message roles in LLM conversations.
 
 ```go
-type Message struct {
-    Role    string      `yaml:"role"`
-    Content interface{} `yaml:"content"` // string or []ContentPart
+type LLMMessageRole string
+```
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `LLMRoleSystem` | `"system"` | System prompt |
+| `LLMRoleUser` | `"user"` | User message |
+| `LLMRoleAssistant` | `"assistant"` | Assistant response |
+| `LLMRoleTool` | `"tool"` | Tool response |
+
+### LLMContentType
+
+Defines content types in LLM messages.
+
+```go
+type LLMContentType string
+```
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `LLMContentTypeText` | `"text"` | Plain text content |
+| `LLMContentTypeImageURL` | `"image_url"` | Image URL content |
+
+## DecisionConfig
+
+Supports switch/case routing for conditional workflow branching.
+
+```go
+type DecisionConfig struct {
+    Switch  string                    // Template variable to evaluate
+    Cases   map[string]DecisionCase   // Case values mapped to goto steps
+    Default *DecisionCase             // Default case if no matches
 }
 
-type ContentPart struct {
-    Type     string    `yaml:"type"`
-    Text     string    `yaml:"text,omitempty"`
-    ImageURL *ImageURL `yaml:"image_url,omitempty"`
+type DecisionCase struct {
+    Goto string // Target step name (use "_end" to terminate)
 }
 ```
 
-### Tool
-
-```go
-type Tool struct {
-    Type     string    `yaml:"type"`
-    Function *Function `yaml:"function,omitempty"`
-}
-
-type Function struct {
-    Name        string                 `yaml:"name"`
-    Description string                 `yaml:"description,omitempty"`
-    Parameters  map[string]interface{} `yaml:"parameters,omitempty"`
-}
+**Example YAML:**
+```yaml
+decision:
+  switch: "{{variable}}"
+  cases:
+    "value1": { goto: step-a }
+    "value2": { goto: step-b }
+  default:
+    goto: fallback-step
 ```
 
-## Next Steps
+## Project Metadata
 
-- [Architecture](../concepts/architecture.md) - System overview
-- [Workflow Schema](workflow-schema.md) - YAML schema
-- [Variables Reference](variables.md) - Built-in variables
+Constants defined in `internal/core/constants.go`:
+
+```go
+VERSION            = "v5.0.0"
+DESC               = "A Modern Orchestration Engine for Security"
+BINARY             = "osmedeus"
+SNAPSHOT           = "osm"
+AUTHOR             = "@j3ssie"
+DOCS               = "https://docs.osmedeus.org"
+LICENSE            = "open-source"
+REPO_URL           = "https://github.com/j3ssie/osmedeus"
+DEFAULT_BASE_REPO  = "https://github.com/osmedeus/osmedeus-base.git"
+METADATA           = "https://metadata.osmedeus.org"
+DefaultUA          = "Mozilla/5.0 (compatible; Osmedeus/VERSION; +REPO_URL)"
+```
+
+## Summary Table
+
+| Category | Type Name | Values |
+|----------|-----------|--------|
+| Workflow | WorkflowKind | module, flow |
+| Step | StepType | bash, function, parallel-steps, foreach, remote-bash, http, llm |
+| Runner | RunnerType | host, docker, ssh |
+| Trigger | TriggerType | cron, event, watch, manual |
+| Variable | VariableType | domain, path, number, file, folder, string, subdomain, url, cidr, repo |
+| Target | TargetType | domain, subdomain, url, cidr, repo, path, file, folder, number, string |
+| Action | ActionType | log, abort, continue, export, run, notify |
+| Step Status | StepStatus | pending, running, success, failed, skipped |
+| Run Status | RunStatus | pending, running, completed, failed, cancelled, skipped |
+| LLM Role | LLMMessageRole | system, user, assistant, tool |
+| LLM Content | LLMContentType | text, image_url |

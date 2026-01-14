@@ -1,0 +1,409 @@
+---
+title: "Writing Your First Workflow"
+description: "YAML-based workflow definitions and execution"
+icon: "diagram-project"
+---
+
+This guide walks you through creating workflows in Osmedeus, from basic concepts to advanced patterns.
+
+## Workflow Kinds
+
+Osmedeus supports two workflow kinds:
+
+| Kind | Purpose |
+|------|---------|
+| `module` | Single execution unit with steps |
+| `flow` | Orchestrates multiple modules |
+
+## Basic Structure
+
+### Module Workflow
+
+```yaml
+name: my-first-workflow
+kind: module
+description: A simple workflow example
+tags: example,tutorial
+
+params:
+  - name: custom_param
+    required: false
+    default: "default_value"
+
+steps:
+  - name: hello-world
+    type: bash
+    command: echo "Hello, {{Target}}!"
+```
+
+### Flow Workflow
+
+```yaml
+name: my-flow
+kind: flow
+description: Orchestrates multiple modules
+
+modules:
+  - name: subdomain-enum
+    path: modules/subdomain-enum.yaml
+
+  - name: port-scan
+    path: modules/port-scan.yaml
+    depends_on:
+      - subdomain-enum
+```
+
+## Step Types
+
+### bash - Execute Shell Commands
+
+```yaml
+# Single command
+- name: simple-command
+  type: bash
+  command: echo "Hello {{Target}}"
+
+# Multiple sequential commands
+- name: multiple-commands
+  type: bash
+  commands:
+    - mkdir -p {{Output}}/results
+    - echo "{{Target}}" > {{Output}}/target.txt
+
+# Parallel commands
+- name: parallel-commands
+  type: bash
+  parallel_commands:
+    - 'curl -s https://api1.example.com'
+    - 'curl -s https://api2.example.com'
+
+# Structured arguments (for tools like nuclei)
+- name: nuclei-scan
+  type: bash
+  command: nuclei
+  speed_args: '-c {{threads}}'
+  config_args: '-t /templates'
+  input_args: '-l {{Output}}/urls.txt'
+  output_args: '-o {{Output}}/nuclei.json'
+```
+
+### function - JavaScript Utility Functions
+
+```yaml
+# Single function
+- name: check-file
+  type: function
+  function: 'fileExists("{{Output}}/results.txt")'
+
+# Multiple functions
+- name: process-results
+  type: function
+  functions:
+    - 'log_info("Processing results...")'
+    - 'var count = fileLength("{{Output}}/results.txt")'
+    - 'log_info("Found " + count + " results")'
+
+# Parallel functions
+- name: parallel-logging
+  type: function
+  parallel_functions:
+    - 'log_info("Task A")'
+    - 'log_info("Task B")'
+```
+
+### parallel-steps - Run Steps Concurrently
+
+```yaml
+- name: parallel-recon
+  type: parallel-steps
+  parallel_steps:
+    - name: subfinder
+      type: bash
+      command: subfinder -d {{Target}} -o {{Output}}/subfinder.txt
+
+    - name: assetfinder
+      type: bash
+      command: assetfinder {{Target}} > {{Output}}/assetfinder.txt
+
+    - name: amass
+      type: bash
+      command: amass enum -passive -d {{Target}} -o {{Output}}/amass.txt
+```
+
+### foreach - Loop Over Input
+
+```yaml
+- name: scan-subdomains
+  type: foreach
+  input: "{{Output}}/subdomains.txt"
+  variable: subdomain
+  threads: 10
+
+  step:
+    name: httpx-probe
+    type: bash
+    command: 'httpx -u [[subdomain]] -silent'
+```
+
+**Note:** Use `[[variable]]` syntax inside foreach loops to avoid template conflicts.
+
+### http - Make HTTP Requests
+
+```yaml
+- name: api-call
+  type: http
+  url: "https://api.example.com/scan"
+  method: POST
+  headers:
+    Content-Type: application/json
+    Authorization: "Bearer {{api_token}}"
+  request_body: |
+    {
+      "target": "{{Target}}",
+      "options": {"deep": true}
+    }
+  exports:
+    response_data: "{{response.body}}"
+```
+
+### llm - AI-Powered Analysis
+
+```yaml
+- name: ai-analysis
+  type: llm
+  messages:
+    - role: system
+      content: "You are a security analyst."
+    - role: user
+      content: "Analyze the scan results for {{Target}}"
+  llm_config:
+    model: gpt-4
+    max_tokens: 1000
+    temperature: 0.7
+  exports:
+    analysis: "{{llm_step_content}}"
+```
+
+## Template Variables
+
+### Built-in Variables
+
+| Variable | Description |
+|----------|-------------|
+| `{{Target}}` | Current target |
+| `{{Output}}` | Output directory for this run |
+| `{{BaseFolder}}` | Osmedeus installation directory |
+| `{{Binaries}}` | Binary tools directory |
+| `{{Data}}` | Data directory (wordlists, etc.) |
+| `{{Workflows}}` | Workflows directory |
+| `{{Workspaces}}` | Workspaces directory |
+| `{{threads}}` | Thread count based on tactic |
+| `{{Version}}` | Osmedeus version |
+
+### Foreach Loop Variables
+
+Use double brackets `[[variable]]` inside foreach loops:
+
+```yaml
+- name: process-items
+  type: foreach
+  input: "{{Output}}/items.txt"
+  variable: item
+  step:
+    type: bash
+    command: 'process [[item]] --output {{Output}}/[[item]].json'
+```
+
+## Exports and Variable Passing
+
+Pass data between steps using exports:
+
+```yaml
+- name: count-results
+  type: bash
+  command: wc -l {{Output}}/results.txt | awk '{print $1}'
+  exports:
+    result_count: "output"  # Special: captures stdout
+
+- name: log-count
+  type: function
+  function: 'log_info("Found {{result_count}} results")'
+```
+
+## Decision Routing
+
+Branch workflow execution based on conditions:
+
+```yaml
+- name: detect-type
+  type: bash
+  command: 'detect-target-type {{Target}}'
+  exports:
+    target_type: "output"
+
+  decision:
+    switch: "{{target_type}}"
+    cases:
+      "domain":
+        goto: subdomain-enum
+      "ip":
+        goto: port-scan
+      "url":
+        goto: web-scan
+    default:
+      goto: generic-recon
+
+- name: subdomain-enum
+  type: bash
+  command: subfinder -d {{Target}}
+
+- name: port-scan
+  type: bash
+  command: nmap {{Target}}
+
+# Use goto: _end to terminate workflow early
+```
+
+## Handlers (on_success / on_error)
+
+```yaml
+- name: critical-scan
+  type: bash
+  command: 'nuclei -u {{Target}}'
+
+  on_success:
+    - action: log
+      message: "Scan completed for {{Target}}"
+    - action: notify
+      notify: "Scan finished: {{Target}}"
+    - action: export
+      name: scan_status
+      value: "success"
+
+  on_error:
+    - action: log
+      message: "Scan failed for {{Target}}"
+    - action: continue  # Continue despite error
+    # Or: action: abort to stop workflow
+```
+
+## Runner Configuration
+
+### Host Runner (Default)
+
+```yaml
+runner: host  # Runs locally, this is the default
+```
+
+### Docker Runner
+
+```yaml
+runner: docker
+runner_config:
+  image: ubuntu:22.04
+  env:
+    API_KEY: "{{api_key}}"
+  volumes:
+    - "{{Output}}:/output"
+  network: host
+  persistent: false
+```
+
+### SSH Runner
+
+```yaml
+runner: ssh
+runner_config:
+  host: 192.168.1.100
+  port: 22
+  user: scanner
+  key_file: ~/.ssh/id_rsa
+```
+
+### Per-Step Runner Override
+
+```yaml
+- name: docker-step
+  type: bash
+  step_runner: docker
+  step_runner_config:
+    image: projectdiscovery/nuclei:latest
+  command: 'nuclei -u {{Target}}'
+```
+
+## Complete Example
+
+```yaml
+name: basic-recon
+kind: module
+description: Basic reconnaissance workflow
+tags: recon,subdomain,fast
+
+params:
+  - name: threads
+    default: "10"
+
+steps:
+  - name: setup
+    type: bash
+    commands:
+      - mkdir -p {{Output}}/subdomains
+      - mkdir -p {{Output}}/urls
+
+  - name: passive-enum
+    type: parallel-steps
+    parallel_steps:
+      - name: subfinder
+        type: bash
+        command: subfinder -d {{Target}} -silent -o {{Output}}/subdomains/subfinder.txt
+
+      - name: assetfinder
+        type: bash
+        command: assetfinder --subs-only {{Target}} > {{Output}}/subdomains/assetfinder.txt
+
+  - name: merge-results
+    type: bash
+    commands:
+      - cat {{Output}}/subdomains/*.txt | sort -u > {{Output}}/subdomains.txt
+    exports:
+      subdomain_count: "output"
+
+  - name: probe-http
+    type: foreach
+    input: "{{Output}}/subdomains.txt"
+    variable: sub
+    threads: "{{threads}}"
+    step:
+      name: httpx
+      type: bash
+      command: 'httpx -u [[sub]] -silent >> {{Output}}/urls/live.txt'
+
+  - name: summary
+    type: function
+    functions:
+      - 'var total = fileLength("{{Output}}/subdomains.txt")'
+      - 'var live = fileLength("{{Output}}/urls/live.txt")'
+      - 'log_info("Found " + total + " subdomains, " + live + " live hosts")'
+```
+
+## Running Your Workflow
+
+```bash
+# Run a module workflow
+osmedeus run -m basic-recon -t example.com
+
+# Run with custom parameters
+osmedeus run -m basic-recon -t example.com --params 'threads=20'
+
+# Dry run (preview without executing)
+osmedeus run -m basic-recon -t example.com --dry-run
+
+# Run with verbose output
+osmedeus run -m basic-recon -t example.com -v
+```
+
+## Next Steps
+
+- See [CLI References](cli-references.md) for all command options
+- See [Extending Osmedeus](extending-osmedeus.md) to add custom step types
+- See [Advanced Configuration](advanced-configuration.md) for API keys and storage setup

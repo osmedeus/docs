@@ -21,26 +21,27 @@
               "quickstart",
               "getting-started/cli",
               "getting-started/web-ui",
-              "getting-started/basic-setup"
+              "getting-started/basic-setup",
+              "getting-started/writing-your-first-workflow"
             ]
           },
           {
             "group": "Advanced Configuration",
             "icon": "hat-wizard",
             "pages": [
-              "advanced-configuration/advanced-configuration",
-              "advanced-configuration/deployment",
-              "advanced-configuration/development"
+              "advanced/advanced-configuration",
+              "advanced/deployment",
+              "advanced/development"
             ]
           },
           {
-            "group": "Concepts",
+            "group": "Architecture",
             "icon": "lightbulb",
             "pages": [
-              "concepts/architecture",
-              "concepts/workflows",
-              "concepts/runners",
-              "concepts/templates"
+              "architecture/index",
+              "architecture/workflows",
+              "architecture/runners",
+              "architecture/templates"
             ]
           },
           {
@@ -55,18 +56,6 @@
             ]
           },
           {
-            "group": "CLI Usage",
-            "icon": "terminal",
-            "pages": [
-              "cli/run",
-              "cli/install",
-              "cli/server",
-              "cli/workflow",
-              "cli/function",
-              "cli/snapshot"
-            ]
-          },
-          {
             "group": "Functions",
             "icon": "cube",
             "pages": [
@@ -75,26 +64,21 @@
             ]
           },
           {
-            "group": "Extending",
-            "icon": "hammer",
+            "group": "Extending Osmedeus",
+            "icon": "cube",
             "pages": [
               "extending/runners",
               "extending/step-types",
               "extending/functions",
               "extending/cli-commands",
-              "extending/api-endpoints"
-            ]
-          },
-          {
-            "group": "Advanced",
-            "icon": "gear",
-            "pages": [
+              "extending/rest-api",
               "advanced/distributed",
               "advanced/scheduling",
               "advanced/snapshots",
               "advanced/llm"
             ]
           },
+
           {
             "group": "Reference",
             "icon": "book",
@@ -110,15 +94,6 @@
             "pages": [
               "api/overview",
               "api/quick-reference"
-            ]
-          },
-          {
-            "group": "Endpoint examples",
-            "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
             ]
           }
         ]
@@ -199,6 +174,11 @@
   "banner": {
     "content": "🛠️ This document is under active maintenance in preparation for the major Osmedeus **v5.0.0** upgrade",
     "dismissible": true
+  },
+  "seo": {
+    "metatags": {
+        "og:image": "https://raw.githubusercontent.com/osmedeus/assets/refs/heads/main/banner.png"
+    }
   },
   "errors": {
     "404": {

@@ -1,0 +1,427 @@
+---
+title: "Advanced Configuration"
+description: "Multiple ways to install Osmedeus"
+icon: "download"
+---
+
+# Advanced Configuration
+
+This guide covers advanced configuration options including binary registry, API keys, storage, LLM, and notifications.
+
+## Configuration File
+
+Default location: `~/osmedeus-base/osm-settings.yaml`
+
+Override with: `osmedeus --settings-file /path/to/config.yaml`
+
+---
+
+## Adding New Binaries to Registry
+
+The binary registry defines tools that can be installed via `osmedeus install binary`.
+
+### Registry Format
+
+Create or modify `registry-metadata.json`:
+
+```json
+{
+  "mytool": {
+    "desc": "Description of mytool",
+    "repo_link": "https://github.com/user/mytool",
+    "version": "1.2.0",
+    "tags": ["recon", "scanning"],
+    "valide-command": "mytool --version",
+    "linux": {
+      "amd64": "https://github.com/user/mytool/releases/download/v1.2.0/mytool-linux-amd64.tar.gz",
+      "arm64": "https://github.com/user/mytool/releases/download/v1.2.0/mytool-linux-arm64.tar.gz"
+    },
+    "darwin": {
+      "amd64": "https://github.com/user/mytool/releases/download/v1.2.0/mytool-darwin-amd64.tar.gz",
+      "arm64": "https://github.com/user/mytool/releases/download/v1.2.0/mytool-darwin-arm64.tar.gz"
+    },
+    "nix_package": "mytool"
+  }
+}
+```
+
+### Registry Fields
+
+| Field | Description |
+|-------|-------------|
+| `desc` | Tool description |
+| `repo_link` | Repository URL |
+| `version` | Current version |
+| `tags` | Categories for filtering |
+| `valide-command` | Command to verify installation |
+| `linux`, `darwin`, `windows` | Download URLs per OS/architecture |
+| `command-linux`, `command-darwin` | Alternative install commands |
+| `nix_package` | Nix package name |
+
+### Using Custom Registry
+
+```bash
+# Use local registry
+osmedeus install binary -n mytool -r /path/to/registry.json
+
+# Use remote registry
+osmedeus install binary -n mytool -r https://example.com/registry.json
+```
+
+---
+
+## API Keys Configuration
+
+Configure API keys for external services in the `global_vars` section.
+
+### Configuration
+
+```yaml
+global_vars:
+  # GitHub API (for asset discovery)
+  GITHUB_API_KEY:
+    value: "ghp_xxxxxxxxxxxx"
+    as_env: true
+
+  # Shodan API
+  SHODAN_API_KEY:
+    value: "xxxxxxxxxxxxxxxx"
+    as_env: true
+
+  # Censys API
+  CENSYS_API_ID:
+    value: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+    as_env: true
+  CENSYS_API_SECRET:
+    value: "xxxxxxxxxxxxxxxxxxxx"
+    as_env: true
+
+  # SecurityTrails
+  SECURITYTRAILS_API_KEY:
+    value: "xxxxxxxxxxxxxxxxxxxx"
+    as_env: true
+
+  # VirusTotal
+  VIRUSTOTAL_API_KEY:
+    value: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    as_env: true
+
+  # Custom variables (workflow-only, not exported to env)
+  custom_wordlist:
+    value: "/path/to/wordlist.txt"
+    as_env: false
+```
+
+### Setting via CLI
+
+```bash
+osmedeus config set global_vars.GITHUB_API_KEY ghp_xxxx
+osmedeus config set global_vars.SHODAN_API_KEY xxxx
+```
+
+### Usage in Workflows
+
+```yaml
+# As template variable
+- command: 'curl -H "Authorization: token {{GITHUB_API_KEY}}" https://api.github.com/...'
+
+# As environment variable (when as_env: true)
+- command: 'shodan search "hostname:{{Target}}"'  # Uses $SHODAN_API_KEY
+```
+
+---
+
+## Storage Configuration (S3-Compatible)
+
+Configure cloud storage for result uploads.
+
+### Configuration
+
+```yaml
+storage:
+  provider: s3
+  endpoint: ""                    # Empty for AWS S3
+  access_key_id: "AKIAXXXXXXXX"
+  secret_access_key: "xxxxxxxxxxxxxxxxxxxxxxxx"
+  bucket: "osmedeus-results"
+  region: "us-east-1"
+  use_ssl: true
+  enabled: true
+```
+
+### Provider Examples
+
+**AWS S3:**
+```yaml
+storage:
+  provider: s3
+  endpoint: ""
+  bucket: "my-bucket"
+  region: "us-west-2"
+```
+
+**MinIO:**
+```yaml
+storage:
+  provider: s3
+  endpoint: "http://localhost:9000"
+  bucket: "osmedeus"
+  region: "us-east-1"
+```
+
+**DigitalOcean Spaces:**
+```yaml
+storage:
+  provider: s3
+  endpoint: "https://nyc3.digitaloceanspaces.com"
+  bucket: "my-space"
+  region: "nyc3"
+```
+
+### Usage in Workflows
+
+```yaml
+- name: upload-results
+  type: function
+  function: 'cdnUpload("{{Output}}/results.json", "scans/{{Target}}/results.json")'
+
+- name: download-data
+  type: function
+  function: 'cdnDownload("wordlists/common.txt", "{{Output}}/wordlist.txt")'
+```
+
+---
+
+## LLM Configuration
+
+Configure AI/LLM providers for the `llm` step type.
+
+### Configuration
+
+```yaml
+llm_config:
+  llm_providers:
+    # Primary provider
+    - provider: ollama
+      base_url: "http://localhost:11434/v1/chat/completions"
+      auth_token: ""
+      model: "llama2"
+
+    # Fallback provider
+    - provider: openai
+      base_url: "https://api.openai.com/v1/chat/completions"
+      auth_token: "sk-xxxxxxxxxxxx"
+      model: "gpt-4"
+
+  # LLM settings
+  max_tokens: 1000
+  temperature: 0.7
+  top_p: 0.9
+  max_retries: 3
+  timeout: 120s
+  stream: false
+```
+
+### Supported Providers
+
+| Provider | Base URL |
+|----------|----------|
+| Ollama | `http://localhost:11434/v1/chat/completions` |
+| OpenAI | `https://api.openai.com/v1/chat/completions` |
+| Azure OpenAI | `https://<resource>.openai.azure.com/...` |
+| Custom | Any OpenAI-compatible endpoint |
+
+### Usage in Workflows
+
+```yaml
+- name: analyze
+  type: llm
+  messages:
+    - role: system
+      content: "You are a security analyst."
+    - role: user
+      content: "Analyze: {{Target}}"
+  exports:
+    analysis: "{{llm_step_content}}"
+```
+
+---
+
+## Notification Configuration
+
+### Telegram
+
+```yaml
+notification:
+  provider: telegram
+  enabled: true
+  telegram:
+    bot_token: "123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+    chat_id: 123456789
+    enabled: true
+```
+
+**Setup:**
+1. Create bot via [@BotFather](https://t.me/BotFather)
+2. Get chat ID via [@userinfobot](https://t.me/userinfobot)
+3. Start conversation with your bot
+
+### Webhooks
+
+```yaml
+notification:
+  provider: webhook
+  webhooks:
+    - url: "https://hooks.slack.com/services/xxx/yyy/zzz"
+      enabled: true
+      headers:
+        Content-Type: "application/json"
+      timeout: 30
+      retry_count: 3
+      events:
+        - workflow_completed
+        - workflow_failed
+
+    - url: "https://example.com/webhook"
+      enabled: true
+      headers:
+        Authorization: "Bearer token"
+      events:
+        - workflow_completed
+```
+
+**Event Types:**
+- `workflow_completed` - Scan finished successfully
+- `workflow_failed` - Scan failed
+- `workflow_cancelled` - Scan was cancelled
+
+### Usage in Workflows
+
+```yaml
+- name: notify-completion
+  type: function
+  function: 'notifyTelegram("Scan completed for {{Target}}")'
+
+- name: send-webhook
+  type: function
+  function: 'notifyWebhook("Scan done: {{Target}}")'
+```
+
+---
+
+## Database Configuration
+
+### SQLite (Default)
+
+```yaml
+database:
+  db_engine: sqlite
+  db_path: "{{base_folder}}/database-osm.sqlite"
+```
+
+### PostgreSQL
+
+```yaml
+database:
+  db_engine: postgresql
+  host: localhost
+  port: 5432
+  username: osmedeus
+  password: secure_password
+  db_name: osmedeus
+  connection_timeout: 60
+  ssl_mode: disable  # disable, require, verify-ca, verify-full
+```
+
+### Setting via CLI
+
+```bash
+osmedeus config set database.db_engine postgresql
+osmedeus config set database.host localhost
+osmedeus config set database.password mypassword
+```
+
+---
+
+## Server Authentication
+
+### Simple Auth (Username/Password)
+
+```yaml
+server:
+  simple_user_map_key:
+    admin: "secure_password"
+    readonly: "another_password"
+```
+
+### JWT Configuration
+
+```yaml
+server:
+  jwt:
+    secret_signing_key: "change-this-to-random-string"
+    expiration_minutes: 180
+```
+
+### API Key Authentication
+
+```yaml
+server:
+  enabled_auth_api: true
+  auth_api_key: "your-secure-api-key"
+```
+
+When enabled, all API requests require header: `x-osm-api-key: your-secure-api-key`
+
+### Setting via CLI
+
+```bash
+osmedeus config set server.username admin
+osmedeus config set server.password secure123
+osmedeus config set server.jwt.secret_signing_key random_key_here
+osmedeus config set server.enabled_auth_api true
+osmedeus config set server.auth_api_key my-api-key
+```
+
+---
+
+## Scan Tactics
+
+Configure thread counts for different scan intensities:
+
+```yaml
+scan_tactic:
+  aggressive: 40   # --tactic aggressive
+  default: 10      # default behavior
+  gently: 5        # --tactic gently
+```
+
+Usage:
+```bash
+osmedeus run -m recon -t example.com --tactic aggressive
+osmedeus run -m recon -t example.com --tactic gently
+```
+
+---
+
+## Environment Paths
+
+```yaml
+environments:
+  external_binaries_path: "{{base_folder}}/external-binaries"
+  external_data: "{{base_folder}}/external-data"
+  external_configs: "{{base_folder}}/external-configs"
+  workspaces: "{{base_folder}}/workspaces"
+  workflows: "{{base_folder}}/workflows"
+  snapshot: "{{base_folder}}/snapshot"
+```
+
+---
+
+## Quick Setup Checklist
+
+1. **Install binaries:** `osmedeus install binary --all`
+2. **Set API keys:** `osmedeus config set global_vars.GITHUB_API_KEY ghp_xxx`
+3. **Configure auth:** `osmedeus config set server.password secure123`
+4. **Test config:** `osmedeus config list`
+5. **Validate setup:** `osmedeus health`

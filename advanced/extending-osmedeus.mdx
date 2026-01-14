@@ -1,0 +1,427 @@
+---
+title: "Extending Osmedeus"
+icon: "hammer"
+---
+
+# Extending Osmedeus
+
+This guide covers how to extend Osmedeus with custom step types, runners, CLI commands, and utility functions.
+
+## Architecture Overview
+
+```
+CLI/API (pkg/cli, pkg/server)
+         ↓
+Executor (internal/executor) - coordinates workflow execution
+         ↓
+StepDispatcher - routes to appropriate executor
+         ↓
+Runner (internal/runner) - executes commands
+```
+
+## Adding a New Step Type
+
+Step types are implemented as plugins registered in the `StepDispatcher`.
+
+### 1. Define the Step Type Constant
+
+In `internal/core/types.go`:
+
+```go
+const (
+    // Existing types...
+    StepTypeYourType StepType = "your-type"
+)
+```
+
+### 2. Create the Executor
+
+Create a new file `internal/executor/your_executor.go`:
+
+```go
+package executor
+
+import (
+    "context"
+    "github.com/osmedeus/osmedeus/internal/core"
+    "github.com/osmedeus/osmedeus/internal/template"
+)
+
+type YourExecutor struct {
+    templateEngine *template.Engine
+}
+
+func NewYourExecutor(engine *template.Engine) *YourExecutor {
+    return &YourExecutor{templateEngine: engine}
+}
+
+// Name returns the executor name for logging
+func (e *YourExecutor) Name() string {
+    return "your-executor"
+}
+
+// StepTypes returns the step types this executor handles
+func (e *YourExecutor) StepTypes() []core.StepType {
+    return []core.StepType{core.StepTypeYourType}
+}
+
+// Execute runs the step and returns results
+func (e *YourExecutor) Execute(
+    ctx context.Context,
+    step *core.Step,
+    execCtx *core.ExecutionContext,
+) (*core.StepResult, error) {
+    // Render template variables
+    command, err := e.templateEngine.Render(step.Command, execCtx.Variables)
+    if err != nil {
+        return nil, err
+    }
+
+    // Your implementation here
+    output := "execution result"
+
+    return &core.StepResult{
+        StepName: step.Name,
+        Status:   core.StepStatusSuccess,
+        Output:   output,
+    }, nil
+}
+```
+
+### 3. Register in Dispatcher
+
+In `internal/executor/dispatcher.go`, add to `NewStepDispatcher()`:
+
+```go
+func NewStepDispatcher(engine *template.Engine, ...) *StepDispatcher {
+    d := &StepDispatcher{
+        registry:       NewPluginRegistry(),
+        templateEngine: engine,
+    }
+
+    // Register executors
+    d.registry.Register(NewBashExecutor(engine, ...))
+    d.registry.Register(NewFunctionExecutor(engine, ...))
+    // Add your executor
+    d.registry.Register(NewYourExecutor(engine))
+
+    return d
+}
+```
+
+### 4. Use in Workflows
+
+```yaml
+- name: my-custom-step
+  type: your-type
+  command: "{{Target}}"
+  exports:
+    result: "output"
+```
+
+## Adding a New Runner
+
+Runners execute commands in different environments (host, Docker, SSH).
+
+### 1. Define Runner Type
+
+In `internal/core/types.go`:
+
+```go
+const (
+    RunnerTypeYourRunner RunnerType = "your-runner"
+)
+```
+
+### 2. Implement the Runner Interface
+
+Create `internal/runner/your_runner.go`:
+
+```go
+package runner
+
+import (
+    "context"
+    "github.com/osmedeus/osmedeus/internal/core"
+)
+
+type YourRunner struct {
+    config *core.RunnerConfig
+}
+
+func NewYourRunner(config *core.RunnerConfig) (*YourRunner, error) {
+    return &YourRunner{config: config}, nil
+}
+
+func (r *YourRunner) Type() core.RunnerType {
+    return core.RunnerTypeYourRunner
+}
+
+func (r *YourRunner) IsRemote() bool {
+    return true // or false for local execution
+}
+
+func (r *YourRunner) Setup(ctx context.Context) error {
+    // Initialize connection/environment
+    return nil
+}
+
+func (r *YourRunner) Cleanup(ctx context.Context) error {
+    // Clean up resources
+    return nil
+}
+
+func (r *YourRunner) Execute(ctx context.Context, command string) (*CommandResult, error) {
+    // Execute command in your environment
+    return &CommandResult{
+        Stdout:   "output",
+        Stderr:   "",
+        ExitCode: 0,
+    }, nil
+}
+
+func (r *YourRunner) CopyFromRemote(ctx context.Context, remotePath, localPath string) error {
+    // Copy files from remote environment
+    return nil
+}
+```
+
+### 3. Register in Runner Factory
+
+In `internal/runner/runner.go`:
+
+```go
+func NewRunnerFromType(
+    runnerType core.RunnerType,
+    config *core.RunnerConfig,
+) (Runner, error) {
+    switch runnerType {
+    case core.RunnerTypeHost:
+        return NewHostRunner(config)
+    case core.RunnerTypeDocker:
+        return NewDockerRunner(config)
+    case core.RunnerTypeSSH:
+        return NewSSHRunner(config)
+    case core.RunnerTypeYourRunner:
+        return NewYourRunner(config)
+    default:
+        return nil, fmt.Errorf("unknown runner type: %s", runnerType)
+    }
+}
+```
+
+### 4. Use in Workflows
+
+```yaml
+runner: your-runner
+runner_config:
+  option1: value1
+  option2: value2
+
+steps:
+  - name: example
+    type: bash
+    command: echo "Running in custom runner"
+```
+
+## Adding a New CLI Command
+
+CLI commands use [Cobra](https://github.com/spf13/cobra).
+
+### 1. Create Command File
+
+Create `pkg/cli/mycommand.go`:
+
+```go
+package cli
+
+import (
+    "fmt"
+    "github.com/spf13/cobra"
+)
+
+var (
+    myFlag string
+)
+
+var myCmd = &cobra.Command{
+    Use:   "mycommand [args]",
+    Short: "Short description",
+    Long:  `Detailed description of what the command does.`,
+    Example: `  osmedeus mycommand --flag value
+  osmedeus mycommand arg1 arg2`,
+    RunE: runMyCommand,
+}
+
+func init() {
+    myCmd.Flags().StringVar(&myFlag, "flag", "default", "Flag description")
+    myCmd.Flags().BoolP("verbose", "v", false, "Verbose output")
+}
+
+func runMyCommand(cmd *cobra.Command, args []string) error {
+    verbose, _ := cmd.Flags().GetBool("verbose")
+
+    if verbose {
+        fmt.Println("Running in verbose mode")
+    }
+
+    // Command implementation
+    fmt.Printf("Flag value: %s\n", myFlag)
+    fmt.Printf("Arguments: %v\n", args)
+
+    return nil
+}
+```
+
+### 2. Register in Root Command
+
+In `pkg/cli/root.go`:
+
+```go
+func init() {
+    // Existing commands...
+    rootCmd.AddCommand(myCmd)
+}
+```
+
+### 3. Add Subcommands (Optional)
+
+```go
+var mySubCmd = &cobra.Command{
+    Use:   "sub",
+    Short: "Subcommand description",
+    RunE:  runMySubCommand,
+}
+
+func init() {
+    myCmd.AddCommand(mySubCmd)
+}
+```
+
+## Adding Utility Functions
+
+Utility functions are executed via the Otto JavaScript VM.
+
+### 1. Define Function Name Constant
+
+In `internal/functions/constants.go`:
+
+```go
+const (
+    FnMyFunction = "myFunction"
+)
+```
+
+### 2. Implement the Function
+
+In `internal/functions/util_functions.go` (or create a new file):
+
+```go
+func (r *OttoRuntime) myFunction(call otto.FunctionCall) otto.Value {
+    // Get arguments
+    arg1, err := call.Argument(0).ToString()
+    if err != nil {
+        return r.falseValue(call)
+    }
+
+    arg2, _ := call.Argument(1).ToInteger()
+
+    // Implementation
+    result := fmt.Sprintf("Processed: %s with %d", arg1, arg2)
+
+    // Return value
+    val, _ := call.Otto.ToValue(result)
+    return val
+}
+```
+
+### 3. Register in Otto Runtime
+
+In `internal/functions/otto_runtime.go`, add to `registerFunctionsOnVM()`:
+
+```go
+func (r *OttoRuntime) registerFunctionsOnVM(vm *otto.Otto) {
+    // Existing registrations...
+
+    // Register your function
+    _ = vm.Set(FnMyFunction, r.myFunction)
+}
+```
+
+### 4. Use in Workflows
+
+```yaml
+- name: use-my-function
+  type: function
+  function: 'myFunction("{{Target}}", 42)'
+  exports:
+    result: "{{Result}}"
+```
+
+Or via CLI:
+
+```bash
+osmedeus func eval 'myFunction("example.com", 10)'
+```
+
+## Function Categories
+
+Organize functions by category:
+
+| Category | File | Examples |
+|----------|------|----------|
+| File Operations | `file_functions.go` | `fileExists`, `readFile`, `writeFile` |
+| String Operations | `string_functions.go` | `trim`, `split`, `replace` |
+| Database | `database_functions.go` | `db_select`, `db_import_asset` |
+| HTTP | `http_functions.go` | `httpRequest`, `http_get` |
+| Notification | `notification_functions.go` | `notifyTelegram`, `notifyWebhook` |
+| Storage | `cdn_functions.go` | `cdnUpload`, `cdnDownload` |
+
+## Testing Your Extensions
+
+### Unit Tests
+
+```go
+func TestMyFunction(t *testing.T) {
+    runtime := NewOttoRuntime(nil)
+
+    result, err := runtime.Eval(`myFunction("test", 5)`)
+    if err != nil {
+        t.Fatalf("Expected no error, got: %v", err)
+    }
+
+    if result != "Processed: test with 5" {
+        t.Errorf("Unexpected result: %s", result)
+    }
+}
+```
+
+### Integration Tests
+
+```bash
+# Test via CLI
+osmedeus func eval 'myFunction("test", 10)'
+
+# Test in workflow
+osmedeus run -m test-workflow -t example.com --dry-run
+```
+
+## Best Practices
+
+1. **Error Handling**: Always return meaningful errors
+2. **Context Support**: Respect context cancellation for long operations
+3. **Logging**: Use structured logging with `zap`
+4. **Template Variables**: Support `{{Variable}}` syntax in inputs
+5. **Documentation**: Update usage help and CLAUDE.md
+6. **Tests**: Write unit and integration tests
+
+## File Reference
+
+| Component | Location |
+|-----------|----------|
+| Step Types | `internal/core/types.go` |
+| Executors | `internal/executor/` |
+| Runners | `internal/runner/` |
+| Functions | `internal/functions/` |
+| CLI Commands | `pkg/cli/` |
+| Templates | `internal/template/` |
