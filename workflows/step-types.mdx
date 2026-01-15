@@ -388,8 +388,10 @@ All steps support these fields:
   on_error:                    # Error handlers
     - action: continue
   decision:                    # Conditional routing
-    - condition: 'expr'
-      jump: other-step
+    switch: "{{value}}"
+    cases:
+      "match": { goto: other-step }
+    default: { goto: fallback }
 ```
 
 ## Next Steps

@@ -48,7 +48,7 @@ pre_condition: 'fileExists("{{Output}}/subs.txt") && {{threads}} > 0'
 
 ## Decision Routing
 
-Jump to a different step based on conditions.
+Route to different steps based on variable values using switch/case syntax.
 
 ```yaml
 steps:
@@ -58,35 +58,45 @@ steps:
     exports:
       count: "{{stdout}}"
     decision:
-      - condition: '{{count}} == 0'
-        jump: no-hosts-found
-      - condition: '{{count}} < 10'
-        jump: small-scan
-      - condition: '{{count}} >= 10'
-        jump: large-scan
+      switch: "{{count}}"
+      cases:
+        "0": { goto: no-hosts-found }
+      default: { goto: continue-scan }
 
   - name: no-hosts-found
     type: function
     function: log_warning("No hosts found, skipping scan")
     decision:
-      - condition: 'true'
-        jump: _end              # Special: end workflow
+      switch: "true"
+      cases:
+        "true": { goto: _end }    # Special: end workflow
 
-  - name: small-scan
+  - name: continue-scan
     type: bash
     command: nuclei -l {{Output}}/hosts.txt -t {{Data}}/templates/
-
-  - name: large-scan
-    type: bash
-    command: nuclei -l {{Output}}/hosts.txt -c 50 -t {{Data}}/templates/
 ```
 
-### Special Jump Targets
+### Decision Syntax
+
+```yaml
+decision:
+  switch: "{{variable}}"      # Template expression to evaluate
+  cases:                       # Map of values to actions
+    "value1": { goto: step-a }
+    "value2": { goto: step-b }
+  default: { goto: fallback }  # Optional: when no case matches
+```
+
+- `switch`: Template variable evaluated at runtime (exact string match)
+- `cases`: Map of string values to goto targets
+- `default`: Fallback when no case matches (optional)
+- `goto`: Target step name or `_end` to terminate
+
+### Special Goto Targets
 
 | Target | Description |
 |--------|-------------|
 | `_end` | End workflow immediately |
-| `_next` | Continue to next step (default) |
 | `step-name` | Jump to named step |
 
 ## Success Handlers
@@ -196,17 +206,18 @@ steps:
     exports:
       count: "{{result}}"
     decision:
-      - condition: '{{count}} == 0'
-        jump: no-results
-      - condition: '{{count}} > 0'
-        jump: probe-hosts
+      switch: "{{count}}"
+      cases:
+        "0": { goto: no-results }
+      default: { goto: probe-hosts }
 
   - name: no-results
     type: function
     function: log_warning("No subdomains found for {{target}}")
     decision:
-      - condition: 'true'
-        jump: _end
+      switch: "true"
+      cases:
+        "true": { goto: _end }
 
   - name: probe-hosts
     type: bash
@@ -268,24 +279,26 @@ modules:
   exports:
     has_data: "{{result}}"
   decision:
-    - condition: '{{has_data}} > 0'
-      jump: process-data
-    - condition: '{{has_data}} == 0'
-      jump: handle-empty
+    switch: "{{has_data}}"
+    cases:
+      "0": { goto: handle-empty }
+    default: { goto: process-data }
 
 - name: process-data
   type: bash
   command: process {{Output}}/data.txt
   decision:
-    - condition: 'true'
-      jump: finalize
+    switch: "true"
+    cases:
+      "true": { goto: finalize }
 
 - name: handle-empty
   type: function
   function: log_warning("No data to process")
   decision:
-    - condition: 'true'
-      jump: finalize
+    switch: "true"
+    cases:
+      "true": { goto: finalize }
 
 - name: finalize
   type: function
@@ -301,10 +314,10 @@ modules:
   exports:
     valid: "{{result}}"
   decision:
-    - condition: '!{{valid}}'
-      jump: _end              # Exit if invalid
-    - condition: '{{valid}}'
-      jump: continue-scan
+    switch: "{{valid}}"
+    cases:
+      "false": { goto: _end }       # Exit if invalid
+    default: { goto: continue-scan }
 
 - name: continue-scan
   type: bash
@@ -319,6 +332,7 @@ modules:
   command: flaky-scanner {{target}}
   exports:
     attempt: "1"
+    failed: "false"
   on_error:
     - action: export
       key: failed
@@ -329,12 +343,20 @@ modules:
   type: function
   function: log_info("Checking retry status")
   decision:
-    - condition: '{{failed}} == "true" && {{attempt}} < 3'
-      jump: retry-scan
-    - condition: '{{failed}} == "true" && {{attempt}} >= 3'
-      jump: give-up
-    - condition: '{{failed}} != "true"'
-      jump: success
+    switch: "{{failed}}"
+    cases:
+      "false": { goto: success }
+      "true": { goto: check-attempts }
+    default: { goto: success }
+
+- name: check-attempts
+  type: function
+  function: log_info("Attempt {{attempt}}")
+  decision:
+    switch: "{{attempt}}"
+    cases:
+      "3": { goto: give-up }
+    default: { goto: retry-scan }
 
 - name: retry-scan
   type: bash
@@ -344,8 +366,9 @@ modules:
   on_error:
     - action: continue
   decision:
-    - condition: 'true'
-      jump: retry-check
+    switch: "true"
+    cases:
+      "true": { goto: retry-check }
 ```
 
 ## Best Practices
@@ -373,15 +396,18 @@ modules:
 4. **Use decision routing for complex logic**
    ```yaml
    decision:
-     - condition: '{{count}} > 100'
-       jump: large-dataset-handler
+     switch: "{{dataset_size}}"
+     cases:
+       "large": { goto: large-dataset-handler }
+     default: { goto: standard-handler }
    ```
 
 5. **End workflows cleanly**
    ```yaml
    decision:
-     - condition: '{{fatal_error}}'
-       jump: _end
+     switch: "{{fatal_error}}"
+     cases:
+       "true": { goto: _end }
    ```
 
 ## Next Steps
