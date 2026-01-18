@@ -102,6 +102,11 @@
           "anchor": "Sponring",
           "href": "/others/sponsor",
           "icon": "hands-holding-diamond"
+        },
+        {
+          "anchor": "Roadmap",
+          "href": "/others/roadmap",
+          "icon": "map"
         }
       ]
     }

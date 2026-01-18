@@ -43,7 +43,7 @@ osmedeus-ng/
 │   ├── template/generators.go        # Value generators
 │   ├── template/context.go           # Template context
 │   ├── functions/registry.go         # Function registry
-│   ├── functions/otto_runtime.go     # JavaScript runtime
+│   ├── functions/goja_runtime.go     # JavaScript runtime
 │   ├── functions/file_functions.go   # File operations
 │   ├── functions/string_functions.go # String operations
 │   ├── functions/util_functions.go   # Utility functions
@@ -552,25 +552,25 @@ Foreach uses `[[variable]]` syntax (double brackets) to avoid conflicts with tem
 
 ## Function Registry
 
-### Otto JavaScript Runtime
+### Goja JavaScript Runtime
 
-Functions are implemented in Go and exposed to an Otto JavaScript VM:
+Functions are implemented in Go and exposed to a Goja JavaScript VM:
 
 ```go
-// internal/functions/otto_runtime.go
+// internal/functions/goja_runtime.go
 
-type OttoRuntime struct {
-    vm *otto.Otto
+type GojaRuntime struct {
+    vm *goja.Runtime
 }
 
-func NewOttoRuntime() *OttoRuntime {
-    vm := otto.New()
-    runtime := &OttoRuntime{vm: vm}
+func NewGojaRuntime() *GojaRuntime {
+    vm := goja.New()
+    runtime := &GojaRuntime{vm: vm}
     runtime.registerFunctions()
     return runtime
 }
 
-func (r *OttoRuntime) registerFunctions() {
+func (r *GojaRuntime) registerFunctions() {
     r.vm.Set("fileExists", r.fileExists)
     r.vm.Set("fileLength", r.fileLength)
     r.vm.Set("trim", r.trim)
@@ -585,7 +585,7 @@ func (r *OttoRuntime) registerFunctions() {
 ```go
 // internal/functions/file_functions.go
 
-func (r *OttoRuntime) myNewFunction(call otto.FunctionCall) otto.Value {
+func (r *GojaRuntime) myNewFunction(call goja.FunctionCall) goja.Value {
     arg := call.Argument(0).String()
     // ... implementation
     result, _ := r.vm.ToValue(output)
@@ -607,13 +607,13 @@ These functions provide output and execution control within workflows:
 // internal/functions/util_functions.go
 
 // printf prints a message to stdout
-func (r *OttoRuntime) printf(call otto.FunctionCall) otto.Value
+func (r *GojaRuntime) printf(call goja.FunctionCall) goja.Value
 
 // catFile prints file content to stdout
-func (r *OttoRuntime) catFile(call otto.FunctionCall) otto.Value
+func (r *GojaRuntime) catFile(call goja.FunctionCall) goja.Value
 
 // exit exits the scan with given code (0=success, non-zero=error)
-func (r *OttoRuntime) exit(call otto.FunctionCall) otto.Value
+func (r *GojaRuntime) exit(call goja.FunctionCall) goja.Value
 ```
 
 Usage in workflows:
@@ -691,7 +691,7 @@ Events are matched using JavaScript expressions:
 
 ```go
 func (s *Scheduler) evaluateFilters(filters []string, event *core.Event) bool {
-    vm := otto.New()
+    vm := goja.New()
     vm.Set("event", eventObj)
 
     for _, filter := range filters {

@@ -300,7 +300,7 @@ func init() {
 
 ## Adding Utility Functions
 
-Utility functions are executed via the Otto JavaScript VM.
+Utility functions are executed via the Goja JavaScript VM.
 
 ### 1. Define Function Name Constant
 
@@ -317,7 +317,7 @@ const (
 In `internal/functions/util_functions.go` (or create a new file):
 
 ```go
-func (r *OttoRuntime) myFunction(call otto.FunctionCall) otto.Value {
+func (r *GojaRuntime) myFunction(call goja.FunctionCall) goja.Value {
     // Get arguments
     arg1, err := call.Argument(0).ToString()
     if err != nil {
@@ -330,17 +330,17 @@ func (r *OttoRuntime) myFunction(call otto.FunctionCall) otto.Value {
     result := fmt.Sprintf("Processed: %s with %d", arg1, arg2)
 
     // Return value
-    val, _ := call.Otto.ToValue(result)
+    val, _ := r.vm.ToValue(result)
     return val
 }
 ```
 
-### 3. Register in Otto Runtime
+### 3. Register in Goja Runtime
 
-In `internal/functions/otto_runtime.go`, add to `registerFunctionsOnVM()`:
+In `internal/functions/goja_runtime.go`, add to `registerFunctionsOnVM()`:
 
 ```go
-func (r *OttoRuntime) registerFunctionsOnVM(vm *otto.Otto) {
+func (r *GojaRuntime) registerFunctionsOnVM() {
     // Existing registrations...
 
     // Register your function
@@ -383,7 +383,7 @@ Organize functions by category:
 
 ```go
 func TestMyFunction(t *testing.T) {
-    runtime := NewOttoRuntime(nil)
+    runtime := NewGojaRuntime(nil)
 
     result, err := runtime.Eval(`myFunction("test", 5)`)
     if err != nil {

@@ -136,7 +136,7 @@ Osmedeus follows a layered architecture with clear separation of concerns.
 |  |    |  Step Type Routing:                                           |   | |
 |  |    |  +------------------------------------------------------------+  |   | |
 |  |    |  |  "bash"           -> BashExecutor       -> Runner         |  |   | |
-|  |    |  |  "function"       -> FunctionExecutor   -> Otto VM        |  |   | |
+|  |    |  |  "function"       -> FunctionExecutor   -> Goja VM        |  |   | |
 |  |    |  |  "foreach"        -> ForeachExecutor    -> Loop Items     |  |   | |
 |  |    |  |  "parallel-steps" -> ParallelExecutor   -> Concurrent     |  |   | |
 |  |    |  |  "remote-bash"    -> RemoteBashExecutor -> SSHRunner      |  |   | |
@@ -220,7 +220,7 @@ Osmedeus follows a layered architecture with clear separation of concerns.
 |  +------------------------------------------------------------------------+ |
 |                                                                             |
 |  +------------------------------------------------------------------------+ |
-|  |  Otto JS Functions:                                                    | |
+|  |  Goja JS Functions:                                                    | |
 |  |  +------------------------------------------------------------------+  | |
 |  |  |  fileExists()  - Check if file exists                            |  | |
 |  |  |  fileLength()  - Get file line count                             |  | |
@@ -389,7 +389,7 @@ Implementations:
 - Provides value generators (UUID, date, etc.)
 
 **Functions Registry** (`internal/functions/`)
-- Otto JavaScript VM for function evaluation
+- Goja JavaScript VM for function evaluation
 - Built-in functions for file, string, JSON operations
 
 **Scheduler** (`internal/scheduler/`)

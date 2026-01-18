@@ -7,14 +7,14 @@ Register custom utility functions for use in workflows.
 
 ## Overview
 
-Functions are implemented in Go and exposed to the Otto JavaScript VM runtime in `internal/functions/`.
+Functions are implemented in Go and exposed to the Goja JavaScript VM runtime in `internal/functions/`.
 
 ## Function Registry
 
-Functions are registered in `internal/functions/otto_runtime.go`:
+Functions are registered in `internal/functions/goja_runtime.go`:
 
 ```go
-func (r *OttoRuntime) registerFunctions() {
+func (r *GojaRuntime) registerFunctions() {
     // File functions
     r.vm.Set("fileExists", r.fileExists)
     r.vm.Set("fileLength", r.fileLength)
@@ -38,10 +38,10 @@ Add to an appropriate file in `internal/functions/`:
 ```go
 // internal/functions/util_functions.go
 
-func (r *OttoRuntime) myNewFunction(call otto.FunctionCall) otto.Value {
+func (r *GojaRuntime) myNewFunction(call goja.FunctionCall) goja.Value {
     // Get arguments
     if len(call.ArgumentList) < 1 {
-        return otto.UndefinedValue()
+        return goja.Undefined()
     }
 
     arg1 := call.Argument(0).String()
@@ -57,10 +57,10 @@ func (r *OttoRuntime) myNewFunction(call otto.FunctionCall) otto.Value {
     if err != nil {
         // Return undefined or error value
         r.vm.Set("_error", err.Error())
-        return otto.UndefinedValue()
+        return goja.Undefined()
     }
 
-    // Convert result to Otto value
+    // Convert result to Goja value
     value, _ := r.vm.ToValue(result)
     return value
 }
@@ -68,10 +68,10 @@ func (r *OttoRuntime) myNewFunction(call otto.FunctionCall) otto.Value {
 
 ### 2. Register the Function
 
-Update `internal/functions/otto_runtime.go`:
+Update `internal/functions/goja_runtime.go`:
 
 ```go
-func (r *OttoRuntime) registerFunctions() {
+func (r *GojaRuntime) registerFunctions() {
     // ... existing registrations ...
 
     // Register your new function
@@ -126,7 +126,7 @@ func TestMyNewFunction_DefaultArg(t *testing.T) {
 ### String
 
 ```go
-func (r *OttoRuntime) myStringFunc(call otto.FunctionCall) otto.Value {
+func (r *GojaRuntime) myStringFunc(call goja.FunctionCall) goja.Value {
     result := "hello world"
     value, _ := r.vm.ToValue(result)
     return value
@@ -136,7 +136,7 @@ func (r *OttoRuntime) myStringFunc(call otto.FunctionCall) otto.Value {
 ### Boolean
 
 ```go
-func (r *OttoRuntime) myBoolFunc(call otto.FunctionCall) otto.Value {
+func (r *GojaRuntime) myBoolFunc(call goja.FunctionCall) goja.Value {
     result := true
     value, _ := r.vm.ToValue(result)
     return value
@@ -146,7 +146,7 @@ func (r *OttoRuntime) myBoolFunc(call otto.FunctionCall) otto.Value {
 ### Number
 
 ```go
-func (r *OttoRuntime) myNumberFunc(call otto.FunctionCall) otto.Value {
+func (r *GojaRuntime) myNumberFunc(call goja.FunctionCall) goja.Value {
     result := 42
     value, _ := r.vm.ToValue(result)
     return value
@@ -156,7 +156,7 @@ func (r *OttoRuntime) myNumberFunc(call otto.FunctionCall) otto.Value {
 ### Array
 
 ```go
-func (r *OttoRuntime) myArrayFunc(call otto.FunctionCall) otto.Value {
+func (r *GojaRuntime) myArrayFunc(call goja.FunctionCall) goja.Value {
     result := []string{"a", "b", "c"}
     value, _ := r.vm.ToValue(result)
     return value
@@ -166,7 +166,7 @@ func (r *OttoRuntime) myArrayFunc(call otto.FunctionCall) otto.Value {
 ### Object/Map
 
 ```go
-func (r *OttoRuntime) myObjectFunc(call otto.FunctionCall) otto.Value {
+func (r *GojaRuntime) myObjectFunc(call goja.FunctionCall) goja.Value {
     result := map[string]interface{}{
         "key1": "value1",
         "key2": 42,
@@ -181,11 +181,11 @@ func (r *OttoRuntime) myObjectFunc(call otto.FunctionCall) otto.Value {
 Functions can access the execution context:
 
 ```go
-func (r *OttoRuntime) myContextFunc(call otto.FunctionCall) otto.Value {
+func (r *GojaRuntime) myContextFunc(call goja.FunctionCall) goja.Value {
     // Get context variables
     ctxValue, err := r.vm.Get("_context")
     if err != nil {
-        return otto.UndefinedValue()
+        return goja.Undefined()
     }
 
     ctx, _ := ctxValue.Export()
@@ -212,9 +212,9 @@ import (
     "encoding/hex"
 )
 
-func (r *OttoRuntime) hash(call otto.FunctionCall) otto.Value {
+func (r *GojaRuntime) hash(call goja.FunctionCall) goja.Value {
     if len(call.ArgumentList) < 2 {
-        return otto.UndefinedValue()
+        return goja.Undefined()
     }
 
     input := call.Argument(0).String()
@@ -229,7 +229,7 @@ func (r *OttoRuntime) hash(call otto.FunctionCall) otto.Value {
         hash := sha256.Sum256([]byte(input))
         result = hex.EncodeToString(hash[:])
     default:
-        return otto.UndefinedValue()
+        return goja.Undefined()
     }
 
     value, _ := r.vm.ToValue(result)
@@ -256,9 +256,9 @@ Usage in workflow:
 ```go
 // internal/functions/http_functions.go
 
-func (r *OttoRuntime) httpFetch(call otto.FunctionCall) otto.Value {
+func (r *GojaRuntime) httpFetch(call goja.FunctionCall) goja.Value {
     if len(call.ArgumentList) < 1 {
-        return otto.UndefinedValue()
+        return goja.Undefined()
     }
 
     url := call.Argument(0).String()
@@ -283,7 +283,7 @@ func (r *OttoRuntime) httpFetch(call otto.FunctionCall) otto.Value {
     // Make request
     req, err := http.NewRequest(method, url, nil)
     if err != nil {
-        return otto.UndefinedValue()
+        return goja.Undefined()
     }
 
     for k, v := range headers {
@@ -293,7 +293,7 @@ func (r *OttoRuntime) httpFetch(call otto.FunctionCall) otto.Value {
     client := &http.Client{Timeout: 30 * time.Second}
     resp, err := client.Do(req)
     if err != nil {
-        return otto.UndefinedValue()
+        return goja.Undefined()
     }
     defer resp.Body.Close()
 
