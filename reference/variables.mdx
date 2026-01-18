@@ -21,11 +21,14 @@ From configuration (`osm-settings.yaml`):
 | `{{BaseFolder}}` | Base installation folder |
 | `{{Binaries}}` | Binaries directory path |
 | `{{Data}}` | Data directory path (wordlists, etc.) |
+| `{{ExternalData}}` | Alias for `{{Data}}` |
 | `{{ExternalConfigs}}` | External configurations path |
 | `{{ExternalAgentConfigs}}` | External agent configs path |
+| `{{ExternalAgents}}` | Alias for `{{ExternalAgentConfigs}}` |
 | `{{ExternalScripts}}` | External scripts directory |
 | `{{Workflows}}` | Workflows directory path |
 | `{{MarkdownTemplates}}` | Markdown report templates path |
+| `{{ExternalMarkdowns}}` | Alias for `{{MarkdownTemplates}}` |
 | `{{SnapshotsFolder}}` | Snapshots directory path |
 | `{{Workspaces}}` | Workspaces directory (override with -W flag) |
 
@@ -49,10 +52,20 @@ From configuration (`osm-settings.yaml`):
 
 | Variable | Description |
 |----------|-------------|
-| `{{workflow}}` | Workflow name |
-| `{{run_id}}` | 8-character unique run identifier |
+| `{{workflow}}` | Workflow name (lowercase) |
+| `{{run_id}}` | 8-character unique run identifier (lowercase) |
 | `{{Output}}` | Output directory path for results |
-| `{{WorkspaceName}}` | Database workspace identifier |
+| `{{HeuristicsCheck}}` | Heuristics analysis level (`basic`, `advanced`, or `none`) |
+
+### Context Variables
+
+Additional lowercase variables available in template context:
+
+| Variable | Description |
+|----------|-------------|
+| `{{target}}` | Target being scanned (lowercase alias) |
+| `{{workspace}}` | Workspace path |
+| `{{base_folder}}` | Base installation folder (lowercase alias) |
 
 ### Time Variables
 
@@ -70,6 +83,7 @@ From configuration (`osm-settings.yaml`):
 | Variable | Description |
 |----------|-------------|
 | `{{StateExecutionLog}}` | Execution log (`{{Output}}/run-execution.log`) |
+| `{{StateConsoleLog}}` | Console log (`{{Output}}/run-console.log`) |
 | `{{StateCompletedFile}}` | Completion marker (`{{Output}}/run-completed.json`) |
 | `{{StateFile}}` | Run state file (`{{Output}}/run-state.json`) |
 | `{{StateWorkflowFile}}` | Exported workflow (`{{Output}}/run-workflow.yaml`) |
@@ -104,6 +118,8 @@ When `heuristics_check` is not `"none"`, additional variables are auto-detected.
 | `{{TargetStatusCode}}` | HTTP status code (if reachable) | `200` |
 | `{{TargetContentLength}}` | Content length of response | `4521` |
 | `{{TargetTLD}}` | Top-level domain | `com` |
+| `{{TargetSLD}}` | Second-level domain | `example` |
+| `{{Org}}` | Alias for `{{TargetSLD}}` | `example` |
 
 ### Additional URL Examples
 
@@ -120,6 +136,8 @@ When `heuristics_check` is not `"none"`, additional variables are auto-detected.
 | `{{TargetFileExt}}` | `png` |
 | `{{TargetScheme}}` | `https` |
 | `{{TargetTLD}}` | `org` |
+| `{{TargetSLD}}` | `example` |
+| `{{Org}}` | `example` |
 
 **Example with HTTP and explicit port:** `http://staging.app.example.io:3000/api/health`
 
@@ -134,6 +152,8 @@ When `heuristics_check` is not `"none"`, additional variables are auto-detected.
 | `{{TargetFileExt}}` | `` (empty) |
 | `{{TargetScheme}}` | `http` |
 | `{{TargetTLD}}` | `io` |
+| `{{TargetSLD}}` | `example` |
+| `{{Org}}` | `example` |
 
 ---
 
@@ -148,6 +168,8 @@ When `heuristics_check` is not `"none"`, additional variables are auto-detected.
 | `{{TargetIsWildcard}}` | Boolean indicating wildcard domain | `false` |
 | `{{TargetResolvedIP}}` | Resolved IP address (if DNS succeeds) | `93.184.216.34` |
 | `{{TargetTLD}}` | Top-level domain | `com` |
+| `{{TargetSLD}}` | Second-level domain | `example` |
+| `{{Org}}` | Alias for `{{TargetSLD}}` | `example` |
 
 ### Additional Domain Examples
 
@@ -160,6 +182,8 @@ When `heuristics_check` is not `"none"`, additional variables are auto-detected.
 | `{{TargetIsWildcard}}` | `true` |
 | `{{TargetResolvedIP}}` | `` (empty - wildcard cannot be resolved) |
 | `{{TargetTLD}}` | `net` |
+| `{{TargetSLD}}` | `example` |
+| `{{Org}}` | `example` |
 
 **Example subdomain:** `dev.api.example.co.uk`
 
@@ -170,6 +194,19 @@ When `heuristics_check` is not `"none"`, additional variables are auto-detected.
 | `{{TargetIsWildcard}}` | `false` |
 | `{{TargetResolvedIP}}` | `185.199.108.153` |
 | `{{TargetTLD}}` | `co.uk` |
+| `{{TargetSLD}}` | `example` |
+| `{{Org}}` | `example` |
+
+---
+
+## IP Target Variables
+
+**Example Target:** `192.168.1.100`
+
+| Variable | Description | Example Value |
+|----------|-------------|---------------|
+| `{{TargetType}}` | Target type identifier | `"ip"` |
+| `{{TargetRootDomain}}` | Original IP address | `192.168.1.100` |
 
 ---
 

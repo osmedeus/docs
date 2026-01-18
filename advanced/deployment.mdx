@@ -119,18 +119,51 @@ curl http://master:8002/osm/api/tasks -H "Authorization: Bearer <token>"
 
 ## Docker Deployment
 
+### Using Pre-built Image
+
+The official Docker image is available on Docker Hub:
+
+```bash
+# Pull the latest image
+docker pull j3ssie/osmedeus:latest
+
+# Show help
+docker run --rm j3ssie/osmedeus:latest --help
+
+# Run a scan
+docker run --rm -v $(pwd)/output:/root/workspaces-osmedeus \
+    j3ssie/osmedeus:latest run -f general -t example.com
+
+# Run as server
+docker run -d \
+  --name osmedeus \
+  -p 8002:8002 \
+  -v osmedeus-data:/root/osmedeus-base \
+  j3ssie/osmedeus:latest server
+```
+
+### Building from Source
+
+```bash
+# Build image locally
+docker build -t j3ssie/osmedeus:latest -f build/docker/Dockerfile .
+
+# Or use make target
+make docker-build
+
+# Build and push to Docker Hub (maintainers only)
+make docker-publish
+```
+
 ### Single Container
 
 ```bash
-# Build image
-docker build -t osmedeus:latest -f build/docker/Dockerfile .
-
 # Run container
 docker run -d \
   --name osmedeus \
   -p 8002:8002 \
   -v osmedeus-data:/root/osmedeus-base \
-  osmedeus:latest
+  j3ssie/osmedeus:latest server
 ```
 
 ### Docker Compose (Distributed)
@@ -147,10 +180,8 @@ services:
       - "6379:6379"
 
   master:
-    build:
-      context: .
-      dockerfile: build/docker/Dockerfile
-    command: osmedeus server --master
+    image: j3ssie/osmedeus:latest
+    command: server --master
     ports:
       - "8002:8002"
     environment:
@@ -161,10 +192,8 @@ services:
       - master-data:/root/osmedeus-base
 
   worker:
-    build:
-      context: .
-      dockerfile: build/docker/Dockerfile
-    command: osmedeus worker join
+    image: j3ssie/osmedeus:latest
+    command: worker join
     environment:
       - REDIS_URL=redis://redis:6379
     depends_on:
