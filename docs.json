@@ -148,10 +148,6 @@
       "linkedin": "https://www.linkedin.com/in/ai-ho/"
     }
   },
-  "banner": {
-    "content": "🛠️ This document is under active maintenance in preparation for the major Osmedeus **v5.0.0** upgrade",
-    "dismissible": true
-  },
   "seo": {
     "metatags": {
         "og:image": "https://raw.githubusercontent.com/osmedeus/assets/refs/heads/main/banner.png"
