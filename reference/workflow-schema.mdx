@@ -1,414 +1,512 @@
 ---
-title: "Workflow Schema"
-icon: "diagram-project"
+title: Workflow Schema Reference
+description: Complete YAML schema reference for Osmedeus workflows
 ---
 
-This document describes the complete YAML schema for Osmedeus workflows.
+# Workflow Schema Reference
+
+This document provides a complete reference for the Osmedeus workflow YAML schema.
+
+## Top-Level Fields
+
+All workflows share these common top-level fields:
+
+```yaml
+kind: module | flow | fragment     # Required: Workflow type
+name: workflow-name               # Required: Unique identifier
+description: "Description text"   # Optional: Human-readable description
+tags: "recon, fast"               # Optional: Comma-separated tags
+
+params:                           # Optional: Input parameters
+  - name: param_name
+    default: "value"
+    required: false
+
+trigger:                          # Optional: Automated triggers
+  - name: trigger-name
+    on: cron | event | watch | manual
+    enabled: true
+
+dependencies:                     # Optional: External tool dependencies
+  binaries:
+    - nuclei
+    - httpx
+```
 
 ## Workflow Kinds
 
-Osmedeus supports two workflow kinds:
+| Kind | Purpose | Contains |
+|------|---------|----------|
+| `module` | Single execution unit | `steps` array |
+| `flow` | Orchestrate modules | `modules` array |
+| `fragment` | Reusable step collection | `steps` array |
 
-| Kind | Description |
-|------|-------------|
-| `module` | Single execution unit with sequential/parallel steps |
-| `flow` | Orchestrates multiple modules with dependencies |
+## Module-Specific Fields
 
-## Workflow-Level Fields
-
-### Common Fields (Both Module and Flow)
-
-```yaml
-kind: module|flow                    # Required: workflow type
-name: string                         # Required: unique identifier
-description: string                  # Optional: human-readable description
-tags: string                         # Optional: comma-separated tags
-
-params:                              # Optional: workflow parameters
-  - name: string                     # Parameter identifier
-    default: string                  # Default value
-    required: bool                   # If true, workflow fails without it
-    generator: string                # Auto-generate value (uuid(), currentDate(), etc.)
-
-dependencies:                        # Optional: validate requirements
-  commands: [string]                 # Binaries that must exist in PATH
-  files: [string]                    # Files/directories that must exist
-  variables:                         # Variable requirements
-    - name: string
-      type: domain|path|number|file|folder|string|subdomain|url|cidr|repo
-      required: bool
-  target_types: [string]             # Allowed target types
-  functions_conditions: [string]     # JS expressions that must eval to true
-
-reports:                             # Optional: define output files
-  - name: string                     # Display name
-    path: string                     # File path (supports templates)
-    type: text|csv|json|markdown     # Format type
-    description: string              # Human-readable description
-
-trigger:                             # Optional: execution triggers
-  - name: string
-    on: cron|event|watch|manual
-    enabled: bool
-    schedule: string                 # Cron expression (for cron)
-    event:                           # Event configuration
-      topic: string                  # e.g., "webhook.received"
-      filters: [string]              # JS expressions for filtering
-    path: string                     # Watch path (for watch)
-    input:                           # Input source for trigger
-      type: file|event_data|function|param
-      path: string
-      field: string
-      function: string
-      name: string
-
-preferences:                         # Optional: execution preferences
-  disable_notifications: bool
-  disable_logging: bool
-  heuristics_check: none|basic|advanced
-  ci_output_format: bool
-  silent: bool
-  repeat: bool
-  repeat_wait_time: string           # e.g., "60s", "1h"
-```
-
-### Module-Specific Fields
+Modules contain steps that execute sequentially or based on dependencies.
 
 ```yaml
-runner: host|docker|ssh              # Execution environment (default: host)
+kind: module
+name: my-module
 
-runner_config:                       # Runner configuration
-  # Docker configuration
-  image: string                      # Docker image
-  env: map[string]string             # Environment variables
-  volumes: [string]                  # Volume mounts
-  network: string                    # Network mode
-  persistent: bool                   # Reuse container
+# Runner configuration (optional)
+runner: host | docker | ssh
+runner_config:
+  # Docker settings
+  image: "ubuntu:latest"
+  env:
+    KEY: "value"
+  volumes:
+    - "/host/path:/container/path"
+  network: "host"
+  persistent: false
 
-  # SSH configuration
-  host: string                       # SSH hostname
-  port: int                          # SSH port (default: 22)
-  user: string                       # SSH username
-  key_file: string                   # Path to SSH key
-  password: string                   # SSH password
+  # SSH settings
+  host: "remote.example.com"
+  port: 22
+  user: "username"
+  key_file: "~/.ssh/id_rsa"
+  workdir: "/tmp"
 
-  # Common
-  workdir: string                    # Working directory
+# Fragment includes
+includes:
+  - path: fragments/common-setup.yaml
+    fragment_name: setup           # Name for fragment-step reference
+    params:
+      custom_var: "{{Target}}"
+    position: prepend | append
 
-steps: [Step]                        # Ordered execution steps
+# Steps array
+steps:
+  - name: step-name
+    type: bash
+    command: "echo hello"
 ```
 
-### Flow-Specific Fields
+## Flow-Specific Fields
+
+Flows orchestrate multiple modules with dependencies.
 
 ```yaml
-modules:                             # Module references to execute
-  - name: string                     # Display name (required)
-    path: string                     # Path to module YAML (required)
-    params: map[string]string        # Parameter overrides
-    depends_on: [string]             # Module dependencies
-    condition: string                # JS expression for conditional execution
-    on_success: [Action]             # Success handlers
-    on_error: [Action]               # Error handlers
-    decision:                        # Conditional routing
-      switch: string
-      cases: map[string]{goto: string}
-      default: {goto: string}
+kind: flow
+name: my-flow
+
+modules:
+  - name: first-module
+    path: modules/first.yaml
+    params:
+      threads: "10"
+
+  - name: second-module
+    path: modules/second.yaml
+    depends_on:
+      - first-module
+    condition: "fileLength('{{Output}}/subdomains.txt') > 0"
+    on_success:
+      - action: log
+        message: "Module completed"
+    on_error:
+      - action: notify
+        notify: "Module failed"
+    decision:
+      switch: "{{status}}"
+      cases:
+        "critical": { goto: alert-module }
+        "none": { goto: _end }
+      default: { goto: next-module }
 ```
 
-## Step Definitions
+## Fragment-Specific Fields
 
-All steps share common fields:
+Fragments are reusable step collections that can be included in modules.
 
 ```yaml
-name: string                         # Required: step identifier
-type: string                         # Required: step type
-pre_condition: string                # Optional: JS expression
-log: string                          # Optional: custom log message
-timeout: int|string                  # Optional: max execution time
-exports: map[string]string           # Optional: variable exports
-on_success: [Action]                 # Optional: success handlers
-on_error: [Action]                   # Optional: error handlers
-decision:                            # Optional: conditional routing
-  switch: string
-  cases: map[string]{goto: string}
-  default: {goto: string}
+kind: fragment
+name: common-subdomain-enum
+
+params:
+  - name: wordlist
+    default: "{{Data}}/wordlists/subdomains.txt"
+
+steps:
+  - name: subfinder
+    type: bash
+    command: "subfinder -d {{Target}} -o {{Output}}/subfinder.txt"
+
+  - name: amass
+    type: bash
+    command: "amass enum -d {{Target}} -o {{Output}}/amass.txt"
 ```
+
+## Step Types
 
 ### Step Type: bash
 
-Execute shell commands.
+Execute shell commands locally.
 
 ```yaml
-type: bash
-command: string                      # Single command
-commands: [string]                   # Sequential commands
-parallel_commands: [string]          # Concurrent commands
-std_file: string                     # Save stdout/stderr to file
+- name: run-nuclei
+  type: bash
+  command: "nuclei -l {{Output}}/urls.txt -o {{Output}}/nuclei.json"
+  timeout: 1h
 
-# Structured argument fields (joined as command + args)
-speed_args: string                   # Performance arguments
-config_args: string                  # Configuration arguments
-input_args: string                   # Input arguments
-output_args: string                  # Output arguments
+# Multiple sequential commands
+- name: multi-commands
+  type: bash
+  commands:
+    - "echo 'Step 1'"
+    - "echo 'Step 2'"
+
+# Parallel commands
+- name: parallel-scans
+  type: bash
+  parallel_commands:
+    - "nuclei -l urls.txt -t cves/"
+    - "nuclei -l urls.txt -t exposed-panels/"
 ```
 
 ### Step Type: function
 
-Execute utility functions.
+Execute utility functions via the Goja JavaScript runtime.
 
 ```yaml
-type: function
-function: string                     # Single function call
-functions: [string]                  # Sequential function calls
-parallel_functions: [string]         # Concurrent function calls
+- name: check-results
+  type: function
+  function: "fileExists('{{Output}}/results.txt')"
+  exports:
+    has_results: "{{_result}}"
+
+# Multiple functions
+- name: process-data
+  type: function
+  functions:
+    - "log_info('Processing started')"
+    - "sortUnix('{{Output}}/urls.txt')"
+    - "remove_blank_lines('{{Output}}/urls.txt')"
 ```
 
 ### Step Type: parallel-steps
 
-Execute steps concurrently.
+Execute multiple steps concurrently.
 
 ```yaml
-type: parallel-steps
-parallel_steps: [Step]               # Steps executed in parallel
+- name: parallel-enum
+  type: parallel-steps
+  parallel_steps:
+    - name: subfinder
+      type: bash
+      command: "subfinder -d {{Target}} -o {{Output}}/subfinder.txt"
+    - name: amass
+      type: bash
+      command: "amass enum -d {{Target}} -o {{Output}}/amass.txt"
 ```
 
 ### Step Type: foreach
 
-Iterate over input items.
+Iterate over input lines with parallel processing.
 
 ```yaml
-type: foreach
-input: string                        # File path or content (one item per line)
-variable: string                     # Loop variable name (use [[variable]])
-threads: int|string                  # Concurrent iterations (default: 1)
-step: Step                           # Inner step for each item
+- name: scan-subdomains
+  type: foreach
+  input: "{{Output}}/subdomains.txt"
+  variable: subdomain
+  threads: 10
+  step:
+    name: httpx-probe
+    type: bash
+    command: "httpx -u [[subdomain]] >> {{Output}}/httpx.txt"
 ```
 
 ### Step Type: remote-bash
 
-Execute commands via Docker or SSH.
+Execute commands in Docker containers or via SSH.
 
 ```yaml
-type: remote-bash
-step_runner: docker|ssh              # Required: execution environment
+# Docker execution
+- name: docker-scan
+  type: remote-bash
+  step_runner: docker
+  step_runner_config:
+    image: "projectdiscovery/nuclei:latest"
+    volumes:
+      - "{{Output}}:/output"
+  command: "nuclei -l /output/urls.txt -o /output/nuclei.json"
+  step_remote_file: "/output/nuclei.json"
+  host_output_file: "{{Output}}/nuclei.json"
 
-step_runner_config:                  # Optional: runner configuration
-  image: string                      # For docker
-  host: string                       # For ssh
-  user: string                       # For ssh
-  port: int                          # For ssh
-  key_file: string                   # For ssh
-  password: string                   # For ssh
-  env: map[string]string
-  volumes: [string]
-  workdir: string
-
-command: string                      # Single command
-commands: [string]                   # Sequential commands
-parallel_commands: [string]          # Concurrent commands
-step_remote_file: string             # Remote file to copy after execution
-host_output_file: string             # Local destination for remote file
+# SSH execution
+- name: ssh-scan
+  type: remote-bash
+  step_runner: ssh
+  step_runner_config:
+    host: "scan-server.example.com"
+    user: "scanner"
+    key_file: "~/.ssh/id_rsa"
+  command: "nuclei -l /tmp/urls.txt"
 ```
 
 ### Step Type: http
 
-Make HTTP requests.
+Make HTTP requests and capture responses.
 
 ```yaml
-type: http
-url: string                          # Required: target URL
-method: string                       # HTTP method (GET, POST, PUT, DELETE, PATCH)
-headers: map[string]string           # HTTP headers
-request_body: string                 # Request body
-timeout: int                         # Max execution time (seconds)
+- name: api-call
+  type: http
+  url: "https://api.example.com/scan"
+  method: POST
+  headers:
+    Authorization: "Bearer {{api_token}}"
+    Content-Type: "application/json"
+  request_body: '{"target": "{{Target}}"}'
+  exports:
+    response: "{{_result}}"
 ```
 
 ### Step Type: llm
 
-Interact with LLM providers.
+Interact with LLM APIs (OpenAI-compatible).
 
 ```yaml
-type: llm
-messages:                            # Chat messages
-  - role: system|user|assistant|tool
-    content: string|[ContentPart]
-    name: string                     # For tool role
-    tool_call_id: string             # For tool role
-    tool_calls: [ToolCall]           # Tool calls by LLM
+- name: analyze-vulns
+  type: llm
+  messages:
+    - role: system
+      content: "You are a security analyst."
+    - role: user
+      content: "Analyze these findings: {{findings}}"
+  llm_config:
+    model: "gpt-4"
+    temperature: 0.7
+    max_tokens: 2000
+  exports:
+    analysis: "{{_result}}"
 
-tools:                               # Available function tools
-  - type: function
-    function:
-      name: string
-      description: string
-      parameters: object             # JSON Schema
+# Embeddings
+- name: embed-text
+  type: llm
+  is_embedding: true
+  embedding_input:
+    - "text to embed"
+  exports:
+    embedding: "{{_result}}"
+```
 
-tool_choice: auto|none|required|object
+### Step Type: fragment-step
 
-llm_config:                          # Step-level configuration
-  provider: string
-  model: string
-  max_tokens: int
-  temperature: float64
-  top_k: int
-  top_p: float64
-  n: int
-  timeout: string
-  max_retries: int
-  stream: bool
-  response_format:
-    type: text|json_object|json_schema
-    json_schema: object
+Execute a fragment inline with optional overrides.
 
-extra_llm_parameters: map[string]any # Provider-specific parameters
+```yaml
+# Include fragment in module
+includes:
+  - path: fragments/subdomain-enum.yaml
+    fragment_name: subdomain-enum
 
-is_embedding: bool                   # Embedding request flag
-embedding_input: [string]            # Texts for embeddings
+steps:
+  - name: run-subdomain-enum
+    type: fragment-step
+    fragment_name: subdomain-enum
+    override:
+      threads: "20"                    # Override step field
+      wordlist: "{{custom_wordlist}}"  # Override template variable
+```
+
+## Common Step Fields
+
+These fields are available on all step types:
+
+```yaml
+- name: step-name                    # Required: Unique step identifier
+  type: bash                         # Required: Step type
+
+  depends_on:                        # Optional: Step dependencies (DAG)
+    - previous-step
+
+  pre_condition: "fileExists('{{file}}')"  # Optional: Skip if false
+
+  timeout: 30m                       # Optional: Step timeout (e.g., 30, 30s, 30m, 1h, 1d)
+
+  log: "{{Output}}/step.log"         # Optional: Log file path
+
+  exports:                           # Optional: Export variables
+    result_count: "{{_result}}"
+
+  on_success:                        # Optional: Success handlers
+    - action: log
+      message: "Step completed"
+
+  on_error:                          # Optional: Error handlers
+    - action: abort
+      message: "Critical failure"
+
+  decision:                          # Optional: Conditional routing
+    switch: "{{status}}"
+    cases:
+      "critical": { goto: alert-step }
+    default: { goto: next-step }
 ```
 
 ## Decision Routing
 
-Conditional branching using switch/case syntax:
+Steps support conditional branching using switch/case syntax:
 
 ```yaml
 decision:
-  switch: "{{variable}}"             # Variable to match
+  switch: "{{variable}}"
   cases:
-    "value1":
-      goto: step-name-a
-    "value2":
-      goto: step-name-b
-  default:
-    goto: fallback-step              # Or "_end" to terminate
+    "value1": { goto: step-a }
+    "value2": { goto: step-b }
+  default: { goto: fallback }
 ```
 
-## Actions
+Use `goto: _end` to terminate the workflow.
 
-Available for `on_success` and `on_error` handlers:
+## Parameters
+
+Parameters define workflow inputs with validation:
 
 ```yaml
-on_success:
-  - action: log|abort|continue|export|run|notify
-    message: string                  # Log or error message
-    condition: string                # Optional: JS expression
+params:
+  - name: threads
+    type: number
+    default: 10
+    required: false
+    description: "Number of threads"
 
-    # For export action
-    name: string                     # Variable name
-    value: any                       # Value to export
+  - name: wordlist
+    type: file
+    default: "{{Data}}/wordlists/common.txt"
+    required: false
 
-    # For run action
-    type: bash|function
-    command: string                  # For bash
-    functions: [string]              # For function
-    export: map[string]string        # Result mapping
-
-    # For notify action
-    notify: string                   # Notification message
+  - name: target_type
+    type: string
+    required: true
 ```
 
-**Action Types:**
-- `log` - Log a message
-- `abort` - Stop workflow execution
-- `continue` - Continue despite error
-- `export` - Export variable for subsequent steps
-- `run` - Execute follow-up step
-- `notify` - Send notification
+## Triggers
 
-## Timeout Formats
+Triggers define automated execution:
 
 ```yaml
-timeout: 60                          # Seconds as integer
-timeout: "30s"                       # Duration string
-timeout: "1h30m"                     # Hours and minutes
-timeout: "2d"                        # Days
+trigger:
+  # Cron trigger
+  - name: daily-scan
+    on: cron
+    schedule: "0 2 * * *"
+    enabled: true
+
+  # Event trigger
+  - name: on-new-asset
+    on: event
+    topic: "assets.new"
+    filter:
+      asset_type: "subdomain"
+    enabled: true
+
+  # File watch trigger
+  - name: watch-targets
+    on: watch
+    paths:
+      - "{{Data}}/targets.txt"
+    enabled: true
+
+  # Manual (default)
+  - name: manual
+    on: manual
+    enabled: true
 ```
 
-## Examples
+## Complete Examples
 
-### Simple Module
+### Module Example
 
 ```yaml
 kind: module
-name: basic-scan
-description: Simple security scanning module
+name: subdomain-enum
+description: "Enumerate subdomains for a target domain"
+tags: "recon, subdomain"
 
 params:
-  - name: target
-    required: true
+  - name: threads
+    default: 10
+  - name: wordlist
+    default: "{{Data}}/wordlists/subdomains.txt"
 
 steps:
-  - name: scan
+  - name: subfinder
     type: bash
-    command: echo "Scanning {{Target}}"
-    exports:
-      scan_result: completed
-```
+    command: "subfinder -d {{Target}} -all -o {{Output}}/subfinder.txt"
+    timeout: 30m
 
-### Module with Multiple Step Types
-
-```yaml
-kind: module
-name: complex-workflow
-description: Demonstrates multiple step types
-
-steps:
-  - name: setup
-    type: bash
-    command: mkdir -p {{Output}}
-
-  - name: parallel-processing
-    type: parallel-steps
-    parallel_steps:
-      - name: task-a
-        type: bash
-        command: echo "Task A"
-      - name: task-b
-        type: function
-        function: log_info("Task B")
-
-  - name: iterate
-    type: foreach
-    input: "{{Output}}/items.txt"
-    variable: item
-    step:
-      type: bash
-      command: echo "Processing [[item]]"
-
-  - name: branch
-    type: bash
-    command: echo "branching"
-    decision:
-      switch: "{{scan_result}}"
-      cases:
-        "success": {goto: final-step}
-      default: {goto: _end}
-
-  - name: final-step
+  - name: merge-results
     type: function
-    function: log_info("Done")
+    depends_on:
+      - subfinder
+    functions:
+      - "sortUnix('{{Output}}/subfinder.txt', '{{Output}}/subdomains.txt')"
+      - "db_total_subdomains('{{Output}}/subdomains.txt')"
 ```
 
-### Flow with Module Dependencies
+### Flow Example
 
 ```yaml
 kind: flow
-name: full-assessment
-description: Complete security assessment flow
+name: full-recon
+description: "Complete reconnaissance workflow"
+tags: "recon, full"
 
 modules:
-  - name: reconnaissance
-    path: modules/recon.yaml
+  - name: subdomain-enum
+    path: modules/subdomain-enum.yaml
     params:
       threads: "20"
 
-  - name: scanning
-    path: modules/scan.yaml
+  - name: port-scan
+    path: modules/port-scan.yaml
     depends_on:
-      - reconnaissance
+      - subdomain-enum
+    condition: "fileLength('{{Output}}/subdomains.txt') > 0"
 
-  - name: reporting
-    path: modules/report.yaml
+  - name: vuln-scan
+    path: modules/vuln-scan.yaml
     depends_on:
-      - scanning
-    condition: 'fileExists("{{Output}}/scan-results.txt")'
+      - port-scan
+```
+
+### Fragment Example
+
+```yaml
+kind: fragment
+name: common-cleanup
+description: "Common cleanup steps"
+
+steps:
+  - name: deduplicate
+    type: function
+    function: "sortUnix('{{input_file}}')"
+
+  - name: remove-blanks
+    type: function
+    function: "remove_blank_lines('{{input_file}}')"
+```
+
+### Module Using Fragment
+
+```yaml
+kind: module
+name: subdomain-scan
+
+includes:
+  - path: fragments/common-cleanup.yaml
+    fragment_name: cleanup
+
+steps:
+  - name: subfinder
+    type: bash
+    command: "subfinder -d {{Target}} -o {{Output}}/subs-raw.txt"
+
+  - name: cleanup-results
+    type: fragment-step
+    fragment_name: cleanup
+    override:
+      input_file: "{{Output}}/subs-raw.txt"
 ```

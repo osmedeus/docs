@@ -1,0 +1,623 @@
+---
+title: "Using Osmedeus as a Library"
+description: "Embed Osmedeus workflow engine in your Go applications"
+icon: "code"
+---
+
+Osmedeus can be used as a Go library to embed workflow execution capabilities in your own applications.
+
+## Installation
+
+```bash
+go get github.com/j3ssie/osmedeus/v5
+```
+
+## Quick Start
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    "github.com/j3ssie/osmedeus/v5/internal/config"
+    "github.com/j3ssie/osmedeus/v5/internal/executor"
+    "github.com/j3ssie/osmedeus/v5/internal/parser"
+)
+
+func main() {
+    ctx := context.Background()
+
+    // 1. Load configuration
+    cfg, err := config.NewConfig("")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // 2. Load workflow
+    loader := parser.NewLoader(cfg.WorkflowsPath)
+    workflow, err := loader.LoadWorkflow("my-module")
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // 3. Create and configure executor
+    exec := executor.NewExecutor()
+    exec.SetVerbose(true)
+    exec.SetLoader(loader)
+
+    // 4. Execute workflow
+    result, err := exec.ExecuteModule(ctx, workflow, map[string]string{
+        "target": "example.com",
+        "tactic": "default",
+    }, cfg)
+
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // 5. Check results
+    fmt.Printf("Status: %s\n", result.Status)
+    for _, step := range result.Steps {
+        fmt.Printf("  - %s: %s\n", step.StepName, step.Status)
+    }
+}
+```
+
+## Core Components
+
+### Configuration
+
+Load Osmedeus configuration from the default location (`~/osmedeus-base/osm-settings.yaml`):
+
+```go
+import "github.com/j3ssie/osmedeus/v5/internal/config"
+
+// Load from default path
+cfg, err := config.NewConfig("")
+
+// Load from custom path
+cfg, err := config.NewConfig("/path/to/osm-settings.yaml")
+
+// Access configuration
+fmt.Println("Workflows:", cfg.WorkflowsPath)
+fmt.Println("Binaries:", cfg.BinariesPath)
+fmt.Println("Data:", cfg.DataPath)
+```
+
+### Workflow Parser
+
+Parse and validate workflow YAML files:
+
+```go
+import "github.com/j3ssie/osmedeus/v5/internal/parser"
+
+// Create parser
+p := parser.NewParser()
+
+// Parse workflow from file
+workflow, err := p.Parse("path/to/workflow.yaml")
+
+// Parse workflow from bytes
+workflow, err := p.ParseContent([]byte(yamlContent))
+
+// Validate workflow
+if err := p.Validate(workflow); err != nil {
+    log.Fatal("Invalid workflow:", err)
+}
+```
+
+### Workflow Loader
+
+Load workflows by name with caching:
+
+```go
+import "github.com/j3ssie/osmedeus/v5/internal/parser"
+
+// Create loader
+loader := parser.NewLoader("/path/to/workflows")
+
+// Load by name (searches modules/ and flows/ directories)
+workflow, err := loader.LoadWorkflow("subdomain-enum")
+
+// Load by path
+workflow, err := loader.LoadWorkflow("/path/to/custom.yaml")
+
+// Load all workflows
+workflows, err := loader.LoadAllWorkflows()
+
+// Reload from disk (clears cache)
+err := loader.ReloadWorkflows()
+
+// Get cached workflow
+workflow, found := loader.GetWorkflow("name")
+```
+
+### Executor
+
+Execute workflows programmatically:
+
+```go
+import "github.com/j3ssie/osmedeus/v5/internal/executor"
+
+// Create executor
+exec := executor.NewExecutor()
+
+// Configure execution options
+exec.SetDryRun(true)              // Show commands without executing
+exec.SetVerbose(true)             // Show step output
+exec.SetSilent(true)              // Hide step output
+exec.SetSpinner(true)             // Show spinner animation
+exec.SetServerMode(true)          // Enable file logging
+exec.SetLoader(loader)            // Required for flow execution
+
+// Execute module workflow
+result, err := exec.ExecuteModule(ctx, workflow, params, cfg)
+
+// Execute flow workflow
+result, err := exec.ExecuteFlow(ctx, flowWorkflow, params, cfg)
+```
+
+#### Execution Parameters
+
+```go
+params := map[string]string{
+    "target":           "example.com",   // Target to scan
+    "tactic":           "default",       // aggressive, default, gently
+    "threads_hold":     "10",            // Override thread count
+    "workspace_prefix": "prefix",        // Workspace folder suffix
+    "workspaces_folder": "/path",        // Override workspaces directory
+    "exclude_modules":  "mod1,mod2",     // Modules to skip (flows)
+    "heuristics_check": "basic",         // none, basic, advanced
+}
+```
+
+#### Handling Results
+
+```go
+import "github.com/j3ssie/osmedeus/v5/internal/core"
+
+result, err := exec.ExecuteModule(ctx, workflow, params, cfg)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Check overall status
+switch result.Status {
+case core.RunStatusCompleted:
+    fmt.Println("Workflow completed successfully")
+case core.RunStatusFailed:
+    fmt.Println("Workflow failed:", result.Error)
+case core.RunStatusCancelled:
+    fmt.Println("Workflow was cancelled")
+}
+
+// Iterate step results
+for _, step := range result.Steps {
+    fmt.Printf("Step: %s, Status: %s\n", step.StepName, step.Status)
+    if step.Output != "" {
+        fmt.Printf("  Output: %s\n", step.Output)
+    }
+}
+
+// Access exports
+for key, value := range result.Exports {
+    fmt.Printf("Export: %s = %v\n", key, value)
+}
+```
+
+## Template Engine
+
+Render template strings with variable interpolation:
+
+```go
+import "github.com/j3ssie/osmedeus/v5/internal/template"
+
+// Create engine
+engine := template.NewEngine()
+
+// Render single template
+result, err := engine.Render("Hello {{Name}}", map[string]any{
+    "Name": "World",
+})
+// result = "Hello World"
+
+// Render multiple templates
+results, err := engine.RenderMap(map[string]string{
+    "greeting": "Hello {{Name}}",
+    "command":  "scan {{Target}}",
+}, variables)
+
+// Render slice
+results, err := engine.RenderSlice([]string{
+    "{{var1}}", "{{var2}}",
+}, variables)
+```
+
+### Secondary Variables (for loops)
+
+Use `[[variable]]` syntax for loop variables to avoid conflicts:
+
+```go
+// For foreach contexts
+result, err := engine.RenderSecondary(
+    "Processing [[item]] with ID [[_id_]]",
+    map[string]any{"item": "value", "_id_": 5},
+)
+
+// Check if template uses secondary delimiters
+if engine.HasSecondaryVariable(template) {
+    result, err = engine.RenderSecondary(template, vars)
+}
+```
+
+### Generator Functions
+
+Execute generator functions in templates:
+
+```go
+// Generate UUID
+uuid, err := engine.ExecuteGenerator("uuid()")
+
+// Get current date
+date, err := engine.ExecuteGenerator("currentDate(\"2006-01-02\")")
+
+// Get environment variable
+value, err := engine.ExecuteGenerator("getEnvVar(\"HOME\", \"/tmp\")")
+```
+
+## Function Registry
+
+Execute utility functions programmatically:
+
+```go
+import "github.com/j3ssie/osmedeus/v5/internal/functions"
+
+// Create registry
+registry := functions.NewRegistry()
+
+// Execute expression
+result, err := registry.Execute("trim('  hello  ')", variables)
+
+// Evaluate condition (returns bool)
+ok, err := registry.EvaluateCondition(
+    "fileExists('{{Output}}/results.txt')",
+    variables,
+)
+
+// Evaluate exports
+exports, err := registry.EvaluateExports(map[string]string{
+    "line_count": "fileLength('{{Output}}/data.txt')",
+    "has_data":   "fileExists('{{Output}}/data.txt')",
+}, variables)
+```
+
+### Available Functions
+
+| Category | Functions |
+|----------|-----------|
+| File | `fileExists`, `fileLength`, `readFile`, `writeFile`, `appendFile`, `createFolder` |
+| String | `trim`, `split`, `contains`, `indexOf`, `toUpper`, `toLower`, `replace` |
+| JSON | `jq`, `jqFromFile`, `jsonl2csv`, `filterJsonl` |
+| Database | `db_select`, `db_insert`, `db_update`, `db_delete` |
+| Logging | `log_info`, `log_warn`, `log_error` |
+
+## Execution Context
+
+Manage workflow execution state:
+
+```go
+import "github.com/j3ssie/osmedeus/v5/internal/core"
+
+// Create context
+ctx := core.NewExecutionContext(
+    "workflow-name",
+    core.KindModule,
+    "run-123",
+    "example.com",
+)
+
+// Set variables (thread-safe)
+ctx.SetVariable("key", "value")
+ctx.SetParam("param_name", value)
+ctx.SetExport("export_name", value)
+
+// Get variables
+val, ok := ctx.GetVariable("key")
+allVars := ctx.GetVariables()  // For template rendering
+```
+
+## Database Access
+
+Connect to the Osmedeus database:
+
+```go
+import "github.com/j3ssie/osmedeus/v5/internal/database"
+
+// Connect based on config
+db, err := database.Connect(cfg)
+
+// Run migrations
+err = database.Migrate(context.Background())
+
+// Query using Bun ORM
+var workspaces []database.Workspace
+err := db.NewSelect().
+    Model(&workspaces).
+    Where("name = ?", "example.com").
+    Scan(context.Background())
+```
+
+### Database Models
+
+```go
+// Workspace
+database.Workspace{
+    Name        string
+    Path        string
+    TotalAssets int
+}
+
+// Asset
+database.Asset{
+    ID          string
+    WorkspaceID string
+    Type        string  // domain, subdomain, url
+    Value       string
+    Source      string
+}
+
+// Run
+database.Run{
+    ID          string
+    WorkspaceID string
+    Status      string
+    StartedAt   time.Time
+    CompletedAt time.Time
+}
+```
+
+## Core Types
+
+### Workflow Types
+
+```go
+import "github.com/j3ssie/osmedeus/v5/internal/core"
+
+// Workflow kinds
+core.KindModule   // Single execution unit
+core.KindFlow     // Orchestrates modules
+core.KindFragment // Reusable step collections
+
+// Step types
+core.StepTypeBash          // Shell commands
+core.StepTypeFunction      // Utility functions
+core.StepTypeForeach       // Loop iteration
+core.StepTypeParallelSteps // Concurrent execution
+core.StepTypeRemoteBash    // Remote execution
+core.StepTypeHTTP          // HTTP requests
+core.StepTypeLLM           // AI-powered steps
+
+// Runner types
+core.RunnerTypeHost   // Local execution
+core.RunnerTypeDocker // Container execution
+core.RunnerTypeSSH    // Remote SSH execution
+
+// Run status
+core.RunStatusPending
+core.RunStatusRunning
+core.RunStatusCompleted
+core.RunStatusFailed
+core.RunStatusCancelled
+```
+
+### Step Result
+
+```go
+type StepResult struct {
+    StepName  string
+    Status    StepStatus
+    Output    string
+    Error     error
+    Exports   map[string]interface{}
+    Duration  time.Duration
+    LogFile   string
+}
+```
+
+### Workflow Result
+
+```go
+type WorkflowResult struct {
+    WorkflowName string
+    WorkflowKind WorkflowKind
+    RunID        string
+    Target       string
+    Status       RunStatus
+    Steps        []*StepResult
+    Exports      map[string]interface{}
+    Error        error
+}
+```
+
+## Creating Custom Workflows
+
+Build workflows programmatically:
+
+```go
+workflow := &core.Workflow{
+    Kind:        core.KindModule,
+    Name:        "custom-scan",
+    Description: "Custom scanning workflow",
+    Params: []core.Param{
+        {Name: "target", Required: true},
+    },
+    Steps: []core.Step{
+        {
+            Name:    "enumerate",
+            Type:    core.StepTypeBash,
+            Command: "subfinder -d {{target}} -o {{Output}}/subs.txt",
+            Exports: map[string]string{
+                "sub_count": "fileLength('{{Output}}/subs.txt')",
+            },
+        },
+        {
+            Name:         "probe",
+            Type:         core.StepTypeBash,
+            Command:      "httpx -l {{Output}}/subs.txt -o {{Output}}/live.txt",
+            PreCondition: "{{sub_count}} > 0",
+        },
+    },
+}
+
+// Validate before execution
+p := parser.NewParser()
+if err := p.Validate(workflow); err != nil {
+    log.Fatal(err)
+}
+
+// Execute
+result, err := exec.ExecuteModule(ctx, workflow, params, cfg)
+```
+
+## Workflow Linting
+
+Validate workflows with the linter:
+
+```go
+import "github.com/j3ssie/osmedeus/v5/internal/linter"
+
+// Create linter
+l := linter.NewLinter()
+
+// Lint workflow
+issues := l.Lint(workflow)
+
+for _, issue := range issues {
+    fmt.Printf("[%s] %s: %s at %s\n",
+        issue.Severity,  // info, warning, error
+        issue.Rule,
+        issue.Message,
+        issue.Location,
+    )
+}
+
+// Filter by severity
+warnings := l.LintWithSeverity(workflow, linter.SeverityWarning)
+```
+
+## Best Practices
+
+1. **Always validate workflows** before execution
+2. **Use context cancellation** for long-running workflows
+3. **Handle errors** from each step appropriately
+4. **Use the loader** for flow execution (required for module resolution)
+5. **Set appropriate timeouts** for network operations
+6. **Use dry-run mode** for testing workflow logic
+
+## Complete Example
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "os"
+    "os/signal"
+    "syscall"
+
+    "github.com/j3ssie/osmedeus/v5/internal/config"
+    "github.com/j3ssie/osmedeus/v5/internal/core"
+    "github.com/j3ssie/osmedeus/v5/internal/database"
+    "github.com/j3ssie/osmedeus/v5/internal/executor"
+    "github.com/j3ssie/osmedeus/v5/internal/parser"
+)
+
+func main() {
+    // Setup context with cancellation
+    ctx, cancel := context.WithCancel(context.Background())
+    defer cancel()
+
+    // Handle interrupt
+    sigCh := make(chan os.Signal, 1)
+    signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+    go func() {
+        <-sigCh
+        fmt.Println("\nCancelling workflow...")
+        cancel()
+    }()
+
+    // Load configuration
+    cfg, err := config.NewConfig("")
+    if err != nil {
+        log.Fatal("Failed to load config:", err)
+    }
+
+    // Connect to database
+    _, err = database.Connect(cfg)
+    if err != nil {
+        log.Fatal("Failed to connect to database:", err)
+    }
+    database.Migrate(ctx)
+
+    // Create workflow loader
+    loader := parser.NewLoader(cfg.WorkflowsPath)
+
+    // Load workflow
+    workflow, err := loader.LoadWorkflow("subdomain-enum")
+    if err != nil {
+        log.Fatal("Failed to load workflow:", err)
+    }
+
+    // Validate workflow
+    p := parser.NewParser()
+    if err := p.Validate(workflow); err != nil {
+        log.Fatal("Invalid workflow:", err)
+    }
+
+    // Create and configure executor
+    exec := executor.NewExecutor()
+    exec.SetVerbose(true)
+    exec.SetLoader(loader)
+
+    // Execute workflow
+    result, err := exec.ExecuteModule(ctx, workflow, map[string]string{
+        "target": "example.com",
+        "tactic": "default",
+    }, cfg)
+
+    if err != nil {
+        log.Fatal("Execution failed:", err)
+    }
+
+    // Report results
+    fmt.Printf("\n=== Workflow Complete ===\n")
+    fmt.Printf("Status: %s\n", result.Status)
+    fmt.Printf("Steps executed: %d\n", len(result.Steps))
+
+    for _, step := range result.Steps {
+        status := "✓"
+        if step.Status != core.StepStatusSuccess {
+            status = "✗"
+        }
+        fmt.Printf("  %s %s (%s)\n", status, step.StepName, step.Duration)
+    }
+
+    if len(result.Exports) > 0 {
+        fmt.Println("\nExports:")
+        for k, v := range result.Exports {
+            fmt.Printf("  %s: %v\n", k, v)
+        }
+    }
+}
+```
+
+## Next Steps
+
+- [Extending Osmedeus](extending-osmedeus) - Add custom step types and runners
+- [Development](development) - Set up development environment
+- [REST API](../reference/rest-api) - HTTP API for workflow execution

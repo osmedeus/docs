@@ -61,7 +61,7 @@ modules:                        # Module references
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `kind` | Yes | `module` or `flow` |
+| `kind` | Yes | `module`, `flow`, or `fragment` |
 | `name` | Yes | Unique workflow identifier |
 | `description` | No | Human-readable description |
 | `tags` | No | Array of category tags |
@@ -152,6 +152,30 @@ modules:
     condition: 'fileLength("{{Output}}/live.txt") > 0'
 ```
 
+### Fragment Workflows
+
+A **fragment** is a reusable collection of steps that can be included in modules.
+
+```yaml
+kind: fragment
+name: common-enum
+description: Common enumeration steps
+
+steps:
+  - name: subfinder
+    type: bash
+    command: subfinder -d {{Target}} -o {{Output}}/subs.txt
+
+  - name: httpx
+    type: bash
+    command: httpx -l {{Output}}/subs.txt -o {{Output}}/live.txt
+```
+
+Use fragments for:
+- Reusable step collections
+- DRY (Don't Repeat Yourself) patterns
+- Shared scanning routines
+
 ## Module References (Flows)
 
 ```yaml
@@ -198,7 +222,9 @@ osmedeus workflow show subdomain-enum
 osmedeus workflow validate subdomain-enum
 ```
 
-## Validation Rules
+## Validation and Linting
+
+### Parser Validation
 
 The parser validates:
 
@@ -208,6 +234,55 @@ The parser validates:
 4. **Step types**: Must be valid (bash, function, foreach, etc.)
 5. **Module paths**: Referenced modules must exist (flows)
 6. **Circular dependencies**: No cycles in dependency graph (flows)
+
+### Workflow Linter
+
+The workflow linter provides additional best-practice checks beyond basic parsing. It helps catch potential issues before runtime while allowing workflows to execute even with warnings.
+
+```bash
+# Lint workflows
+osmedeus workflow lint my-workflow.yaml
+osmedeus workflow lint my-workflow              # By name
+osmedeus workflow lint /path/to/workflows/      # Directory
+
+# Output formats
+osmedeus workflow lint workflow.yaml --format pretty   # Default
+osmedeus workflow lint workflow.yaml --format json     # Machine-readable
+osmedeus workflow lint workflow.yaml --format github   # CI annotations
+
+# Filter by severity
+osmedeus workflow lint workflow.yaml --severity info     # All issues (default)
+osmedeus workflow lint workflow.yaml --severity warning  # Warnings and errors
+osmedeus workflow lint workflow.yaml --severity error    # Errors only
+
+# Disable specific rules
+osmedeus workflow lint workflow.yaml --disable unused-variable
+
+# CI mode (exit code 1 if errors)
+osmedeus workflow lint workflow.yaml --check
+```
+
+### Linter Rules Reference
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| `missing-required-field` | warning | Missing name, kind, or type fields |
+| `duplicate-step-name` | warning | Multiple steps with same name |
+| `empty-step` | warning | Steps with no executable content |
+| `unused-variable` | info | Exports never referenced |
+| `invalid-goto` | warning | Decision goto to non-existent step |
+| `invalid-depends-on` | warning | Dependency on non-existent step |
+| `circular-dependency` | warning | Circular step dependencies |
+
+<Note>
+The `undefined-variable` rule exists but is not enabled by default due to the large number of built-in variables. Workflows can execute with linter warnings - the linter is designed to help identify potential issues, not block execution.
+</Note>
+
+### Severity Levels
+
+- **info** - Best practice suggestions (e.g., unused exports)
+- **warning** - Potential issues that may cause problems (e.g., duplicate names)
+- **error** - Critical issues that will likely cause failures
 
 ## Best Practices
 

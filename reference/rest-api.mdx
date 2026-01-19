@@ -1,1096 +1,233 @@
 ---
-title: "Adding API Endpoints"
-icon: "plug"
+title: REST API Reference
+description: Complete REST API reference for the Osmedeus server
 ---
 
-Complete reference for the Osmedeus REST API with curl examples and response formats.
+# REST API Reference
 
-## Overview
+The Osmedeus server provides a REST API for managing workflows, runs, and assets. Start the server with:
 
-**Base URL:** `http://localhost:8002`
-
-**API Prefix:** `/osm/api` (for authenticated endpoints)
-
-**Default Port:** `8002`
+```bash
+osmedeus server --port 8080
+```
 
 ## Authentication
 
-Most API endpoints require JWT authentication. Obtain a token via the login endpoint, then include it in subsequent requests using the `Authorization: Bearer <token>` header.
-
-Alternatively, API key authentication can be enabled via server configuration.
-
-## Quick Start
+All endpoints require bearer token authentication:
 
 ```bash
-# Get server info (no auth required)
-curl http://localhost:8002/server-info
-
-# Login and get token
-export TOKEN=$(curl -s -X POST http://localhost:8002/osm/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "osmedeus", "password": "admin"}' | jq -r '.token')
-
-# List workflows
-curl http://localhost:8002/osm/api/workflows \
-  -H "Authorization: Bearer $TOKEN"
-
-# Start a scan
-curl -X POST http://localhost:8002/osm/api/runs \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"flow": "subdomain-enum", "target": "example.com"}'
+curl -H "Authorization: Bearer <your_token>" http://localhost:8080/osm/api/...
 ```
+
+## Endpoints Overview
+
+| Category | Base Path | Description |
+|----------|-----------|-------------|
+| Runs | `/osm/api/runs` | Manage workflow executions |
+| Workflows | `/osm/api/workflows` | List and query workflows |
+| Schedules | `/osm/api/schedules` | Manage scheduled triggers |
+| Assets | `/osm/api/assets` | Query discovered assets |
+| Vulnerabilities | `/osm/api/vulnerabilities` | Query vulnerabilities |
+| Workspaces | `/osm/api/workspaces` | Manage workspaces |
+| Functions | `/osm/api/functions` | Execute utility functions |
+| Snapshots | `/osm/api/snapshots` | Export/import workspaces |
+| LLM | `/osm/api/llm` | LLM chat/embeddings |
+| Install | `/osm/api/install` | Binary management |
 
 ---
 
-## Table of Contents
+## Runs
 
-- [Public Endpoints](#public-endpoints)
-- [Authentication](#authentication-1)
-- [Workflows](#workflows)
-- [Runs](#runs)
-- [Jobs](#jobs)
-- [File Uploads](#file-uploads)
-- [Snapshots](#snapshots)
-- [Workspaces](#workspaces)
-- [Artifacts](#artifacts)
-- [Assets](#assets)
-- [Vulnerabilities](#vulnerabilities)
-- [Event Logs](#event-logs)
-- [Functions](#functions)
-- [System Statistics](#system-statistics)
-- [Settings](#settings)
-- [Installation](#installation)
-- [Schedules](#schedules)
-- [LLM API](#llm-api)
-- [Distributed Mode](#distributed-mode)
-- [Reference](#reference)
+### Create Run
 
----
-
-## Public Endpoints
-
-These endpoints do not require authentication.
-
-### Server Info
-
-Get server version and information.
+Start a new workflow execution.
 
 ```bash
-curl http://localhost:8002/server-info
-```
-
-**Alternative endpoints:** `/status`, `/api/info`
-
-**Response:**
-```json
-{
-  "message": "Oh dear me, how delightful to notice you're taking a look at this! I'm ever so pleased to let you know that osmedeus is ticking along quite nicely, thank you.",
-  "version": "v5.0.0",
-  "repo": "https://github.com/osmedeus/osmedeus",
-  "author": "j3ssie",
-  "docs": "https://docs.osmedeus.org"
-}
-```
-
----
-
-### Health Check
-
-Check if the server is running.
-
-```bash
-curl http://localhost:8002/health
-```
-
-**Response:**
-```json
-{
-  "status": "ok"
-}
-```
-
----
-
-### Readiness Check
-
-Check if the server is ready to accept requests.
-
-```bash
-curl http://localhost:8002/health/ready
-```
-
-**Response:**
-```json
-{
-  "status": "ready"
-}
-```
-
----
-
-### Prometheus Metrics
-
-Access Prometheus metrics endpoint.
-
-```bash
-curl http://localhost:8002/metrics
-```
-
----
-
-### Swagger Documentation
-
-Access interactive API documentation.
-
-```bash
-open http://localhost:8002/swagger/index.html
-```
-
----
-
-## Authentication
-
-### Login
-
-**POST** `/osm/api/login`
-
-Authenticate and obtain a JWT token.
-
-```bash
-curl -X POST http://localhost:8002/osm/api/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "osmedeus",
-    "password": "your-password"
-  }'
+POST /osm/api/runs
 ```
 
 **Request Body:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `username` | string | Yes | Username configured in server settings |
-| `password` | string | Yes | Password for the user |
-
-**Response (200 OK):**
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im9zbWVkZXVzIiwiZXhwIjoxNzA0MDY3MjAwLCJpYXQiOjE3MDQwNjM2MDB9.abc123..."
+  "workflow": "general",
+  "target": "example.com",
+  "params": {
+    "threads": "20"
+  }
 }
 ```
 
-**Error Response (401 Unauthorized):**
+**Response:**
+
 ```json
 {
-  "error": true,
-  "message": "Invalid credentials"
+  "data": {
+    "run_id": "run-abc123",
+    "status": "running",
+    "workflow": "general",
+    "target": "example.com",
+    "started_at": "2025-01-15T10:00:00Z"
+  }
 }
 ```
 
-### Using the Token
-
-Include the token in subsequent requests:
+### List Runs
 
 ```bash
-export TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-
-curl http://localhost:8002/osm/api/workflows \
-  -H "Authorization: Bearer $TOKEN"
+GET /osm/api/runs
+GET /osm/api/runs?status=running
+GET /osm/api/runs?workspace=example_com
 ```
 
-### Disabling Authentication
+**Query Parameters:**
 
-Authentication can be disabled by starting the server with the `--no-auth` flag:
+| Parameter | Description |
+|-----------|-------------|
+| `status` | Filter by status (pending, running, completed, failed) |
+| `workspace` | Filter by workspace name |
+| `limit` | Maximum results (default: 50) |
+| `offset` | Pagination offset |
+
+### Get Run
 
 ```bash
-osmedeus server --no-auth
+GET /osm/api/runs/:run_id
+```
+
+### Get Run Steps
+
+```bash
+GET /osm/api/runs/:run_id/steps
+```
+
+### Get Run Artifacts
+
+```bash
+GET /osm/api/runs/:run_id/artifacts
+```
+
+### Cancel Run
+
+```bash
+POST /osm/api/runs/:run_id/cancel
 ```
 
 ---
 
 ## Workflows
 
-### List All Workflows
-
-**GET** `/osm/api/workflows`
-
-Get a paginated list of all available workflows.
+### List Workflows
 
 ```bash
-curl http://localhost:8002/osm/api/workflows \
-  -H "Authorization: Bearer $TOKEN"
+GET /osm/api/workflows
+GET /osm/api/workflows?kind=module
+GET /osm/api/workflows?tags=recon,fast
 ```
 
 **Query Parameters:**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `source` | string | `db` | Data source: `db` or `filesystem` |
-| `tags` | string | - | Comma-separated list of tags to filter by |
-| `kind` | string | - | Filter by workflow kind: `flow` or `module` |
-| `search` | string | - | Search in workflow name and description |
-| `offset` | int | 0 | Pagination offset |
-| `limit` | int | 50 | Maximum records to return |
-
-**Examples:**
-
-```bash
-# Filter by tags
-curl "http://localhost:8002/osm/api/workflows?tags=recon,subdomain" \
-  -H "Authorization: Bearer $TOKEN"
-
-# Filter by kind
-curl "http://localhost:8002/osm/api/workflows?kind=module" \
-  -H "Authorization: Bearer $TOKEN"
-
-# Search workflows
-curl "http://localhost:8002/osm/api/workflows?search=enum" \
-  -H "Authorization: Bearer $TOKEN"
-```
+| Parameter | Description |
+|-----------|-------------|
+| `kind` | Filter by kind (module, flow, fragment) |
+| `tags` | Filter by tags (comma-separated) |
 
 **Response:**
+
 ```json
 {
   "data": [
     {
       "name": "subdomain-enum",
-      "kind": "flow",
-      "description": "Comprehensive subdomain enumeration and probing workflow",
-      "tags": ["recon", "subdomain", "httpx"],
-      "file_path": "/home/user/osmedeus-base/workflows/flows/subdomain-enum.yaml",
+      "kind": "module",
+      "description": "Enumerate subdomains",
+      "tags": ["recon", "subdomain"],
       "params": [
-        {"name": "target", "required": true, "default": "", "generator": ""},
-        {"name": "threads", "required": false, "default": "50", "generator": ""}
-      ],
-      "required_params": ["target"],
-      "step_count": 8,
-      "module_count": 3,
-      "checksum": "sha256:abc123...",
-      "indexed_at": "2025-01-15T08:00:00Z"
+        {"name": "threads", "default": "10", "required": false}
+      ]
     }
-  ],
-  "pagination": {
-    "total": 25,
-    "offset": 0,
-    "limit": 50
-  }
+  ]
 }
 ```
 
----
-
-### Get Workflow Tags
-
-**GET** `/osm/api/workflows/tags`
-
-Get all unique tags from indexed workflows.
+### Get Workflow
 
 ```bash
-curl http://localhost:8002/osm/api/workflows/tags \
-  -H "Authorization: Bearer $TOKEN"
+GET /osm/api/workflows/:name
 ```
-
-**Response:**
-```json
-{
-  "tags": ["recon", "subdomain", "portscan", "vulnerability", "nuclei"],
-  "count": 5
-}
-```
-
----
 
 ### Refresh Workflow Index
 
-**POST** `/osm/api/workflows/refresh`
-
-Re-index all workflows from filesystem to database.
+Reload workflows from disk.
 
 ```bash
-curl -X POST http://localhost:8002/osm/api/workflows/refresh \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Query Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `force` | bool | false | Force re-index all workflows |
-
-**Response:**
-```json
-{
-  "message": "Workflows indexed successfully",
-  "added": 5,
-  "updated": 2,
-  "removed": 1,
-  "errors": []
-}
+POST /osm/api/workflows/refresh
 ```
 
 ---
 
-### Get Workflow Details
+## Schedules
 
-**GET** `/osm/api/workflows/:name`
-
-Get workflow content. Returns raw YAML by default, or JSON with parsed details.
+### List Schedules
 
 ```bash
-# Get raw YAML content (default)
-curl http://localhost:8002/osm/api/workflows/subdomain-enum \
-  -H "Authorization: Bearer $TOKEN"
-
-# Get workflow details as JSON
-curl "http://localhost:8002/osm/api/workflows/subdomain-enum?json=true" \
-  -H "Authorization: Bearer $TOKEN"
+GET /osm/api/schedules
 ```
 
-**Query Parameters:**
+### Create Schedule
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `json` | bool | false | Return JSON instead of raw YAML |
-
-**Response (JSON with `?json=true`):**
-```json
-{
-  "name": "subdomain-enum",
-  "kind": "flow",
-  "description": "Comprehensive subdomain enumeration",
-  "file_path": "/home/user/osmedeus-base/workflows/flows/subdomain-enum.yaml",
-  "params": [
-    {"name": "target", "required": true, "default": "", "generator": ""}
-  ],
-  "steps": [
-    {
-      "index": 0,
-      "name": "run-subfinder",
-      "type": "bash",
-      "command": "subfinder -d {{target}} -o {{output_dir}}/subdomains.txt",
-      "timeout": "30m",
-      "exports": {"subfinder_output": "{{output_dir}}/subdomains.txt"}
-    }
-  ],
-  "modules": [
-    {"index": 0, "name": "port-scan", "path": "modules/port-scan.yaml"}
-  ]
-}
-```
-
----
-
-## Runs
-
-### Create a New Run
-
-**POST** `/osm/api/runs`
-
-Execute a workflow against a target.
-
-**Basic scan with flow workflow:**
 ```bash
-curl -X POST http://localhost:8002/osm/api/runs \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "flow": "subdomain-enum",
-    "target": "example.com"
-  }'
-```
-
-**Basic scan with module workflow:**
-```bash
-curl -X POST http://localhost:8002/osm/api/runs \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "module": "port-scan",
-    "target": "example.com"
-  }'
-```
-
-**Scan with custom parameters:**
-```bash
-curl -X POST http://localhost:8002/osm/api/runs \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "flow": "subdomain-enum",
-    "target": "example.com",
-    "params": {
-      "threads": "50",
-      "timeout": "30"
-    }
-  }'
-```
-
-**Scan with priority and timeout:**
-```bash
-curl -X POST http://localhost:8002/osm/api/runs \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "flow": "subdomain-enum",
-    "target": "example.com",
-    "priority": "high",
-    "timeout": 60
-  }'
-```
-
-**Scan with Docker runner:**
-```bash
-curl -X POST http://localhost:8002/osm/api/runs \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "flow": "subdomain-enum",
-    "target": "example.com",
-    "runner_type": "docker",
-    "docker_image": "osmedeus/osmedeus:latest"
-  }'
-```
-
-**Scan with SSH runner:**
-```bash
-curl -X POST http://localhost:8002/osm/api/runs \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "flow": "subdomain-enum",
-    "target": "example.com",
-    "runner_type": "ssh",
-    "ssh_host": "worker1.example.com"
-  }'
+POST /osm/api/schedules
 ```
 
 **Request Body:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `flow` | string | No* | Flow workflow name |
-| `module` | string | No* | Module workflow name |
-| `target` | string | No** | Single target |
-| `targets` | array | No** | Multiple targets |
-| `target_file` | string | No** | Path to targets file |
-| `params` | object | No | Custom parameters |
-| `concurrency` | int | No | Concurrent target limit |
-| `priority` | string | No | Priority: `low`, `medium`, `high` |
-| `timeout` | int | No | Timeout in minutes |
-| `runner_type` | string | No | `host`, `docker`, or `ssh` |
-| `docker_image` | string | No | Docker image (for docker runner) |
-| `ssh_host` | string | No | SSH host (for ssh runner) |
-
-*One of `flow` or `module` is required.
-**One of `target`, `targets`, or `target_file` is required (or `empty_target: true`).
-
-**Response (202 Accepted):**
 ```json
 {
-  "message": "Run started",
-  "workflow": "subdomain-enum",
-  "kind": "flow",
+  "name": "daily-scan",
+  "workflow": "general",
   "target": "example.com",
-  "target_count": 1,
-  "priority": "high",
-  "runner_type": "docker",
-  "timeout": 60
-}
-```
-
----
-
-### Multi-Target Scanning
-
-Scan multiple targets with concurrency control:
-
-```bash
-curl -X POST http://localhost:8002/osm/api/runs \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "flow": "subdomain-enum",
-    "targets": ["example.com", "test.com", "demo.com"],
-    "concurrency": 3
-  }'
-```
-
-**Response:**
-```json
-{
-  "message": "Scan started",
-  "workflow": "subdomain-enum",
-  "kind": "flow",
-  "target_count": 3,
-  "targets": ["example.com", "test.com", "demo.com"],
-  "concurrency": 3,
-  "priority": "medium"
-}
-```
-
----
-
-### List Runs
-
-**GET** `/osm/api/runs`
-
-Get a paginated list of all runs.
-
-```bash
-curl http://localhost:8002/osm/api/runs \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Query Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `status` | string | - | Filter by status: `pending`, `running`, `completed`, `failed` |
-| `workflow_name` | string | - | Filter by workflow name |
-| `target` | string | - | Filter by target |
-| `offset` | int | 0 | Pagination offset |
-| `limit` | int | 20 | Maximum records to return |
-
-**Response:**
-```json
-{
-  "data": [
-    {
-      "id": "run-abc123",
-      "run_id": "run-2025-01-15-subdomain-enum-example.com",
-      "workflow_name": "subdomain-enum",
-      "workflow_kind": "flow",
-      "target": "example.com",
-      "params": {"threads": "50"},
-      "status": "running",
-      "workspace_path": "/home/user/osmedeus-base/workspaces/example.com",
-      "started_at": "2025-01-15T10:00:00Z",
-      "completed_at": null,
-      "total_steps": 10,
-      "completed_steps": 3,
-      "trigger_type": "manual",
-      "created_at": "2025-01-15T10:00:00Z",
-      "updated_at": "2025-01-15T10:03:00Z"
-    }
-  ],
-  "pagination": {
-    "total": 50,
-    "offset": 0,
-    "limit": 20
+  "trigger_type": "cron",
+  "schedule": "0 2 * * *",
+  "enabled": true,
+  "params": {
+    "threads": "10"
   }
 }
 ```
 
----
-
-### Get Run Details
-
-**GET** `/osm/api/runs/:id`
-
-Get details of a specific run by ID.
+### Get Schedule
 
 ```bash
-curl http://localhost:8002/osm/api/runs/run-abc123 \
-  -H "Authorization: Bearer $TOKEN"
+GET /osm/api/schedules/:id
 ```
 
-**Response:**
-```json
-{
-  "id": "run-abc123",
-  "run_id": "run-2025-01-15-subdomain-enum-example.com",
-  "workflow_name": "subdomain-enum",
-  "workflow_kind": "flow",
-  "target": "example.com",
-  "params": {"threads": "50"},
-  "status": "completed",
-  "workspace_path": "/home/user/osmedeus-base/workspaces/example.com",
-  "started_at": "2025-01-15T10:00:00Z",
-  "completed_at": "2025-01-15T10:30:00Z",
-  "error_message": "",
-  "total_steps": 10,
-  "completed_steps": 10,
-  "created_at": "2025-01-15T10:00:00Z",
-  "updated_at": "2025-01-15T10:30:00Z"
-}
-```
-
----
-
-### Cancel Run
-
-**DELETE** `/osm/api/runs/:id`
-
-Cancel a running workflow execution.
+### Update Schedule
 
 ```bash
-curl -X DELETE http://localhost:8002/osm/api/runs/run-abc123 \
-  -H "Authorization: Bearer $TOKEN"
+PUT /osm/api/schedules/:id
 ```
 
-**Response:**
-```json
-{
-  "message": "Run cancellation requested",
-  "id": "run-abc123"
-}
-```
-
----
-
-### Get Run Steps
-
-**GET** `/osm/api/runs/:id/steps`
-
-Get all step results for a specific run.
+### Delete Schedule
 
 ```bash
-curl http://localhost:8002/osm/api/runs/run-abc123/steps \
-  -H "Authorization: Bearer $TOKEN"
+DELETE /osm/api/schedules/:id
 ```
 
-**Response:**
-```json
-{
-  "data": [
-    {
-      "id": "step-xyz789",
-      "run_id": "run-abc123",
-      "step_name": "run-subfinder",
-      "step_type": "bash",
-      "status": "completed",
-      "command": "subfinder -d example.com -o subdomains.txt",
-      "output": "Found 150 subdomains",
-      "error_message": "",
-      "exports": {"subdomains_file": "subdomains.txt"},
-      "duration_ms": 45000,
-      "log_file": "/workspaces/example.com/logs/run-subfinder.log",
-      "started_at": "2025-01-15T10:01:00Z",
-      "completed_at": "2025-01-15T10:01:45Z"
-    }
-  ]
-}
-```
-
----
-
-### Get Run Artifacts
-
-**GET** `/osm/api/runs/:id/artifacts`
-
-Get all output artifacts for a specific run.
+### Enable/Disable Schedule
 
 ```bash
-curl http://localhost:8002/osm/api/runs/run-abc123/artifacts \
-  -H "Authorization: Bearer $TOKEN"
+POST /osm/api/schedules/:id/enable
+POST /osm/api/schedules/:id/disable
 ```
 
-**Response:**
-```json
-{
-  "data": [
-    {
-      "id": "artifact-001",
-      "run_id": "run-abc123",
-      "name": "subdomains.txt",
-      "path": "/workspaces/example.com/subdomains.txt",
-      "type": "text",
-      "size_bytes": 4523,
-      "line_count": 150,
-      "description": "Discovered subdomains",
-      "created_at": "2025-01-15T10:01:45Z"
-    }
-  ]
-}
-```
+### Trigger Schedule
 
----
-
-## Jobs
-
-### Get Job Status
-
-**GET** `/osm/api/jobs/:id`
-
-Get aggregated status of a multi-target run group.
+Execute a scheduled workflow immediately.
 
 ```bash
-curl http://localhost:8002/osm/api/jobs/job-abc123 \
-  -H "Authorization: Bearer $TOKEN"
+POST /osm/api/schedules/:id/trigger
 ```
-
-**Response:**
-```json
-{
-  "job_id": "job-abc123",
-  "status": "running",
-  "runs": [
-    {
-      "run_id": "run-1",
-      "target": "example.com",
-      "status": "completed"
-    },
-    {
-      "run_id": "run-2",
-      "target": "test.com",
-      "status": "running"
-    }
-  ],
-  "progress": {
-    "total": 2,
-    "pending": 0,
-    "running": 1,
-    "completed": 1,
-    "failed": 0
-  }
-}
-```
-
----
-
-## File Uploads
-
-### Upload Input File
-
-**POST** `/osm/api/upload-file`
-
-Upload a file containing a list of inputs (targets, URLs, etc.).
-
-```bash
-curl -X POST http://localhost:8002/osm/api/upload-file \
-  -H "Authorization: Bearer $TOKEN" \
-  -F "file=@targets.txt"
-```
-
-**Response:**
-```json
-{
-  "message": "File uploaded",
-  "filename": "1704326400000000000_targets.txt",
-  "path": "/home/user/osmedeus-base/data/uploads/1704326400000000000_targets.txt",
-  "size": 1024,
-  "lines": 50
-}
-```
-
----
-
-### Upload Workflow
-
-**POST** `/osm/api/workflow-upload`
-
-Upload a raw YAML workflow file.
-
-```bash
-curl -X POST http://localhost:8002/osm/api/workflow-upload \
-  -H "Authorization: Bearer $TOKEN" \
-  -F "file=@my-custom-workflow.yaml"
-```
-
-**Response:**
-```json
-{
-  "message": "Workflow uploaded",
-  "name": "my-custom-workflow",
-  "kind": "module",
-  "description": "A custom security workflow",
-  "path": "/home/user/osmedeus-base/workflows/modules/my-custom-workflow.yaml"
-}
-```
-
----
-
-## Snapshots
-
-### List Snapshots
-
-**GET** `/osm/api/snapshots`
-
-Get a list of available snapshot files.
-
-```bash
-curl http://localhost:8002/osm/api/snapshots \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response:**
-```json
-{
-  "data": [
-    {
-      "name": "example.com_1704067200.zip",
-      "path": "/home/user/osmedeus-base/snapshot/example.com_1704067200.zip",
-      "size": 15728640,
-      "created_at": "2025-01-01T12:00:00Z"
-    }
-  ],
-  "count": 2,
-  "path": "/home/user/osmedeus-base/snapshot"
-}
-```
-
----
-
-### Export Workspace Snapshot
-
-**POST** `/osm/api/snapshots/export`
-
-Export a workspace to a compressed zip archive.
-
-```bash
-curl -X POST http://localhost:8002/osm/api/snapshots/export \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"workspace": "example.com"}' \
-  --output example.com_snapshot.zip
-```
-
-**Request Body:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `workspace` | string | Yes | Name of the workspace to export |
-
-**Response:** Binary ZIP file download with headers:
-- `Content-Disposition: attachment; filename=<workspace>_<timestamp>.zip`
-- `Content-Type: application/zip`
-- `X-Snapshot-Size: <size_in_bytes>`
-
----
-
-### Import Workspace Snapshot
-
-**POST** `/osm/api/snapshots/import`
-
-Import a workspace from an uploaded zip file or URL.
-
-**Import from file upload:**
-```bash
-curl -X POST http://localhost:8002/osm/api/snapshots/import \
-  -H "Authorization: Bearer $TOKEN" \
-  -F "file=@example.com_1704067200.zip"
-```
-
-**Import from URL:**
-```bash
-curl -X POST http://localhost:8002/osm/api/snapshots/import \
-  -H "Authorization: Bearer $TOKEN" \
-  -F "url=https://example.com/snapshots/workspace.zip"
-```
-
-**Import with force overwrite:**
-```bash
-curl -X POST http://localhost:8002/osm/api/snapshots/import \
-  -H "Authorization: Bearer $TOKEN" \
-  -F "file=@example.com_snapshot.zip" \
-  -F "force=true"
-```
-
-**Form Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `file` | file | No* | Snapshot zip file to import |
-| `url` | string | No* | URL of snapshot to download |
-| `force` | bool | No | Overwrite existing workspace |
-| `skip_db` | bool | No | Skip database import |
-
-*Either `file` or `url` is required.
-
-**Response:**
-```json
-{
-  "message": "Workspace imported successfully",
-  "workspace": "example.com",
-  "local_path": "/home/user/workspaces-osmedeus/example.com",
-  "data_source": "imported",
-  "files_count": 1523,
-  "warning": "Imported workspace database state may be unstable. Only import from trusted sources."
-}
-```
-
----
-
-### Delete Snapshot
-
-**DELETE** `/osm/api/snapshots/:name`
-
-Delete a snapshot file by name.
-
-```bash
-curl -X DELETE http://localhost:8002/osm/api/snapshots/example.com_1704067200.zip \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response:**
-```json
-{
-  "message": "Snapshot deleted successfully",
-  "name": "example.com_1704067200.zip"
-}
-```
-
----
-
-### Legacy Snapshot Download
-
-**GET** `/osm/api/snapshot-download/:workspace_name`
-
-Legacy endpoint for backward compatibility.
-
-```bash
-curl http://localhost:8002/osm/api/snapshot-download/example.com \
-  -H "Authorization: Bearer $TOKEN" \
-  --output snapshot.zip
-```
-
----
-
-## Workspaces
-
-### List Workspaces
-
-**GET** `/osm/api/workspaces`
-
-Get a list of all run workspaces.
-
-```bash
-curl http://localhost:8002/osm/api/workspaces \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Query Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `filesystem` | bool | false | List from filesystem instead of database |
-| `offset` | int | 0 | Pagination offset |
-| `limit` | int | 20 | Maximum records to return |
-
-**Response:**
-```json
-{
-  "data": [
-    {
-      "id": 1,
-      "name": "example.com",
-      "local_path": "/home/user/osmedeus-base/workspaces/example.com",
-      "total_assets": 150,
-      "total_subdomains": 120,
-      "total_urls": 500,
-      "total_vulns": 12,
-      "vuln_critical": 2,
-      "vuln_high": 3,
-      "vuln_medium": 4,
-      "vuln_low": 3,
-      "risk_score": 7.5,
-      "tags": ["production", "priority"],
-      "last_run": "2025-01-15T10:30:00Z",
-      "run_workflow": "subdomain-enum",
-      "created_at": "2025-01-10T08:00:00Z",
-      "updated_at": "2025-01-15T10:30:00Z"
-    }
-  ],
-  "pagination": {
-    "total": 100,
-    "offset": 0,
-    "limit": 20
-  }
-}
-```
-
----
-
-### List Workspace Names
-
-**GET** `/osm/api/workspace-names`
-
-Get a sorted list of workspace names.
-
-```bash
-curl http://localhost:8002/osm/api/workspace-names \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response:**
-```json
-["example.com", "test.com", "another-workspace"]
-```
-
----
-
-## Artifacts
-
-### List Artifacts
-
-**GET** `/osm/api/artifacts`
-
-Get a paginated list of artifacts.
-
-```bash
-curl http://localhost:8002/osm/api/artifacts \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Query Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `workspace` | string | - | Filter by workspace name |
-| `search` | string | - | Search artifact name/path |
-| `status_code` | int | - | Filter by HTTP status code |
-| `verify_exist` | bool | false | Check if files still exist |
-| `offset` | int | 0 | Pagination offset |
-| `limit` | int | 20 | Maximum records to return |
-
-**Response:**
-```json
-{
-  "data": [
-    {
-      "id": 1,
-      "run_id": "run-123",
-      "workspace": "example.com",
-      "name": "subdomains.txt",
-      "artifact_path": "/workspaces/example.com/subdomains.txt",
-      "artifact_type": "text",
-      "content_type": "text/plain",
-      "size_bytes": 5120,
-      "line_count": 100,
-      "description": "Enumerated subdomains",
-      "created_at": "2025-01-14T10:00:00Z",
-      "path_exists": true,
-      "path_is_dir": false
-    }
-  ],
-  "pagination": {
-    "total": 150,
-    "offset": 0,
-    "limit": 20
-  }
-}
-```
-
----
-
-### Download Workspace Artifact
-
-**GET** `/osm/api/artifacts/:workspace_name`
-
-Download an artifact file from a workspace.
-
-```bash
-curl "http://localhost:8002/osm/api/artifacts/example.com?artifact_path=subdomains.txt" \
-  -H "Authorization: Bearer $TOKEN" \
-  --output subdomains.txt
-```
-
-**Query Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `artifact_path` | string | Yes | Relative path to artifact within workspace |
 
 ---
 
@@ -1098,72 +235,97 @@ curl "http://localhost:8002/osm/api/artifacts/example.com?artifact_path=subdomai
 
 ### List Assets
 
-**GET** `/osm/api/assets`
-
-Get a paginated list of discovered assets.
-
 ```bash
-curl http://localhost:8002/osm/api/assets \
-  -H "Authorization: Bearer $TOKEN"
+GET /osm/api/assets
+GET /osm/api/assets?workspace=example_com
+GET /osm/api/assets?asset_type=subdomain
+GET /osm/api/assets?status_code=200
 ```
 
 **Query Parameters:**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `workspace` | string | - | Filter by workspace |
-| `search` | string | - | Search in asset_value, url, title, host_ip |
-| `status_code` | int | - | Filter by HTTP status code |
-| `offset` | int | 0 | Pagination offset |
-| `limit` | int | 20 | Maximum records to return |
+| Parameter | Description |
+|-----------|-------------|
+| `workspace` | Filter by workspace |
+| `asset_type` | Filter by type (subdomain, url, ip, etc.) |
+| `status_code` | Filter by HTTP status code |
+| `limit` | Maximum results (default: 100) |
+| `offset` | Pagination offset |
 
-**Examples:**
+### Get Asset
 
 ```bash
-# Filter by workspace
-curl "http://localhost:8002/osm/api/assets?workspace=example.com" \
-  -H "Authorization: Bearer $TOKEN"
-
-# Search assets
-curl "http://localhost:8002/osm/api/assets?search=api" \
-  -H "Authorization: Bearer $TOKEN"
+GET /osm/api/assets/:id
 ```
 
+### Asset Diff
+
+Compare assets between two time points to identify changes.
+
+```bash
+GET /osm/api/assets/diff?workspace=example_com&from=2025-01-01T00:00:00Z&to=2025-01-15T00:00:00Z
+```
+
+**Query Parameters:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `workspace` | Yes | Workspace name |
+| `from` | Yes | Start time (RFC3339 or Unix timestamp) |
+| `to` | No | End time (default: now) |
+
+**Supported Time Formats:**
+
+- RFC3339: `2025-01-15T10:00:00Z`
+- Unix timestamp: `1705312800`
+- Date only: `2025-01-15`
+- DateTime: `2025-01-15 10:00:00`
+
 **Response:**
+
 ```json
 {
-  "data": [
-    {
-      "id": 1,
-      "workspace": "example.com",
-      "asset_value": "api.example.com",
-      "url": "https://api.example.com",
-      "input": "api.example.com",
-      "scheme": "https",
-      "method": "GET",
-      "path": "/",
-      "status_code": 200,
-      "content_type": "application/json",
-      "content_length": 4523,
-      "title": "API Documentation",
-      "words": 523,
-      "lines": 89,
-      "host_ip": "93.184.216.34",
-      "a": ["93.184.216.34", "93.184.216.35"],
-      "tls": "TLS 1.3",
-      "asset_type": "web",
-      "tech": ["nginx/1.21.0", "nodejs", "express"],
-      "time": "245ms",
-      "remarks": "production",
-      "source": "httpx",
-      "created_at": "2025-01-15T10:30:00Z",
-      "updated_at": "2025-01-15T10:30:00Z"
+  "data": {
+    "workspace_name": "example_com",
+    "from_time": "2025-01-01T00:00:00Z",
+    "to_time": "2025-01-15T00:00:00Z",
+    "added": [
+      {
+        "id": 123,
+        "asset_value": "new.example.com",
+        "asset_type": "subdomain",
+        "url": "https://new.example.com",
+        "status_code": 200,
+        "created_at": "2025-01-10T12:00:00Z"
+      }
+    ],
+    "removed": [
+      {
+        "id": 45,
+        "asset_value": "old.example.com",
+        "asset_type": "subdomain",
+        "last_seen_at": "2024-12-20T00:00:00Z"
+      }
+    ],
+    "changed": [
+      {
+        "asset_id": 67,
+        "asset_value": "api.example.com",
+        "url": "https://api.example.com",
+        "changes": [
+          {
+            "field": "status_code",
+            "old_value": 200,
+            "new_value": 301
+          }
+        ]
+      }
+    ],
+    "summary": {
+      "total_added": 5,
+      "total_removed": 2,
+      "total_changed": 3
     }
-  ],
-  "pagination": {
-    "total": 500,
-    "offset": 0,
-    "limit": 20
   }
 }
 ```
@@ -1174,207 +336,239 @@ curl "http://localhost:8002/osm/api/assets?search=api" \
 
 ### List Vulnerabilities
 
-**GET** `/osm/api/vulnerabilities`
-
-Get a paginated list of vulnerabilities.
-
 ```bash
-curl http://localhost:8002/osm/api/vulnerabilities \
-  -H "Authorization: Bearer $TOKEN"
+GET /osm/api/vulnerabilities
+GET /osm/api/vulnerabilities?workspace=example_com
+GET /osm/api/vulnerabilities?severity=critical
 ```
 
 **Query Parameters:**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `workspace` | string | - | Filter by workspace name |
-| `severity` | string | - | Filter by severity (critical, high, medium, low, info) |
-| `confidence` | string | - | Filter by confidence |
-| `asset_value` | string | - | Filter by asset value (partial match) |
-| `offset` | int | 0 | Pagination offset |
-| `limit` | int | 20 | Maximum records to return |
+| Parameter | Description |
+|-----------|-------------|
+| `workspace` | Filter by workspace |
+| `severity` | Filter by severity (critical, high, medium, low, info) |
+| `asset_value` | Filter by asset |
+| `limit` | Maximum results (default: 100) |
+| `offset` | Pagination offset |
 
-**Examples:**
+### Get Vulnerability
 
 ```bash
-# Filter by severity
-curl "http://localhost:8002/osm/api/vulnerabilities?severity=critical" \
-  -H "Authorization: Bearer $TOKEN"
-
-# Combine filters
-curl "http://localhost:8002/osm/api/vulnerabilities?workspace=example.com&severity=high" \
-  -H "Authorization: Bearer $TOKEN"
+GET /osm/api/vulnerabilities/:id
 ```
 
+### Vulnerability Diff
+
+Compare vulnerabilities between two time points.
+
+```bash
+GET /osm/api/vulnerabilities/diff?workspace=example_com&from=2025-01-01T00:00:00Z
+```
+
+**Query Parameters:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `workspace` | Yes | Workspace name |
+| `from` | Yes | Start time (RFC3339 or Unix timestamp) |
+| `to` | No | End time (default: now) |
+
 **Response:**
+
 ```json
 {
-  "data": [
-    {
-      "id": 1,
-      "workspace": "example.com",
-      "vuln_info": "CVE-2024-1234",
-      "vuln_title": "SQL Injection in Login Form",
-      "vuln_desc": "The login form is vulnerable to SQL injection via the username parameter.",
-      "vuln_poc": "username=' OR '1'='1' --&password=test",
-      "severity": "critical",
-      "confidence": "Certain",
-      "asset_type": "web",
-      "asset_value": "https://example.com/login",
-      "tags": ["sqli", "owasp-top10", "authentication"],
-      "detail_http_request": "POST /login HTTP/1.1\nHost: example.com\n...",
-      "detail_http_response": "HTTP/1.1 200 OK\n...",
-      "raw_vuln_json": "{\"template\":\"sqli-login.yaml\",...}",
-      "created_at": "2025-01-15T10:30:00Z",
-      "updated_at": "2025-01-15T10:30:00Z"
+  "data": {
+    "workspace_name": "example_com",
+    "from_time": "2025-01-01T00:00:00Z",
+    "to_time": "2025-01-15T00:00:00Z",
+    "added": [
+      {
+        "id": 789,
+        "vuln_info": "CVE-2025-1234",
+        "asset_value": "api.example.com",
+        "severity": "critical",
+        "template_id": "CVE-2025-1234",
+        "created_at": "2025-01-12T08:00:00Z"
+      }
+    ],
+    "removed": [],
+    "changed": [],
+    "summary": {
+      "total_added": 1,
+      "total_removed": 0,
+      "total_changed": 0
     }
-  ],
-  "pagination": {
-    "total": 15,
-    "offset": 0,
-    "limit": 20
   }
 }
 ```
 
 ---
 
-### Get Vulnerability Summary
+## Workspaces
 
-**GET** `/osm/api/vulnerabilities/summary`
-
-Get a summary of vulnerabilities grouped by severity.
+### List Workspaces
 
 ```bash
-curl http://localhost:8002/osm/api/vulnerabilities/summary \
-  -H "Authorization: Bearer $TOKEN"
+GET /osm/api/workspaces
 ```
 
-**Query Parameters:**
+### Get Workspace
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `workspace` | string | - | Filter by workspace name |
+```bash
+GET /osm/api/workspaces/:name
+```
 
-**Response:**
-```json
-{
-  "data": {
-    "by_severity": {
-      "critical": 2,
-      "high": 5,
-      "medium": 8,
-      "low": 12,
-      "info": 3
-    },
-    "total": 30,
-    "workspace": "example.com"
-  }
-}
+### Delete Workspace
+
+```bash
+DELETE /osm/api/workspaces/:name
 ```
 
 ---
 
-### Get Vulnerability by ID
+## Functions
 
-**GET** `/osm/api/vulnerabilities/:id`
+### Execute Function
 
-Retrieve a single vulnerability by its ID.
-
-```bash
-curl http://localhost:8002/osm/api/vulnerabilities/1 \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response:**
-```json
-{
-  "data": {
-    "id": 1,
-    "workspace": "example.com",
-    "vuln_info": "CVE-2024-1234",
-    "vuln_title": "SQL Injection in Login Form",
-    "vuln_desc": "The login form is vulnerable to SQL injection.",
-    "vuln_poc": "username=' OR '1'='1' --",
-    "severity": "critical",
-    "confidence": "Certain",
-    "asset_type": "web",
-    "asset_value": "https://example.com/login",
-    "tags": ["sqli", "owasp-top10"],
-    "created_at": "2025-01-15T10:30:00Z"
-  }
-}
-```
-
----
-
-### Create Vulnerability
-
-**POST** `/osm/api/vulnerabilities`
-
-Create a new vulnerability record.
+Execute a utility function.
 
 ```bash
-curl -X POST http://localhost:8002/osm/api/vulnerabilities \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "workspace": "example.com",
-    "vuln_info": "CVE-2024-9999",
-    "vuln_title": "Remote Code Execution",
-    "vuln_desc": "Critical RCE vulnerability in admin panel.",
-    "vuln_poc": "curl -X POST /admin/exec -d \"cmd=id\"",
-    "severity": "critical",
-    "asset_type": "web",
-    "asset_value": "https://example.com/admin",
-    "tags": ["rce", "critical", "admin"]
-  }'
+POST /osm/api/functions/execute
 ```
 
 **Request Body:**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `workspace` | string | Yes | Workspace/target name |
-| `vuln_info` | string | No | CVE or vulnerability identifier |
-| `vuln_title` | string | No | Short title |
-| `vuln_desc` | string | No | Detailed description |
-| `vuln_poc` | string | No | Proof of concept |
-| `severity` | string | No | Severity level |
-| `asset_type` | string | No | Type of asset |
-| `asset_value` | string | No | Affected asset URL |
-| `tags` | array | No | Tags for categorization |
+```json
+{
+  "expression": "fileLength('{{Output}}/subdomains.txt')",
+  "context": {
+    "Output": "/workspaces/example_com"
+  }
+}
+```
 
-**Response (201 Created):**
+**Response:**
+
 ```json
 {
   "data": {
-    "id": 15,
-    "workspace": "example.com",
-    "vuln_title": "Remote Code Execution",
-    "severity": "critical"
-  },
-  "message": "Vulnerability created successfully"
+    "result": 1234
+  }
+}
+```
+
+### List Functions
+
+```bash
+GET /osm/api/functions
+GET /osm/api/functions?category=file
+```
+
+---
+
+## Snapshots
+
+### List Snapshots
+
+```bash
+GET /osm/api/snapshots
+```
+
+### Export Snapshot
+
+```bash
+POST /osm/api/snapshots/export
+```
+
+**Request Body:**
+
+```json
+{
+  "workspace": "example_com",
+  "include_artifacts": true
+}
+```
+
+### Import Snapshot
+
+```bash
+POST /osm/api/snapshots/import
+```
+
+Upload a snapshot ZIP file.
+
+---
+
+## LLM
+
+### Chat Completions
+
+OpenAI-compatible chat completions endpoint.
+
+```bash
+POST /osm/api/llm/chat/completions
+```
+
+**Request Body:**
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {"role": "system", "content": "You are a security analyst."},
+    {"role": "user", "content": "Analyze this finding..."}
+  ],
+  "temperature": 0.7,
+  "max_tokens": 2000
+}
+```
+
+### Embeddings
+
+```bash
+POST /osm/api/llm/embeddings
+```
+
+**Request Body:**
+
+```json
+{
+  "model": "text-embedding-ada-002",
+  "input": ["text to embed"]
 }
 ```
 
 ---
 
-### Delete Vulnerability
+## Install
 
-**DELETE** `/osm/api/vulnerabilities/:id`
-
-Delete a vulnerability by ID.
+### List Binary Registry
 
 ```bash
-curl -X DELETE http://localhost:8002/osm/api/vulnerabilities/15 \
-  -H "Authorization: Bearer $TOKEN"
+GET /osm/api/install/registry
+GET /osm/api/install/registry?method=nix
+GET /osm/api/install/registry?method=direct
 ```
 
-**Response:**
+### Check Binary Status
+
+```bash
+GET /osm/api/install/status/:binary_name
+```
+
+### Install Binary
+
+```bash
+POST /osm/api/install/binary
+```
+
+**Request Body:**
+
 ```json
 {
-  "message": "Vulnerability deleted successfully"
+  "name": "nuclei",
+  "method": "nix"
 }
 ```
 
@@ -1382,1012 +576,50 @@ curl -X DELETE http://localhost:8002/osm/api/vulnerabilities/15 \
 
 ## Event Logs
 
-### List Event Logs
-
-**GET** `/osm/api/event-logs`
-
-Get a paginated list of event logs.
+### List Events
 
 ```bash
-curl http://localhost:8002/osm/api/event-logs \
-  -H "Authorization: Bearer $TOKEN"
+GET /osm/api/events
+GET /osm/api/events?topic=assets.new
+GET /osm/api/events?run_id=run-abc123
 ```
 
 **Query Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `topic` | string | Filter by event topic |
-| `name` | string | Filter by event name |
-| `source` | string | Filter by event source |
-| `workspace` | string | Filter by workspace name |
-| `run_id` | string | Filter by run ID |
-| `workflow_name` | string | Filter by workflow name |
-| `processed` | bool | Filter by processed status |
-| `offset` | int | Pagination offset (default: 0) |
-| `limit` | int | Maximum records (default: 20) |
+| Parameter | Description |
+|-----------|-------------|
+| `topic` | Filter by event topic |
+| `run_id` | Filter by run ID |
+| `from` | Start time filter |
+| `to` | End time filter |
+| `limit` | Maximum results |
 
-**Examples:**
+---
+
+## Health
+
+### Health Check
 
 ```bash
-# Filter by topic
-curl "http://localhost:8002/osm/api/event-logs?topic=run.completed" \
-  -H "Authorization: Bearer $TOKEN"
-
-# Filter by workspace
-curl "http://localhost:8002/osm/api/event-logs?workspace=example.com" \
-  -H "Authorization: Bearer $TOKEN"
+GET /osm/api/health
 ```
 
 **Response:**
+
 ```json
 {
-  "data": [
-    {
-      "id": 1,
-      "topic": "run.completed",
-      "event_id": "550e8400-e29b-41d4-a716-446655440000",
-      "name": "subdomain-enum-completed",
-      "source": "executor",
-      "data_type": "scan",
-      "data": "{\"scan_id\":\"abc12345\",\"target\":\"example.com\"}",
-      "workspace": "example.com",
-      "run_id": "abc12345",
-      "workflow_name": "subdomain-enum",
-      "processed": true,
-      "processed_at": "2025-01-15T10:30:00Z",
-      "error": "",
-      "created_at": "2025-01-15T09:30:00Z"
-    }
-  ],
-  "pagination": {
-    "total": 150,
-    "offset": 0,
-    "limit": 20
-  }
-}
-```
-
-**Available Event Topics:**
-
-| Topic | Description |
-|-------|-------------|
-| `run.started` | Workflow execution started |
-| `run.completed` | Workflow execution completed |
-| `run.failed` | Workflow execution failed |
-| `asset.discovered` | New asset discovered |
-| `schedule.triggered` | Scheduled workflow triggered |
-| `step.completed` | Individual step completed |
-| `step.failed` | Individual step failed |
-
----
-
-## Functions
-
-### Execute Utility Function
-
-**POST** `/osm/api/functions/eval`
-
-Execute a utility function script.
-
-```bash
-curl -X POST http://localhost:8002/osm/api/functions/eval \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "script": "trim(\"  hello  \")"
-  }'
-```
-
-**With target variable:**
-```bash
-curl -X POST http://localhost:8002/osm/api/functions/eval \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "script": "fileExists(\"{{target}}\")",
-    "target": "/tmp/test.txt"
-  }'
-```
-
-**With custom parameters:**
-```bash
-curl -X POST http://localhost:8002/osm/api/functions/eval \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "script": "log_info(\"{{host}}:{{port}}\")",
-    "params": {
-      "host": "localhost",
-      "port": "8080"
-    }
-  }'
-```
-
-**Request Body:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `script` | string | Yes | The JavaScript script to execute |
-| `target` | string | No | Target value for `{{target}}` variable |
-| `params` | object | No | Additional parameters for template rendering |
-
-**Response:**
-```json
-{
-  "result": "hello",
-  "rendered_script": "trim(\"  hello  \")"
+  "status": "healthy",
+  "version": "5.0.0",
+  "database": "connected",
+  "workflows_loaded": 42
 }
 ```
 
 ---
 
-### List Utility Functions
+## Error Responses
 
-**GET** `/osm/api/functions/list`
-
-Get a categorized list of all available utility functions.
-
-```bash
-curl http://localhost:8002/osm/api/functions/list \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response:**
-```json
-{
-  "functions": {
-    "file": [
-      {"name": "fileExists(path)", "description": "Check if file exists", "return_type": "bool"},
-      {"name": "fileLength(path)", "description": "Count non-empty lines in file", "return_type": "int"},
-      {"name": "readFile(path)", "description": "Read entire file contents", "return_type": "string"}
-    ],
-    "string": [
-      {"name": "trim(str)", "description": "Trim whitespace", "return_type": "string"},
-      {"name": "split(str, delim)", "description": "Split string by delimiter", "return_type": "[]string"}
-    ],
-    "utility": [
-      {"name": "len(val)", "description": "Get length of string or array", "return_type": "int"},
-      {"name": "exec_cmd(command)", "description": "Execute bash command", "return_type": "string"}
-    ],
-    "http": [
-      {"name": "http_get(url)", "description": "Make HTTP GET request", "return_type": "object"},
-      {"name": "http_post(url, body)", "description": "Make HTTP POST request", "return_type": "object"}
-    ],
-    "logging": [
-      {"name": "log_info(message)", "description": "Log info message", "return_type": "void"},
-      {"name": "log_error(message)", "description": "Log error message", "return_type": "void"}
-    ]
-  }
-}
-```
-
----
-
-## System Statistics
-
-### Get System Stats
-
-**GET** `/osm/api/stats`
-
-Get aggregated system statistics.
-
-```bash
-curl http://localhost:8002/osm/api/stats \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response:**
-```json
-{
-  "workflows": {
-    "total": 25,
-    "flows": 10,
-    "modules": 15
-  },
-  "runs": {
-    "total": 150,
-    "completed": 120,
-    "running": 5,
-    "failed": 10,
-    "pending": 15
-  },
-  "workspaces": {
-    "total": 50
-  },
-  "assets": {
-    "total": 5000
-  },
-  "vulnerabilities": {
-    "total": 150,
-    "critical": 10,
-    "high": 25,
-    "medium": 50,
-    "low": 65
-  },
-  "schedules": {
-    "total": 8,
-    "enabled": 5
-  }
-}
-```
-
----
-
-## Settings
-
-### Get YAML Configuration
-
-**GET** `/osm/api/settings/yaml`
-
-Get the YAML configuration file with sensitive fields redacted.
-
-```bash
-curl http://localhost:8002/osm/api/settings/yaml \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response (text/yaml):**
-```yaml
-# Osmedeus Configuration File
-base_folder: ~/osmedeus-base
-
-environments:
-  binaries_path: "{{base_folder}}/binaries"
-
-server:
-  host: "0.0.0.0"
-  port: 8002
-  workspace_prefix_key: "[REDACTED]"
-  jwt:
-    secret_signing_key: "[REDACTED]"
-    expiration_minutes: 180
-
-database:
-  username: "[REDACTED]"
-  password: "[REDACTED]"
-```
-
----
-
-## Installation
-
-### Get Registry Info
-
-**GET** `/osm/api/registry-info`
-
-Fetch binary registry metadata with installation status.
-
-```bash
-curl http://localhost:8002/osm/api/registry-info \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Query Parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `registry_mode` | string | `direct-fetch` | Mode: `direct-fetch` or `nix-build` |
-
-**Response (direct-fetch mode):**
-```json
-{
-  "registry_mode": "direct-fetch",
-  "registry_url": "https://raw.githubusercontent.com/osmedeus/osmedeus-base/main/registry-metadata.json",
-  "binaries": {
-    "nuclei": {
-      "desc": "Vulnerability scanner",
-      "tags": ["vuln", "scanner"],
-      "version": "3.0.0",
-      "linux": {
-        "amd64": "https://github.com/projectdiscovery/nuclei/releases/download/v3.0.0/nuclei_3.0.0_linux_amd64.zip"
-      },
-      "darwin": {
-        "amd64": "https://github.com/projectdiscovery/nuclei/releases/download/v3.0.0/nuclei_3.0.0_darwin_amd64.zip"
-      },
-      "installed": true,
-      "path": "/usr/local/bin/nuclei"
-    }
-  }
-}
-```
-
-**Response (nix-build mode):**
-```bash
-curl "http://localhost:8002/osm/api/registry-info?registry_mode=nix-build" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-```json
-{
-  "registry_mode": "nix-build",
-  "nix_installed": true,
-  "categories": [
-    {
-      "name": "Subdomain",
-      "tools": [
-        {
-          "name": "amass",
-          "desc": "In-depth attack surface mapping",
-          "tags": ["recon", "subdomain"],
-          "version": "4.2.0",
-          "installed": true,
-          "path": "/home/user/.nix-profile/bin/amass"
-        }
-      ]
-    }
-  ]
-}
-```
-
----
-
-### Install Binaries or Workflows
-
-**POST** `/osm/api/registry-install`
-
-Install binaries from registry or workflows from git/zip URL.
-
-**Install specific binaries (direct-fetch):**
-```bash
-curl -X POST http://localhost:8002/osm/api/registry-install \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "binary",
-    "names": ["nuclei", "httpx", "ffuf"]
-  }'
-```
-
-**Install all binaries:**
-```bash
-curl -X POST http://localhost:8002/osm/api/registry-install \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "binary",
-    "install_all": true
-  }'
-```
-
-**Install via Nix:**
-```bash
-curl -X POST http://localhost:8002/osm/api/registry-install \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "binary",
-    "names": ["amass", "subfinder"],
-    "registry_mode": "nix-build"
-  }'
-```
-
-**Install workflow from git URL:**
-```bash
-curl -X POST http://localhost:8002/osm/api/registry-install \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "workflow",
-    "source": "https://github.com/osmedeus/osmedeus-workflow.git"
-  }'
-```
-
-**Request Body:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `type` | string | **Required.** `binary` or `workflow` |
-| `names` | array | Binary names to install |
-| `install_all` | bool | Install all binaries |
-| `source` | string | Git URL or zip URL (for workflows) |
-| `registry_mode` | string | `direct-fetch` or `nix-build` |
-
-**Response:**
-```json
-{
-  "message": "Binary installation completed",
-  "registry_mode": "direct-fetch",
-  "installed": ["nuclei", "httpx"],
-  "installed_count": 2,
-  "binaries_folder": "/home/user/osmedeus-base/binaries",
-  "failed": [
-    {"name": "ffuf", "error": "download failed"}
-  ],
-  "failed_count": 1
-}
-```
-
----
-
-## Schedules
-
-### List Schedules
-
-**GET** `/osm/api/schedules`
-
-Get a paginated list of all scheduled workflows.
-
-```bash
-curl http://localhost:8002/osm/api/schedules \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response:**
-```json
-{
-  "data": [
-    {
-      "id": "sch_1234567890",
-      "name": "daily-scan",
-      "workflow_name": "subdomain-enum",
-      "workflow_path": "/home/user/osmedeus-base/workflows/flows/subdomain-enum.yaml",
-      "trigger_name": "daily-scan-trigger",
-      "trigger_type": "cron",
-      "schedule": "0 2 * * *",
-      "input_config": {
-        "target": "example.com",
-        "threads": "50"
-      },
-      "is_enabled": true,
-      "last_run": "2025-01-15T02:00:00Z",
-      "next_run": "2025-01-16T02:00:00Z",
-      "run_count": 30,
-      "created_at": "2025-01-01T00:00:00Z",
-      "updated_at": "2025-01-15T02:00:00Z"
-    }
-  ],
-  "pagination": {
-    "total": 5,
-    "offset": 0,
-    "limit": 20
-  }
-}
-```
-
----
-
-### Create Schedule
-
-**POST** `/osm/api/schedules`
-
-Create a new scheduled workflow execution.
-
-```bash
-curl -X POST http://localhost:8002/osm/api/schedules \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "daily-scan",
-    "workflow_name": "subdomain-enum",
-    "workflow_kind": "flow",
-    "target": "example.com",
-    "schedule": "0 2 * * *",
-    "enabled": true
-  }'
-```
-
-**With additional parameters:**
-```bash
-curl -X POST http://localhost:8002/osm/api/schedules \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "weekly-full-scan",
-    "workflow_name": "full-recon",
-    "workflow_kind": "flow",
-    "target": "example.com",
-    "schedule": "0 0 * * 0",
-    "enabled": true,
-    "params": {
-      "threads": "100"
-    },
-    "runner_type": "docker"
-  }'
-```
-
-**Response:**
-```json
-{
-  "message": "Schedule created",
-  "data": {
-    "id": "sch_1234567890",
-    "name": "daily-scan",
-    "workflow_name": "subdomain-enum",
-    "schedule": "0 2 * * *",
-    "is_enabled": true
-  }
-}
-```
-
----
-
-### Get Schedule
-
-**GET** `/osm/api/schedules/:id`
-
-Get details of a specific schedule.
-
-```bash
-curl http://localhost:8002/osm/api/schedules/sch_1234567890 \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response:**
-```json
-{
-  "id": "sch_1234567890",
-  "name": "daily-scan",
-  "workflow_name": "subdomain-enum",
-  "trigger_type": "cron",
-  "schedule": "0 2 * * *",
-  "input_config": {
-    "target": "example.com"
-  },
-  "is_enabled": true,
-  "last_run": "2025-01-15T02:00:00Z",
-  "next_run": "2025-01-16T02:00:00Z",
-  "run_count": 30
-}
-```
-
----
-
-### Update Schedule
-
-**PUT** `/osm/api/schedules/:id`
-
-Update an existing schedule.
-
-```bash
-curl -X PUT http://localhost:8002/osm/api/schedules/sch_1234567890 \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "updated-daily-scan",
-    "schedule": "0 3 * * *"
-  }'
-```
-
-**Response:**
-```json
-{
-  "message": "Schedule updated",
-  "data": {
-    "id": "sch_1234567890",
-    "name": "updated-daily-scan",
-    "schedule": "0 3 * * *"
-  }
-}
-```
-
----
-
-### Delete Schedule
-
-**DELETE** `/osm/api/schedules/:id`
-
-Delete a schedule.
-
-```bash
-curl -X DELETE http://localhost:8002/osm/api/schedules/sch_1234567890 \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response:**
-```json
-{
-  "message": "Schedule deleted"
-}
-```
-
----
-
-### Enable Schedule
-
-**POST** `/osm/api/schedules/:id/enable`
-
-Enable a disabled schedule.
-
-```bash
-curl -X POST http://localhost:8002/osm/api/schedules/sch_1234567890/enable \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response:**
-```json
-{
-  "message": "Schedule enabled"
-}
-```
-
----
-
-### Disable Schedule
-
-**POST** `/osm/api/schedules/:id/disable`
-
-Disable an enabled schedule.
-
-```bash
-curl -X POST http://localhost:8002/osm/api/schedules/sch_1234567890/disable \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response:**
-```json
-{
-  "message": "Schedule disabled"
-}
-```
-
----
-
-### Trigger Schedule
-
-**POST** `/osm/api/schedules/:id/trigger`
-
-Manually trigger a scheduled workflow execution.
-
-```bash
-curl -X POST http://localhost:8002/osm/api/schedules/sch_1234567890/trigger \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response:**
-```json
-{
-  "message": "Schedule triggered",
-  "schedule": "daily-scan",
-  "workflow": "subdomain-enum"
-}
-```
-
----
-
-## LLM API
-
-OpenAI-compatible API endpoints for Large Language Model capabilities.
-
-### Chat Completion
-
-**POST** `/osm/api/llm/v1/chat/completions`
-
-Send a chat completion request.
-
-```bash
-curl -X POST http://localhost:8002/osm/api/llm/v1/chat/completions \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      {"role": "system", "content": "You are a security analyst."},
-      {"role": "user", "content": "Analyze the security posture of example.com"}
-    ],
-    "max_tokens": 1000,
-    "temperature": 0.7
-  }'
-```
-
-**Request Body:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `messages` | array | Yes | Array of message objects with `role` and `content` |
-| `model` | string | No | Model to use |
-| `max_tokens` | int | No | Maximum tokens in response |
-| `temperature` | float | No | Sampling temperature (0.0-2.0) |
-| `top_p` | float | No | Top-p sampling parameter |
-| `tools` | array | No | Tool definitions for function calling |
-| `tool_choice` | string | No | Tool selection strategy |
-| `response_format` | object | No | Response format |
-
-**Response:**
-```json
-{
-  "id": "chatcmpl-abc123",
-  "model": "gpt-4",
-  "content": "Based on my analysis of example.com...",
-  "finish_reason": "stop",
-  "usage": {
-    "prompt_tokens": 50,
-    "completion_tokens": 200,
-    "total_tokens": 250
-  }
-}
-```
-
----
-
-### With Tools (Function Calling)
-
-```bash
-curl -X POST http://localhost:8002/osm/api/llm/v1/chat/completions \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "What DNS records exist for example.com?"}
-    ],
-    "tools": [
-      {
-        "type": "function",
-        "function": {
-          "name": "dns_lookup",
-          "description": "Look up DNS records for a domain",
-          "parameters": {
-            "type": "object",
-            "properties": {
-              "domain": {"type": "string", "description": "Domain to look up"},
-              "record_type": {"type": "string", "enum": ["A", "AAAA", "MX", "TXT", "NS"]}
-            },
-            "required": ["domain"]
-          }
-        }
-      }
-    ],
-    "tool_choice": "auto"
-  }'
-```
-
-**Response with Tool Calls:**
-```json
-{
-  "id": "chatcmpl-xyz789",
-  "model": "gpt-4",
-  "content": null,
-  "finish_reason": "tool_calls",
-  "tool_calls": [
-    {
-      "id": "call_abc123",
-      "type": "function",
-      "function": {
-        "name": "dns_lookup",
-        "arguments": "{\"domain\": \"example.com\", \"record_type\": \"A\"}"
-      }
-    }
-  ]
-}
-```
-
----
-
-### Generate Embeddings
-
-**POST** `/osm/api/llm/v1/embeddings`
-
-Generate vector embeddings for input text.
-
-```bash
-curl -X POST http://localhost:8002/osm/api/llm/v1/embeddings \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "input": ["security analysis", "vulnerability assessment"],
-    "model": "text-embedding-3-small"
-  }'
-```
-
-**Request Body:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `input` | array | Yes | Array of strings to embed |
-| `model` | string | No | Embedding model |
-
-**Response:**
-```json
-{
-  "model": "text-embedding-3-small",
-  "embeddings": [
-    [0.0023, -0.0045, 0.0178, ...],
-    [0.0112, -0.0067, 0.0234, ...]
-  ],
-  "usage": {
-    "prompt_tokens": 10,
-    "total_tokens": 10
-  }
-}
-```
-
----
-
-## Distributed Mode
-
-These endpoints are only available when running the server in master mode (`osmedeus server --master`).
-
-### List Workers
-
-**GET** `/osm/api/workers`
-
-Get a list of all registered workers.
-
-```bash
-curl http://localhost:8002/osm/api/workers \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response:**
-```json
-{
-  "data": [
-    {
-      "id": "worker-001",
-      "hostname": "worker1.example.com",
-      "ip_address": "192.168.1.10",
-      "status": "idle",
-      "current_task": null,
-      "joined_at": "2025-01-15T08:00:00Z",
-      "last_heartbeat": "2025-01-15T10:30:00Z",
-      "tasks_complete": 150,
-      "tasks_failed": 2,
-      "capabilities": ["docker", "nmap", "nuclei"],
-      "cpu_cores": 8,
-      "memory_gb": 16,
-      "version": "1.0.0"
-    }
-  ],
-  "count": 2
-}
-```
-
----
-
-### Get Worker
-
-**GET** `/osm/api/workers/:id`
-
-Get details of a specific worker.
-
-```bash
-curl http://localhost:8002/osm/api/workers/worker-001 \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response:**
-```json
-{
-  "id": "worker-001",
-  "hostname": "worker1.example.com",
-  "ip_address": "192.168.1.10",
-  "status": "busy",
-  "current_task": "task-12345",
-  "joined_at": "2025-01-15T08:00:00Z",
-  "last_heartbeat": "2025-01-15T10:30:00Z",
-  "tasks_complete": 150,
-  "tasks_failed": 2,
-  "capabilities": ["docker", "nmap", "nuclei"],
-  "cpu_cores": 8,
-  "memory_gb": 16
-}
-```
-
----
-
-### List Tasks
-
-**GET** `/osm/api/tasks`
-
-Get a list of all running and completed tasks.
-
-```bash
-curl http://localhost:8002/osm/api/tasks \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response:**
-```json
-{
-  "running": [
-    {
-      "id": "task-12345",
-      "scan_id": "scan-abc123",
-      "workflow_name": "subdomain-enum",
-      "workflow_kind": "flow",
-      "target": "example.com",
-      "params": {"threads": "50"},
-      "status": "running",
-      "worker_id": "worker-001",
-      "progress": 45,
-      "current_step": "run-httpx",
-      "created_at": "2025-01-15T10:00:00Z",
-      "started_at": "2025-01-15T10:01:00Z"
-    }
-  ],
-  "completed": [
-    {
-      "task_id": "task-12340",
-      "scan_id": "scan-xyz789",
-      "status": "completed",
-      "output": "Scan completed: 150 subdomains found",
-      "error": "",
-      "exports": {
-        "subdomains": "/workspaces/example.com/subdomains.txt"
-      },
-      "completed_at": "2025-01-15T09:30:00Z",
-      "duration_seconds": 1800
-    }
-  ]
-}
-```
-
----
-
-### Get Task
-
-**GET** `/osm/api/tasks/:id`
-
-Get details of a specific task.
-
-```bash
-curl http://localhost:8002/osm/api/tasks/task-12345 \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response (running task):**
-```json
-{
-  "id": "task-12345",
-  "scan_id": "scan-abc123",
-  "workflow_name": "subdomain-enum",
-  "target": "example.com",
-  "status": "running",
-  "worker_id": "worker-001",
-  "progress": 45,
-  "current_step": "run-httpx"
-}
-```
-
----
-
-### Submit Task
-
-**POST** `/osm/api/tasks`
-
-Submit a new task to the distributed worker queue.
-
-```bash
-curl -X POST http://localhost:8002/osm/api/tasks \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "workflow_name": "subdomain-enum",
-    "workflow_kind": "flow",
-    "target": "example.com"
-  }'
-```
-
-**With parameters:**
-```bash
-curl -X POST http://localhost:8002/osm/api/tasks \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "workflow_name": "subdomain-enum",
-    "workflow_kind": "flow",
-    "target": "example.com",
-    "params": {
-      "threads": 50,
-      "timeout": 30
-    }
-  }'
-```
-
-**Response:**
-```json
-{
-  "message": "Task submitted",
-  "task_id": "task-12346"
-}
-```
-
----
-
-## Reference
-
-### Error Responses
-
-All endpoints return errors in a consistent format:
+All error responses follow this format:
 
 ```json
 {
@@ -2396,121 +628,11 @@ All endpoints return errors in a consistent format:
 }
 ```
 
-**Common HTTP Status Codes:**
+Common HTTP status codes:
 
 | Code | Description |
 |------|-------------|
-| `200` | Success |
-| `201` | Created |
-| `202` | Accepted (async operation started) |
-| `400` | Bad Request (invalid input) |
-| `401` | Unauthorized (missing or invalid token) |
-| `404` | Not Found |
-| `500` | Internal Server Error |
-
----
-
-### Pagination
-
-Endpoints that return lists support pagination via query parameters:
-
-| Parameter | Default | Max | Description |
-|-----------|---------|-----|-------------|
-| `offset` | 0 | - | Number of records to skip |
-| `limit` | 20 | 10000 | Maximum records to return |
-
-**Example:**
-```bash
-curl "http://localhost:8002/osm/api/assets?offset=100&limit=50" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Response pagination object:**
-```json
-{
-  "pagination": {
-    "total": 500,
-    "offset": 100,
-    "limit": 50
-  }
-}
-```
-
----
-
-### Cron Expression Reference
-
-Schedules use standard cron expressions:
-
-```
-┌───────────── minute (0-59)
-│ ┌───────────── hour (0-23)
-│ │ ┌───────────── day of month (1-31)
-│ │ │ ┌───────────── month (1-12)
-│ │ │ │ ┌───────────── day of week (0-6, Sunday=0)
-│ │ │ │ │
-* * * * *
-```
-
-**Examples:**
-
-| Expression | Description |
-|------------|-------------|
-| `0 2 * * *` | Every day at 2:00 AM |
-| `0 0 * * 0` | Every Sunday at midnight |
-| `*/30 * * * *` | Every 30 minutes |
-| `0 9-17 * * 1-5` | Every hour from 9 AM to 5 PM, Monday to Friday |
-
----
-
-### Run Status Values
-
-| Status | Description |
-|--------|-------------|
-| `pending` | Queued, waiting to start |
-| `running` | Currently executing |
-| `completed` | Finished successfully |
-| `failed` | Execution failed |
-| `cancelled` | Cancelled by user |
-
----
-
-### Severity Levels
-
-| Severity | Description |
-|----------|-------------|
-| `critical` | Critical severity - immediate action required |
-| `high` | High severity - action required soon |
-| `medium` | Medium severity - should be addressed |
-| `low` | Low severity - minor issue |
-| `info` | Informational - no action required |
-
----
-
-### Workflow Kinds
-
-| Kind | Description |
-|------|-------------|
-| `flow` | Orchestrates multiple modules |
-| `module` | Single workflow unit |
-
----
-
-### Runner Types
-
-| Type | Description |
-|------|-------------|
-| `host` | Execute on local host |
-| `docker` | Execute in Docker container |
-| `ssh` | Execute on remote host via SSH |
-
----
-
-### Trigger Types
-
-| Type | Description |
-|------|-------------|
-| `cron` | Scheduled execution via cron expression |
-| `event` | Event-driven execution |
-| `watch` | File watch trigger |
-| `manual` | Manual execution via API/CLI |
+| 400 | Bad Request - Invalid parameters |
+| 401 | Unauthorized - Missing or invalid token |
+| 404 | Not Found - Resource doesn't exist |
+| 500 | Internal Server Error - Server error |

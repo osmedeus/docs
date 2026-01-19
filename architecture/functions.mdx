@@ -1,44 +1,466 @@
 ---
-title: "Functions"
-description: "YAML-based workflow definitions and execution"
-icon: "diagram-project"
+title: Functions Architecture
+description: Deep dive into the Osmedeus utility functions system and Goja runtime
 ---
 
-Osmedeus utility functions are JavaScript and Python scripts that can be used in workflows to perform common tasks.
+# Functions Architecture
 
-## Functions Overview
+Osmedeus provides a rich set of utility functions executed via the Goja JavaScript runtime. Functions can be used in `function` steps, `pre_condition` expressions, and template generators.
 
-<CodeGroup>
+## Goja Runtime Pool
 
-```javascript helloWorld.js
-console.log("Hello World");
+The function system uses a pool of Goja JavaScript VMs for parallel execution without global mutex contention:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Goja Runtime Pool                        │
+│                                                             │
+│   ┌─────────────┐                                           │
+│   │  VMPool     │                                           │
+│   │  (CPU cores)│                                           │
+│   └─────────────┘                                           │
+│         │                                                   │
+│         ├───────────┬───────────┬───────────┐              │
+│         ▼           ▼           ▼           ▼              │
+│   ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐          │
+│   │  VM 1   │ │  VM 2   │ │  VM 3   │ │  VM 4   │          │
+│   │ Context │ │ Context │ │ Context │ │ Context │          │
+│   │ Funcs   │ │ Funcs   │ │ Funcs   │ │ Funcs   │          │
+│   └─────────┘ └─────────┘ └─────────┘ └─────────┘          │
+│                                                             │
+│   Features:                                                 │
+│   - Pool size: runtime.NumCPU()                             │
+│   - No global mutex for parallel execution                  │
+│   - Lazy variable loading for conditions                    │
+│   - Context isolation per execution                         │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-```python hello_world.py
-print('Hello World!')
-```
+## GojaRuntime Structure
 
-```java HelloWorld.java
-class HelloWorld {
-    public static void main(String[] args) {
-        System.out.println("Hello, World!");
-    }
+```go
+type GojaRuntime struct {
+    pool *VMPool    // Pool of configured VMs
+    mu   sync.Mutex // Only for custom function registration
+}
+
+type vmFunc struct {
+    vm      *goja.Runtime
+    runtime *GojaRuntime
+}
+
+type VMContext struct {
+    vm       *goja.Runtime
+    context  map[string]interface{}
+    varsSet  map[string]bool
 }
 ```
 
-</CodeGroup>
+## Function Categories
 
-## Function Types
+Functions are organized into categories for better discoverability:
 
-<ResponseField name="user" type="User Object">
-  <Expandable title="properties">
-    <ResponseField name="full_name" type="string">
-      The full name of the user
-    </ResponseField>
+### File Functions
 
-    <ResponseField name="is_over_21" type="boolean">
-      Whether the user is over 21 years old
-    </ResponseField>
-  </Expandable>
-</ResponseField>
+Operations on files and directories.
 
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `fileExists` | `fileExists(path) -> bool` | Check if file exists |
+| `fileLength` | `fileLength(path) -> int` | Count non-empty lines |
+| `dirLength` | `dirLength(path) -> int` | Count directory entries |
+| `fileContains` | `fileContains(path, pattern) -> bool` | Check if file contains pattern |
+| `regexExtract` | `regexExtract(path, pattern) -> []string` | Extract matching lines |
+| `readFile` | `readFile(path) -> string` | Read entire file |
+| `readLines` | `readLines(path) -> []string` | Read as line array |
+| `removeFile` | `removeFile(path) -> bool` | Delete file |
+| `removeFolder` | `removeFolder(path) -> bool` | Delete folder recursively |
+| `rm_rf` | `rm_rf(path) -> bool` | Delete file or folder |
+| `remove_all_except` | `remove_all_except(folder, keep) -> bool` | Remove all except keep |
+| `createFolder` | `createFolder(path) -> bool` | Create folder recursively |
+| `appendFile` | `appendFile(dest, source) -> bool` | Append source to dest |
+| `moveFile` | `moveFile(source, dest) -> bool` | Move/rename file |
+| `glob` | `glob(pattern) -> []string` | List matching files |
+| `grep_string` | `grep_string(source, str) -> string` | Lines containing string |
+| `grep_regex` | `grep_regex(source, pattern) -> string` | Lines matching regex |
+| `grep_string_to_file` | `grep_string_to_file(dest, src, str) -> bool` | Filter to file |
+| `grep_regex_to_file` | `grep_regex_to_file(dest, src, pat) -> bool` | Filter to file |
+| `remove_blank_lines` | `remove_blank_lines(path) -> bool` | Remove blanks in-place |
+
+### String Functions
+
+String manipulation operations.
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `trim` | `trim(str) -> string` | Trim whitespace |
+| `split` | `split(str, delim) -> []string` | Split by delimiter |
+| `join` | `join(arr, delim) -> string` | Join with delimiter |
+| `replace` | `replace(str, old, new) -> string` | Replace all |
+| `contains` | `contains(str, substr) -> bool` | Contains substring |
+| `startsWith` | `startsWith(str, prefix) -> bool` | Starts with prefix |
+| `endsWith` | `endsWith(str, suffix) -> bool` | Ends with suffix |
+| `toLowerCase` | `toLowerCase(str) -> string` | To lowercase |
+| `toUpperCase` | `toUpperCase(str) -> string` | To uppercase |
+| `match` | `match(str, pattern) -> bool` | Regex match |
+| `regex_match` | `regex_match(pattern, str) -> bool` | Regex match (pattern first) |
+| `cut_with_delim` | `cut_with_delim(input, delim, field) -> string` | Extract field |
+| `normalize_path` | `normalize_path(input) -> string` | Normalize path chars |
+| `clean_sub` | `clean_sub(path, target?) -> bool` | Clean subdomains |
+
+### Type Conversion
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `parseInt` | `parseInt(str) -> int` | Parse to integer |
+| `parseFloat` | `parseFloat(str) -> float` | Parse to float |
+| `toString` | `toString(val) -> string` | Convert to string |
+| `toBoolean` | `toBoolean(val) -> bool` | Convert to boolean |
+
+### Utility Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `len` | `len(val) -> int` | Length of string/array |
+| `isEmpty` | `isEmpty(val) -> bool` | Check if empty |
+| `isNotEmpty` | `isNotEmpty(val) -> bool` | Check if not empty |
+| `printf` | `printf(message) -> void` | Print to stdout |
+| `cat_file` | `cat_file(path) -> void` | Print file content |
+| `exit` | `exit(code) -> void` | Exit with code |
+| `exec_cmd` | `exec_cmd(command) -> string` | Execute bash command |
+| `sleep` | `sleep(seconds) -> void` | Pause execution |
+
+### Logging Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `log_debug` | `log_debug(message) -> void` | [DEBUG] prefix |
+| `log_info` | `log_info(message) -> void` | [INFO] prefix |
+| `log_warn` | `log_warn(message) -> void` | [WARN] prefix |
+| `log_error` | `log_error(message) -> void` | [ERROR] prefix |
+
+### HTTP Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `httpRequest` | `httpRequest(url, method, headers, body) -> object` | Full HTTP request |
+| `http_get` | `http_get(url) -> object` | GET request |
+| `http_post` | `http_post(url, body) -> object` | POST request |
+
+### Generation Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `randomString` | `randomString(length) -> string` | Random alphanumeric |
+| `uuid` | `uuid() -> string` | UUID v4 |
+
+### Encoding Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `base64Encode` | `base64Encode(str) -> string` | Encode to base64 |
+| `base64Decode` | `base64Decode(str) -> string` | Decode from base64 |
+
+### Data Query Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `jq` | `jq(jsonData, query) -> any` | jq syntax query |
+| `jq_from_file` | `jq_from_file(path, query) -> any` | jq from file |
+
+### Notification Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `notifyTelegram` | `notifyTelegram(message) -> bool` | Send Telegram message |
+| `sendTelegramFile` | `sendTelegramFile(path, caption?) -> bool` | Send file |
+| `notifyWebhook` | `notifyWebhook(message) -> bool` | Send to webhooks |
+| `sendWebhookEvent` | `sendWebhookEvent(type, data) -> bool` | Send event |
+
+### CDN/Storage Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `cdnUpload` | `cdnUpload(local, remote) -> bool` | Upload file |
+| `cdnDownload` | `cdnDownload(remote, local) -> bool` | Download file |
+| `cdnExists` | `cdnExists(remote) -> bool` | Check existence |
+| `cdnDelete` | `cdnDelete(remote) -> bool` | Delete file |
+| `cdnSyncUpload` | `cdnSyncUpload(localDir, prefix) -> object` | Sync upload |
+| `cdnSyncDownload` | `cdnSyncDownload(prefix, localDir) -> object` | Sync download |
+| `cdnGetPresignedURL` | `cdnGetPresignedURL(remote, mins?) -> string` | Presigned URL |
+| `cdnList` | `cdnList(prefix?) -> []object` | List files |
+| `cdnStat` | `cdnStat(remote) -> object|null` | File metadata |
+
+### Unix Command Wrappers
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `sortUnix` | `sortUnix(input, output?) -> bool` | LC_ALL=C sort -u |
+| `wgetUnix` | `wgetUnix(url, output?) -> bool` | wget download |
+| `gitClone` | `gitClone(repo, dest?) -> bool` | Clone repository |
+| `zipUnix` | `zipUnix(source, dest) -> bool` | Create zip |
+| `unzipUnix` | `unzipUnix(source, dest?) -> bool` | Extract zip |
+| `tarUnix` | `tarUnix(source, dest) -> bool` | Create tar.gz |
+| `untarUnix` | `untarUnix(source, dest?) -> bool` | Extract tar.gz |
+| `diffUnix` | `diffUnix(file1, file2, output?) -> string` | Compare files |
+| `sed_string_replace` | `sed_string_replace(syntax, src, dest) -> bool` | sed replace |
+| `sed_regex_replace` | `sed_regex_replace(syntax, src, dest) -> bool` | sed regex |
+
+### Archive Functions (Go)
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `zip_dir` | `zip_dir(source, dest) -> bool` | Go zip |
+| `unzip_dir` | `unzip_dir(source, dest) -> bool` | Go unzip |
+
+### Diff Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `extractDiff` | `extractDiff(file1, file2) -> string` | Lines only in file2 |
+
+### Output Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `save_content` | `save_content(content, path) -> bool` | Save to file |
+| `jsonl_to_csv` | `jsonl_to_csv(source, dest) -> bool` | JSONL to CSV |
+| `csv_to_jsonl` | `csv_to_jsonl(source, dest) -> bool` | CSV to JSONL |
+| `jsonl_unique` | `jsonl_unique(src, dest, fields) -> bool` | Deduplicate |
+| `jsonl_filter` | `jsonl_filter(src, dest, fields) -> bool` | Filter fields |
+
+### URL Processing
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `interesting_urls` | `interesting_urls(src, dest, field?) -> bool` | Dedupe URLs |
+
+### Markdown Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `render_markdown_from_file` | `render_markdown_from_file(path) -> string` | Render markdown |
+| `print_markdown_from_file` | `print_markdown_from_file(path) -> void` | Print styled |
+| `convert_jsonl_to_markdown` | `convert_jsonl_to_markdown(in, out) -> bool` | To table |
+| `convert_csv_to_markdown` | `convert_csv_to_markdown(path) -> string` | To table |
+| `render_markdown_report` | `render_markdown_report(template, out) -> bool` | Render report |
+| `generate_security_report` | `generate_security_report(template) -> bool` | Generate report |
+
+### Database Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `db_update` | `db_update(table, key, field, value) -> bool` | Update field |
+| `db_import_asset` | `db_import_asset(workspace, json) -> bool` | Import asset |
+| `db_raw_insert_asset` | `db_raw_insert_asset(workspace, json) -> int` | Insert asset |
+| `db_import_asset_from_file` | `db_import_asset_from_file(ws, path) -> int` | Import JSONL |
+| `db_import_vuln` | `db_import_vuln(workspace, json) -> bool` | Import vuln |
+| `db_import_vuln_from_file` | `db_import_vuln_from_file(ws, path) -> int` | Import JSONL |
+| `db_total_subdomains` | `db_total_subdomains(path) -> int` | Count & update |
+| `db_total_urls` | `db_total_urls(path) -> int` | Count & update |
+| `db_total_assets` | `db_total_assets(path) -> int` | Count & update |
+| `db_total_vulns` | `db_total_vulns(path) -> int` | Count & update |
+| `db_vuln_critical` | `db_vuln_critical(path) -> int` | Count critical |
+| `db_vuln_high` | `db_vuln_high(path) -> int` | Count high |
+| `db_vuln_medium` | `db_vuln_medium(path) -> int` | Count medium |
+| `db_vuln_low` | `db_vuln_low(path) -> int` | Count low |
+| `runtime_export` | `runtime_export() -> bool` | Export state |
+| `register_artifact` | `register_artifact(path, type?) -> bool` | Register artifact |
+| `store_artifact` | `store_artifact(path) -> bool` | Store artifact |
+| `db_select` | `db_select(sql, format) -> string` | Execute SELECT |
+| `db_select_to_file` | `db_select_to_file(sql, dest) -> bool` | SELECT to file |
+| `db_select_to_jsonl` | `db_select_to_jsonl(sql, fields, dest) -> bool` | SELECT to JSONL |
+| `db_select_total_subdomains` | `db_select_total_subdomains() -> int` | Get count |
+| `db_select_total_urls` | `db_select_total_urls() -> int` | Get count |
+| `db_select_total_assets` | `db_select_total_assets() -> int` | Get count |
+| `db_select_total_vulns` | `db_select_total_vulns() -> int` | Get count |
+| `db_asset_diff` | `db_asset_diff(workspace) -> string` | Asset diff JSONL |
+| `db_vuln_diff` | `db_vuln_diff(workspace) -> string` | Vuln diff JSONL |
+| `db_asset_diff_to_file` | `db_asset_diff_to_file(ws, dest) -> bool` | Diff to file |
+| `db_vuln_diff_to_file` | `db_vuln_diff_to_file(ws, dest) -> bool` | Diff to file |
+
+### Environment Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `os_getenv` | `os_getenv(name) -> string` | Get env variable |
+| `os_setenv` | `os_setenv(name, value) -> bool` | Set env variable |
+
+### Installer Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `go_getter` | `go_getter(url, dest) -> bool` | Download via go-getter |
+| `go_getter_with_sshkey` | `go_getter_with_sshkey(key, url, dest) -> bool` | Clone with SSH |
+| `nix_install` | `nix_install(package, dest?) -> bool` | Install via Nix |
+
+## Using Functions in Steps
+
+### Single Function
+
+```yaml
+- name: check-file
+  type: function
+  function: "fileExists('{{Output}}/results.txt')"
+  exports:
+    has_results: "{{_result}}"
+```
+
+### Multiple Functions (Sequential)
+
+```yaml
+- name: process-data
+  type: function
+  functions:
+    - "log_info('Starting processing')"
+    - "sortUnix('{{Output}}/urls.txt')"
+    - "remove_blank_lines('{{Output}}/urls.txt')"
+    - "db_total_urls('{{Output}}/urls.txt')"
+```
+
+### Parallel Functions
+
+```yaml
+- name: parallel-notify
+  type: function
+  parallel_functions:
+    - "notifyTelegram('Scan complete for {{Target}}')"
+    - "notifyWebhook('Scan complete for {{Target}}')"
+```
+
+## Execution Flow
+
+```go
+func (r *GojaRuntime) Execute(expr string, ctx map[string]interface{}) (interface{}, error) {
+    // Get VM from pool (no global lock)
+    vmCtx := r.pool.Get()
+    defer r.pool.Put(vmCtx)
+
+    // Set context for this execution
+    vmCtx.SetContext(ctx)
+
+    // Set variables on the VM
+    if err := vmCtx.SetVariables(ctx); err != nil {
+        return nil, err
+    }
+
+    // Execute expression
+    result, err := vmCtx.Run(expr)
+    if err != nil {
+        return nil, err
+    }
+
+    // Export result to Go value
+    return result.Export(), nil
+}
+```
+
+## Lazy Variable Loading
+
+For condition evaluation, lazy loading improves performance:
+
+```go
+func (r *GojaRuntime) EvaluateCondition(condition string, ctx map[string]interface{}) (bool, error) {
+    vmCtx := r.pool.Get()
+    defer r.pool.Put(vmCtx)
+
+    // Only set variables referenced in the condition
+    // 50-80% faster for simple conditions with large contexts
+    if err := vmCtx.SetVariablesLazy(ctx, condition); err != nil {
+        return false, err
+    }
+
+    result, err := vmCtx.Run(condition)
+    if err != nil {
+        return false, err
+    }
+
+    return result.ToBoolean(), nil
+}
+```
+
+## Adding Custom Functions
+
+### 1. Define the Function
+
+```go
+// internal/functions/my_functions.go
+func (vf *vmFunc) myCustomFunc(call goja.FunctionCall) goja.Value {
+    if len(call.Arguments) < 1 {
+        return vf.vm.ToValue(false)
+    }
+
+    arg := call.Argument(0).String()
+    // Implementation here
+    result := processArg(arg)
+
+    return vf.vm.ToValue(result)
+}
+```
+
+### 2. Add Constant
+
+```go
+// internal/functions/constants.go
+const FnMyCustomFunc = "my_custom_func"
+```
+
+### 3. Register the Function
+
+```go
+// internal/functions/goja_runtime.go
+func (r *GojaRuntime) registerFunctionsOnVM(vm *goja.Runtime) {
+    vf := &vmFunc{vm: vm, runtime: r}
+
+    // ... existing registrations ...
+
+    _ = vm.Set(FnMyCustomFunc, vf.myCustomFunc)
+}
+```
+
+### 4. Add to Registry (Optional)
+
+```go
+// internal/functions/constants.go - FunctionRegistry()
+CategoryCustom: {
+    {FnMyCustomFunc, "my_custom_func(arg)", "Description", "return_type", "example()"},
+},
+```
+
+## VMContext and Isolation
+
+Each VM has isolated context:
+
+```go
+type VMContext struct {
+    vm      *goja.Runtime
+    context map[string]interface{}
+    varsSet map[string]bool
+}
+
+func (vc *VMContext) SetContext(ctx map[string]interface{}) {
+    vc.context = ctx
+    clear(vc.varsSet)
+}
+
+func (vc *VMContext) SetVariables(ctx map[string]interface{}) error {
+    for k, v := range ctx {
+        if err := vc.vm.Set(k, v); err != nil {
+            return err
+        }
+        vc.varsSet[k] = true
+    }
+    return nil
+}
+```
+
+## Best Practices
+
+1. **Use appropriate function categories** - Choose functions that match your use case
+2. **Prefer parallel_functions** for independent operations
+3. **Use pre_condition** with lightweight checks before expensive operations
+4. **Leverage lazy loading** by keeping conditions simple
+5. **Export results** using the `{{_result}}` special variable
+6. **Handle errors gracefully** - Most functions return false/0 on error
+7. **Use logging functions** for debugging and audit trails

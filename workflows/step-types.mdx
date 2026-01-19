@@ -4,7 +4,7 @@ description: "Available step types for workflow execution"
 icon: "list-check"
 ---
 
-Osmedeus supports 7 step types for different execution needs.
+Osmedeus supports 8 step types for different execution needs.
 
 ## Overview
 
@@ -17,6 +17,7 @@ Osmedeus supports 7 step types for different execution needs.
 | `remote-bash` | Per-step Docker/SSH | Mixed environments |
 | `http` | Make HTTP requests | API calls, webhooks |
 | `llm` | AI-powered processing | Analysis, summarization |
+| `fragment-step` | Execute reusable fragment | Code reuse, DRY patterns |
 
 ## bash
 
@@ -371,6 +372,39 @@ AI-powered processing using LLM APIs.
     - role: user
       content: Analyze {{target}}
 ```
+
+## fragment-step
+
+Execute a pre-defined fragment (reusable step collection) inline.
+
+### Basic Usage
+
+```yaml
+- name: run-subdomain-enum
+  type: fragment-step
+  fragment_name: subdomain-enum
+```
+
+### With Overrides
+
+```yaml
+- name: run-enum-custom
+  type: fragment-step
+  fragment_name: subdomain-enum
+  override:
+    threads: "20"
+    timeout: "10m"
+    Target: "custom.example.com"
+```
+
+### Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `fragment_name` | Yes | Name of the included fragment to execute |
+| `override` | No | Map of step fields or template variables to override |
+
+Note: The fragment must be included in the workflow's `includes` section with a matching `fragment_name`.
 
 ## Common Step Fields
 

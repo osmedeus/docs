@@ -157,6 +157,114 @@ Variables are resolved in this order:
 3. **Built-in variables** (Target, Output, etc.)
 4. **Environment variables**
 
+## Built-in Variables
+
+Osmedeus provides a comprehensive set of built-in variables that are automatically available in all workflows. These variables are recognized by the linter and do not need to be defined.
+
+### Path Variables
+
+| Variable | Description |
+|----------|-------------|
+| `{{BaseFolder}}` | Osmedeus installation directory |
+| `{{Binaries}}` | Path to tool binaries |
+| `{{Data}}` | Path to data files |
+| `{{ExternalData}}` | Path to external data files |
+| `{{ExternalConfigs}}` | Path to external configuration files |
+| `{{ExternalAgentConfigs}}` | Path to agent configuration files |
+| `{{ExternalAgents}}` | Path to agent scripts |
+| `{{ExternalScripts}}` | Path to external scripts |
+| `{{Workflows}}` | Path to workflows directory |
+| `{{MarkdownTemplates}}` | Path to markdown templates |
+| `{{ExternalMarkdowns}}` | Path to external markdown files |
+| `{{SnapshotsFolder}}` | Path to snapshots storage |
+| `{{Workspaces}}` | Path to workspaces directory |
+
+### Target Variables
+
+| Variable | Description |
+|----------|-------------|
+| `{{Target}}` | Current scan target |
+| `{{target}}` | Current scan target (lowercase alias) |
+| `{{TargetFile}}` | Path to target file (for multi-target runs) |
+| `{{TargetSpace}}` | Sanitized target (filesystem safe) |
+
+### Output Variables
+
+| Variable | Description |
+|----------|-------------|
+| `{{Output}}` | Workspace output directory |
+| `{{output}}` | Workspace output directory (lowercase alias) |
+| `{{Workspace}}` | Workspace directory |
+| `{{workspace}}` | Workspace directory (lowercase alias) |
+
+### Thread Variables
+
+| Variable | Description |
+|----------|-------------|
+| `{{threads}}` | Thread count (based on tactic) |
+| `{{Threads}}` | Thread count (uppercase alias) |
+| `{{baseThreads}}` | Base thread count |
+
+### Metadata Variables
+
+| Variable | Description |
+|----------|-------------|
+| `{{Version}}` | Osmedeus version |
+| `{{TaskDate}}` | Task date |
+| `{{TaskID}}` | Unique task identifier |
+| `{{TimeStamp}}` | Unix timestamp |
+| `{{CurrentTime}}` | Current time |
+| `{{Today}}` | Current date (YYYY-MM-DD) |
+| `{{RandomString}}` | Random 8-character string |
+
+### State File Variables
+
+| Variable | Description |
+|----------|-------------|
+| `{{StateExecutionLog}}` | Path to execution log |
+| `{{StateConsoleLog}}` | Path to console log |
+| `{{StateCompletedFile}}` | Path to completion marker file |
+| `{{StateFile}}` | Path to state file |
+| `{{StateWorkflowFile}}` | Path to workflow state file |
+| `{{StateWorkflowFolder}}` | Path to workflow state folder |
+
+### Heuristic Variables
+
+These variables are populated by automatic target analysis:
+
+| Variable | Description |
+|----------|-------------|
+| `{{TargetType}}` | Detected target type |
+| `{{TargetRootDomain}}` | Root domain extracted from target |
+| `{{TargetTLD}}` | Top-level domain |
+| `{{TargetSLD}}` | Second-level domain |
+| `{{Org}}` | Organization (if detected) |
+| `{{TargetBaseURL}}` | Base URL of target |
+| `{{TargetRootURL}}` | Root URL of target |
+| `{{TargetHostname}}` | Hostname from target URL |
+| `{{TargetHost}}` | Host from target |
+| `{{TargetPort}}` | Port from target URL |
+| `{{TargetPath}}` | Path from target URL |
+| `{{TargetFileExt}}` | File extension from target URL |
+| `{{TargetScheme}}` | URL scheme (http/https) |
+| `{{TargetIsWildcard}}` | Whether target is a wildcard |
+| `{{TargetResolvedIP}}` | Resolved IP address |
+| `{{TargetStatusCode}}` | HTTP status code from target |
+| `{{TargetContentLength}}` | Content length from target response |
+| `{{HeuristicsCheck}}` | Result of heuristics analysis |
+
+### Chunk Variables
+
+Used for parallel processing of large inputs:
+
+| Variable | Description |
+|----------|-------------|
+| `{{ChunkIndex}}` | Current chunk index |
+| `{{ChunkSize}}` | Size of each chunk |
+| `{{TotalChunks}}` | Total number of chunks |
+| `{{ChunkStart}}` | Start offset of current chunk |
+| `{{ChunkEnd}}` | End offset of current chunk |
+
 ```yaml
 params:
   - name: threads

@@ -1,253 +1,385 @@
 ---
-title: "Templates"
-description: "Variable interpolation and template rendering"
-icon: "wand-magic-sparkles"
+title: Template Engine Architecture
+description: Deep dive into the Osmedeus template engine implementation
 ---
 
-Osmedeus uses a template engine for variable interpolation in workflows.
+# Template Engine Architecture
+
+The template engine provides `{{variable}}` interpolation for workflows. It uses the pongo2 template library (Django-compatible) with custom optimizations for high-concurrency scenarios.
 
 ## Template Syntax
 
-### Standard Variables: `{{Variable}}`
+### Standard Variables
 
-Double curly braces for standard variable interpolation:
-
-```yaml
-steps:
-  - name: scan
-    type: bash
-    command: subfinder -d {{target}} -o {{Output}}/subdomains.txt
-```
-
-### Foreach Variables: `[[variable]]`
-
-Double square brackets for foreach loop variables:
+Standard template variables use `{{variable}}` syntax:
 
 ```yaml
-steps:
-  - name: probe-hosts
-    type: foreach
-    input: "{{Output}}/subdomains.txt"
-    variable: subdomain
-    step:
-      name: httpx
-      type: bash
-      command: echo [[subdomain]] | httpx >> {{Output}}/live.txt
+command: "nuclei -l {{Output}}/urls.txt -o {{Output}}/nuclei.json"
 ```
 
-The `[[]]` syntax prevents conflicts between loop variables and template variables.
+### Secondary Variables (Foreach)
 
-## Built-in Variables
-
-| Variable | Description | Example Value |
-|----------|-------------|---------------|
-| `{{Target}}` | Current scan target | `example.com` |
-| `{{TargetSpace}}` | Sanitized target (filesystem safe) | `example_com` |
-| `{{Output}}` | Workspace output directory | `/home/user/osmedeus-base/workspaces/example.com` |
-| `{{BaseFolder}}` | Osmedeus installation directory | `/home/user/osmedeus-base` |
-| `{{Binaries}}` | Path to tool binaries | `/home/user/osmedeus-base/binaries` |
-| `{{Data}}` | Path to data files | `/home/user/osmedeus-base/data` |
-| `{{Workspaces}}` | Path to workspaces directory | `/home/user/osmedeus-base/workspaces` |
-| `{{threads}}` | Thread count (based on tactic) | `50` |
-| `{{baseThreads}}` | Base thread count | `25` |
-| `{{TaskID}}` | Unique task identifier | `abc123` |
-| `{{Today}}` | Current date (YYYY-MM-DD) | `2024-01-15` |
-| `{{TimeStamp}}` | Unix timestamp | `1705312000` |
-| `{{RandomString}}` | Random 8-character string | `xK9mPq2r` |
-
-## Variable Resolution
-
-Variables are resolved in this order:
-
-1. **Exports** - Values from previous step exports
-2. **Parameters** - User-provided params (`-p key=value`)
-3. **Built-in Variables** - System-provided values
-4. **Environment Variables** - From shell environment
-
-If not found, the variable renders as an empty string.
-
-## Parameters
-
-### Defining Parameters
+Foreach loops use `[[variable]]` syntax to avoid conflicts:
 
 ```yaml
-params:
-  - name: target
-    required: true
-    description: Target domain to scan
-
-  - name: threads
-    default: "10"
-    description: Number of threads
-
-  - name: wordlist
-    default: "{{Data}}/wordlists/subdomains.txt"
-    description: Path to wordlist
+step:
+  type: bash
+  command: "httpx -u [[subdomain]] >> {{Output}}/httpx.txt"
 ```
 
-### Passing Parameters
+### Generator Functions
 
-CLI:
-```bash
-# Single parameter
-osmedeus run -m scan -t example.com -p 'threads=20'
-
-# Multiple parameters
-osmedeus run -m scan -t example.com -p 'threads=20' -p 'wordlist=/custom/list.txt'
-
-# From file
-osmedeus run -m scan -t example.com -P params.yaml
-```
-
-params.yaml:
-```yaml
-threads: "20"
-wordlist: "/custom/list.txt"
-```
-
-### Using Parameters
+Generator functions provide dynamic values:
 
 ```yaml
-steps:
-  - name: scan
-    type: bash
-    command: subfinder -d {{target}} -t {{threads}} -w {{wordlist}}
+exports:
+  random_id: "$rand(16)"
+  unique_id: "$uuid()"
+```
+
+## Engine Types
+
+The template system provides two engine implementations:
+
+| Engine | Description | Use Case |
+|--------|-------------|----------|
+| `Engine` | Standard single-threaded engine | Simple workflows |
+| `ShardedEngine` | High-performance sharded cache | High concurrency |
+
+## TemplateEngine Interface
+
+```go
+type TemplateEngine interface {
+    // Render renders a template string with the given context
+    Render(template string, ctx map[string]any) (string, error)
+
+    // RenderMap renders all template values in a map
+    RenderMap(m map[string]string, ctx map[string]any) (map[string]string, error)
+
+    // RenderSlice renders all template values in a slice
+    RenderSlice(s []string, ctx map[string]any) ([]string, error)
+
+    // RenderSecondary renders templates using [[ ]] delimiters
+    RenderSecondary(template string, ctx map[string]any) (string, error)
+
+    // HasSecondaryVariable checks if template contains [[ ]]
+    HasSecondaryVariable(template string) bool
+
+    // ExecuteGenerator executes a generator function expression
+    ExecuteGenerator(expr string) (string, error)
+
+    // RegisterGenerator registers a custom generator function
+    RegisterGenerator(name string, fn GeneratorFunc)
+}
+```
+
+## BatchRenderer Interface
+
+For high-throughput scenarios, the `BatchRenderer` interface extends `TemplateEngine`:
+
+```go
+type BatchRenderer interface {
+    TemplateEngine
+
+    // RenderBatch renders multiple templates in a single operation
+    // Reduces lock contention by grouping templates
+    RenderBatch(requests []RenderRequest, ctx map[string]any) (map[string]string, error)
+}
+
+type RenderRequest struct {
+    Key      string // Identifier (e.g., field name)
+    Template string // Template string to render
+}
+```
+
+## ShardedEngine Architecture
+
+The `ShardedEngine` distributes templates across multiple shards to reduce lock contention:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     ShardedEngine                           │
+│                                                             │
+│   Template Hash (FNV-1a)                                    │
+│        │                                                    │
+│        ▼                                                    │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │  Shard Selection: hash & shardMask                  │   │
+│   └─────────────────────────────────────────────────────┘   │
+│        │                                                    │
+│        ├────────┬────────┬────────┬────────┐               │
+│        ▼        ▼        ▼        ▼        ▼               │
+│   ┌────────┐┌────────┐┌────────┐┌────────┐...              │
+│   │Shard 0 ││Shard 1 ││Shard 2 ││Shard 3 │                 │
+│   │ RWMutex││ RWMutex││ RWMutex││ RWMutex│                 │
+│   │ LRU    ││ LRU    ││ LRU    ││ LRU    │                 │
+│   └────────┘└────────┘└────────┘└────────┘                 │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Configuration
+
+```go
+type ShardedEngineConfig struct {
+    ShardCount     int  // Number of shards (power of 2)
+    ShardCacheSize int  // LRU cache size per shard
+    EnablePooling  bool // Use pooled context maps
+}
+
+// Defaults
+const DefaultShardCount = 16
+const DefaultShardCacheSize = 64
+```
+
+### Performance Features
+
+1. **Sharded Caching**: Templates are distributed across shards using FNV-1a hash, reducing lock contention.
+
+2. **RWMutex per Shard**: Read-heavy workloads benefit from reader-writer locks.
+
+3. **Quick Path**: Templates without `{{` are returned immediately without processing.
+
+4. **Lock-Free Execution**: Compiled pongo2 templates are thread-safe; execution happens outside locks.
+
+5. **Context Pooling**: Reusable context maps reduce GC pressure.
+
+### Render Flow
+
+```go
+func (e *ShardedEngine) Render(template string, ctx map[string]any) (string, error) {
+    // Quick path: no template variables
+    if !strings.Contains(template, "{{") {
+        return template, nil
+    }
+
+    // Get shard based on template hash
+    shard := e.getShard(template)
+
+    // Try cache with read lock
+    shard.mu.RLock()
+    tpl, ok := shard.cache.Get(template)
+    shard.mu.RUnlock()
+
+    if !ok {
+        // Cache miss - parse and cache
+        shard.mu.Lock()
+        // Double-check after write lock
+        tpl, ok = shard.cache.Get(template)
+        if !ok {
+            tpl, err = pongo2.FromString(template)
+            if err != nil {
+                shard.mu.Unlock()
+                return "", err
+            }
+            shard.cache.Add(template, tpl)
+        }
+        shard.mu.Unlock()
+    }
+
+    // Execute outside lock (pongo2 is thread-safe)
+    return tpl.Execute(pongo2.Context(ctx))
+}
+```
+
+## Precompiled Templates
+
+The `PrecompiledRegistry` stores pre-compiled templates for workflows:
+
+```go
+type PrecompiledRegistry struct {
+    mu        sync.RWMutex
+    workflows map[string]*WorkflowTemplates
+}
+
+type WorkflowTemplates struct {
+    // Key format: "stepName:fieldName"
+    Templates map[string]*pongo2.Template
+}
+```
+
+### Precompiler Interface
+
+```go
+type Precompiler interface {
+    // PrecompileWorkflow scans and pre-compiles all templates
+    PrecompileWorkflow(workflowName string, templates map[string]string) error
+
+    // GetPrecompiled retrieves a pre-compiled template
+    GetPrecompiled(workflowName, key string) any
+
+    // ClearPrecompiled removes pre-compiled templates
+    ClearPrecompiled(workflowName string)
+}
+```
+
+### Usage
+
+```go
+// At workflow load time
+registry := NewPrecompiledRegistry()
+templates := map[string]string{
+    "scan:command": "nuclei -l {{Output}}/urls.txt",
+    "scan:exports:result": "{{Output}}/nuclei.json",
+}
+registry.PrecompileWorkflow("my-workflow", templates)
+
+// At execution time
+if tpl := registry.GetPrecompiled("my-workflow", "scan:command"); tpl != nil {
+    // Use pre-compiled template
+}
+```
+
+## Context Pooling
+
+Context maps are pooled to reduce memory allocations:
+
+```go
+var contextPool = sync.Pool{
+    New: func() interface{} {
+        return make(map[string]any, 32)
+    },
+}
+
+func GetContext() map[string]any {
+    return contextPool.Get().(map[string]any)
+}
+
+func PutContext(ctx map[string]any) {
+    clear(ctx)
+    contextPool.Put(ctx)
+}
+```
+
+### Normalized Boolean Handling
+
+Boolean values are normalized for template compatibility:
+
+```go
+func NormalizeBoolsToPooled(ctx map[string]any) map[string]any {
+    pooled := GetContext()
+    for k, v := range ctx {
+        switch val := v.(type) {
+        case bool:
+            pooled[k] = val
+        case string:
+            if val == "true" {
+                pooled[k] = true
+            } else if val == "false" {
+                pooled[k] = false
+            } else {
+                pooled[k] = v
+            }
+        default:
+            pooled[k] = v
+        }
+    }
+    return pooled
+}
 ```
 
 ## Generator Functions
 
-Use generator functions in parameter defaults:
+Generator functions produce dynamic values:
 
-| Function | Description | Example |
-|----------|-------------|---------|
-| `uuid()` | Generate UUID v4 | `a1b2c3d4-...` |
-| `currentDate()` | Current date (YYYY-MM-DD) | `2024-01-15` |
-| `currentDate(format)` | Formatted date | `currentDate("02-Jan-2006")` |
-| `currentTimestamp()` | Unix timestamp | `1705312000` |
-| `getEnvVar(key)` | Environment variable | `getEnvVar("HOME")` |
-| `getEnvVar(key, default)` | With default | `getEnvVar("API_KEY", "none")` |
-| `randomInt(min, max)` | Random integer | `randomInt(1, 100)` |
-| `randomString(len)` | Random string | `randomString(8)` |
-| `concat(a, b, ...)` | Concatenate strings | `concat("a", "b")` |
-| `toLower(s)` | Lowercase | `toLower("ABC")` → `abc` |
-| `toUpper(s)` | Uppercase | `toUpper("abc")` → `ABC` |
-| `trim(s)` | Trim whitespace | `trim("  a  ")` → `a` |
-| `replace(s, old, new)` | Replace string | `replace("a.b", ".", "_")` |
-| `split(s, sep)` | Split string | `split("a,b", ",")` |
-| `join(arr, sep)` | Join array | `join(["a","b"], "-")` |
-| `execCmd(cmd)` | Execute command | `execCmd("whoami")` |
+```go
+type GeneratorFunc func(args ...string) (string, error)
 
-Example:
-```yaml
-params:
-  - name: scan_id
-    default: "{{uuid()}}"
-
-  - name: date
-    default: "{{currentDate()}}"
-
-  - name: user
-    default: "{{getEnvVar('USER', 'unknown')}}"
+// Built-in generators
+var builtinGenerators = map[string]GeneratorFunc{
+    "rand": func(args ...string) (string, error) {
+        length := 8
+        if len(args) > 0 {
+            length, _ = strconv.Atoi(args[0])
+        }
+        return generateRandomString(length), nil
+    },
+    "uuid": func(args ...string) (string, error) {
+        return uuid.New().String(), nil
+    },
+    "timestamp": func(args ...string) (string, error) {
+        return strconv.FormatInt(time.Now().Unix(), 10), nil
+    },
+}
 ```
 
-## Template Rendering
-
-Templates are rendered at different stages:
-
-### Step Execution Time
-
-Most fields are rendered just before step execution:
+### Usage
 
 ```yaml
-- name: scan
-  type: bash
-  command: echo "{{target}}"     # Rendered when step runs
+exports:
+  random_id: "$rand(16)"
+  unique_id: "$uuid()"
+  time: "$timestamp()"
 ```
 
-### Foreach Iteration Time
+## Batch Rendering
 
-Loop variables are rendered during each iteration:
+For high-throughput scenarios, batch rendering reduces lock acquisitions:
 
-```yaml
-- name: process
-  type: foreach
-  input: "{{Output}}/list.txt"   # {{}} rendered first
-  variable: item
-  step:
-    command: process [[item]]    # [[]] rendered per iteration
+```go
+func (e *ShardedEngine) RenderBatch(requests []RenderRequest, ctx map[string]any) (map[string]string, error) {
+    results := make(map[string]string, len(requests))
+
+    // Prepare context once
+    processedCtx := NormalizeBoolsToPooled(ctx)
+    defer PutContext(processedCtx)
+
+    // Group by shard
+    shardGroups := make(map[uint32][]RenderRequest)
+    for _, req := range requests {
+        if !strings.Contains(req.Template, "{{") {
+            results[req.Key] = req.Template
+            continue
+        }
+        idx := e.getShardIndex(req.Template)
+        shardGroups[idx] = append(shardGroups[idx], req)
+    }
+
+    // Process each shard group
+    for idx, reqs := range shardGroups {
+        shard := e.shards[idx]
+        if err := e.renderShardBatch(shard, reqs, processedCtx, results); err != nil {
+            return nil, err
+        }
+    }
+
+    return results, nil
+}
 ```
 
-## Conditional Templates
+## Secondary Template Rendering
 
-Use templates in conditions:
+Foreach loops use `[[variable]]` to avoid conflicts with pre-rendered `{{variables}}`:
 
-```yaml
-- name: scan
-  type: bash
-  pre_condition: 'fileExists("{{Output}}/targets.txt")'
-  command: nuclei -l {{Output}}/targets.txt
+```go
+func (e *ShardedEngine) RenderSecondary(template string, ctx map[string]any) (string, error) {
+    if !strings.Contains(template, "[[") {
+        return template, nil
+    }
+
+    // Convert [[ ]] to {{ }} for pongo2
+    converted := strings.ReplaceAll(template, "[[", "{{")
+    converted = strings.ReplaceAll(converted, "]]", "}}")
+
+    return e.Render(converted, ctx)
+}
 ```
 
-## Nested Variables
+## Performance Benchmarks
 
-Variables can reference other variables:
+Typical performance characteristics:
 
-```yaml
-params:
-  - name: output_dir
-    default: "{{Output}}/scans"
-
-steps:
-  - name: scan
-    type: bash
-    command: subfinder -d {{target}} -o {{output_dir}}/subs.txt
-```
-
-Resolution:
-1. `{{output_dir}}` resolves to `{{Output}}/scans`
-2. `{{Output}}` resolves to workspace path
-3. Final: `/home/user/.../workspaces/example.com/scans`
+| Operation | Single-threaded | 10 Concurrent | 100 Concurrent |
+|-----------|-----------------|---------------|----------------|
+| Simple render | 500ns | 600ns | 800ns |
+| Cached render | 200ns | 250ns | 400ns |
+| Batch render (10) | 1.5µs | 2µs | 3µs |
+| Pre-compiled | 150ns | 200ns | 350ns |
 
 ## Best Practices
 
-1. **Quote paths with spaces**
-   ```yaml
-   command: cat "{{Output}}/my file.txt"
-   ```
-
-2. **Use descriptive parameter names**
-   ```yaml
-   params:
-     - name: target_domain    # Good
-     - name: t                # Bad
-   ```
-
-3. **Provide defaults when possible**
-   ```yaml
-   params:
-     - name: threads
-       default: "10"
-   ```
-
-4. **Document parameters**
-   ```yaml
-   params:
-     - name: severity
-       default: "high,critical"
-       description: Nuclei severity filter
-   ```
-
-5. **Use built-in paths**
-   ```yaml
-   # Good - uses built-in variables
-   command: "{{Binaries}}/nuclei -t {{Data}}/templates"
-
-   # Bad - hardcoded paths
-   command: "/usr/local/bin/nuclei -t /opt/templates"
-   ```
-
-## Next Steps
-
-- [Variables](../workflows/variables) - Exports and propagation
-- [Step Types](../workflows/step-types) - Using templates in steps
-- [Functions Reference](../functions/reference) - Built-in functions
+1. **Use pre-compilation** for frequently executed workflows
+2. **Enable pooling** for high-concurrency scenarios
+3. **Use batch rendering** when rendering multiple templates with the same context
+4. **Avoid unnecessary templates** - only use `{{}}` when variable substitution is needed
+5. **Use secondary syntax** `[[]]` for foreach loop variables to avoid double-rendering issues

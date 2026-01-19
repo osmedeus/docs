@@ -1,255 +1,321 @@
 ---
-title: "CLI Usage Reference"
-icon: "terminal"
+title: CLI Reference
+description: Complete command-line interface reference for Osmedeus
 ---
 
-Complete reference for all Osmedeus CLI commands, flags, and examples.
+# CLI Reference
 
-## Global Flags
+Complete reference for all Osmedeus command-line commands and options.
 
-These flags are available for all commands:
+## Global Options
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--settings-file` | | Settings file path (default: `~/osmedeus-base/osm-settings.yaml`) |
-| `--base-folder` | `-b` | Base folder containing workflows and settings |
-| `--workflow-folder` | `-F` | Custom workflow folder path |
-| `--verbose` | `-v` | Enable verbose output |
-| `--debug` | | Enable debug mode (verbose + debug logging) |
-| `--silent` | `-q` | Silent mode - suppress all output except errors |
-| `--log-file` | | Path to log file |
-| `--log-file-tmp` | | Create temporary log file |
-| `--usage-example` | `-H` | Show comprehensive usage examples |
-| `--full-usage-example` | | Show full usage reference in pager |
-| `--spinner` | | Show spinner animations |
-| `--disable-logging` | | Disable all logging |
-| `--disable-color` | | Disable colored output |
-| `--disable-notification` | | Disable notifications |
-| `--disable-db` | | Disable database connection |
-| `--ci-output-format` | | JSON output for CI pipelines |
+These options are available for all commands:
 
----
+| Option | Description |
+|--------|-------------|
+| `--config` | Path to config file (default: `~/.osmedeus/config.yaml`) |
+| `--debug` | Enable debug logging |
+| `--quiet` | Suppress non-essential output |
+| `--no-color` | Disable colored output |
+| `--help`, `-h` | Show help |
 
-## run / scan
+## run
 
 Execute workflows against targets.
 
+### Basic Usage
+
 ```bash
-osmedeus run [flags]
-osmedeus scan [flags]  # alias
+# Run a flow
+osmedeus run -f <flow_name> -t <target>
+
+# Run a module
+osmedeus run -m <module_name> -t <target>
+
+# Run multiple modules
+osmedeus run -m <module1> -m <module2> -t <target>
+
+# Run with target file
+osmedeus run -f general -T targets.txt
 ```
 
-### Workflow Selection
+### Options
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--flow` | `-f` | Flow workflow name |
-| `--module` | `-m` | Module workflow(s) - repeatable |
-| `--std-module` | | Read module YAML from stdin |
-
-### Target Selection
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--target` | `-t` | Target(s) - repeatable |
-| `--target-file` | `-T` | File with targets (one per line) |
-| `--empty-target` | | Run without target |
-
-### Parameters
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--params` | `-p` | Parameters (key=value) - repeatable |
-| `--params-file` | `-P` | Parameters file (JSON/YAML) |
-| `--tactic` | `-B` | Run tactic: `aggressive`, `default`, `gently` |
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--flow` | `-f` | Flow workflow to run |
+| `--module` | `-m` | Module workflow to run (repeatable) |
+| `--target` | `-t` | Target to scan |
+| `--targets` | `-T` | File containing targets |
+| `--params` | `-P` | Params file (YAML) |
+| `--param` | `-p` | Single param (key=value, repeatable) |
+| `--concurrency` | `-c` | Concurrent target scans (default: 1) |
+| `--timeout` | | Run timeout (e.g., 2h, 30m) |
+| `--repeat` | | Repeat execution continuously |
+| `--exclude` | `-x` | Exclude modules (comma-separated) |
 | `--threads-hold` | | Override thread count |
-
-### Execution Control
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--concurrency` | `-c` | Concurrent targets (default: 1) |
-| `--timeout` | | Run timeout (e.g., `2h`, `1d`) |
-| `--repeat` | | Repeat run after completion |
-| `--repeat-wait-time` | | Wait between repeats (default: `1h`) |
-| `--dry-run` | | Preview without executing |
-| `--progress-bar` | `-G` | Show progress bar |
-
-### Workspace
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--workspace` | `-w` | Custom workspace path |
-| `--workspaces-folder` | `-W` | Override workspaces folder |
-| `--space` | `-S` | Override target space name |
-
-### Distributed Mode
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--distributed-run` | `-D` | Submit to worker queue |
-| `--redis-url` | | Redis connection URL |
+| `--dry-run` | | Validate without executing |
+| `--progress` | `-G` | Show progress bar |
+| `--chunk` | | Chunk mode for distributed scanning |
+| `--chunk-index` | | Chunk index (1-based) |
+| `--chunk-size` | | Items per chunk |
+| `--workspace` | `-w` | Custom workspace name |
+| `--resume` | | Resume from previous state |
 
 ### Examples
 
 ```bash
-# Basic module run
-osmedeus run -m recon -t example.com
-
-# Flow workflow
+# Basic flow scan
 osmedeus run -f general -t example.com
 
-# Multiple targets with concurrency
-osmedeus run -m recon -T targets.txt -c 5
+# Module with parameters
+osmedeus run -m subdomain-enum -t example.com -p threads=20
 
-# With parameters
-osmedeus run -m recon -t example.com -p 'threads=50'
+# Multiple targets with concurrency
+osmedeus run -f general -T targets.txt -c 5
 
 # With timeout
-osmedeus run -m recon -t example.com --timeout 2h
+osmedeus run -m vuln-scan -t example.com --timeout 2h
 
-# Repeat mode
-osmedeus run -m recon -t example.com --repeat
+# Exclude modules in flow
+osmedeus run -f general -t example.com -x port-scan,vuln-scan
 
-# Multiple modules in sequence
-osmedeus run -m subdomain -m portscan -t example.com
+# Dry run (validate only)
+osmedeus run -f general -t example.com --dry-run
 
-# Dry run preview
-osmedeus run -m recon -t example.com --dry-run
-
-# From stdin
-cat targets.txt | osmedeus run -m recon
-
-# Distributed
-osmedeus run -m recon -t example.com -D --redis-url redis://localhost:6379
-```
-
----
-
-## serve / server
-
-Start the REST API server.
-
-```bash
-osmedeus serve [flags]
-osmedeus server [flags]  # alias
-```
-
-### Flags
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--host` | | Bind host (default from config) |
-| `--port` | | Port number (default from config) |
-| `--no-auth` | `-A` | Disable authentication |
-| `--master` | | Run as distributed master |
-| `--redis-url` | | Redis URL for master mode |
-
-### Examples
-
-```bash
-# Default settings
-osmedeus serve
-
-# Custom port
-osmedeus serve --port 8080
-
-# Without auth (development)
-osmedeus serve -A
-
-# Distributed master
-osmedeus serve --master --redis-url redis://localhost:6379
+# Chunk mode for distributed scanning
+osmedeus run -f general -T large-targets.txt --chunk --chunk-index 1 --chunk-size 100
 ```
 
 ---
 
 ## workflow
 
-Manage workflows.
+Manage and inspect workflows.
 
 ### workflow list
 
-```bash
-osmedeus workflow list [flags]
-osmedeus workflow ls [flags]  # alias
-```
-
-| Flag | Description |
-|------|-------------|
-| `--tags` | Filter by tags (comma-separated) |
-| `--show-tags` | Show tags column |
-
-### workflow show
-
-```bash
-osmedeus workflow show <name> [flags]
-```
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--verbose` | `-v` | Show detailed descriptions |
-| `--table` | | Show as table instead of YAML |
-
-### workflow validate
-
-```bash
-osmedeus workflow validate <name>
-osmedeus workflow val <name>  # alias
-```
-
-### Examples
+List all available workflows.
 
 ```bash
 osmedeus workflow list
+osmedeus workflow ls
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--tags` | Filter by tags (comma-separated) |
+| `--show-tags` | Show tags column in output |
+| `--verbose`, `-v` | Show workflows with errors |
+
+**Examples:**
+
+```bash
+# List all workflows
+osmedeus workflow ls
+
+# Filter by tags
 osmedeus workflow ls --tags recon,fast
-osmedeus workflow show general -v
-osmedeus workflow validate my-workflow
+
+# Show tags column
+osmedeus workflow ls --show-tags
+```
+
+### workflow show
+
+Display workflow details.
+
+```bash
+osmedeus workflow show <workflow_name>
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--verbose`, `-v` | Show detailed variable descriptions |
+| `--yaml` | Show raw YAML with syntax highlighting |
+
+**Examples:**
+
+```bash
+# Show workflow details
+osmedeus workflow show subdomain-enum
+
+# Show raw YAML
+osmedeus workflow show subdomain-enum --yaml
+
+# Verbose with all variables
+osmedeus workflow show subdomain-enum -v
+```
+
+### workflow validate / lint
+
+Validate and lint workflow YAML files.
+
+```bash
+osmedeus workflow validate <name|path|folder>
+osmedeus workflow lint <name|path|folder>
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--check` | Exit with error code if issues found (for CI) |
+| `--format` | Output format: `pretty`, `json`, `github` |
+| `--severity` | Minimum severity: `info`, `warning`, `error` |
+| `--disable` | Disable rules (comma-separated) |
+| `--fail-fast` | Stop on first validation failure |
+
+**Lint Rules:**
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| `missing-required-field` | warning | Required fields (name, kind, type) missing |
+| `duplicate-step-name` | warning | Multiple steps with same name |
+| `empty-step` | warning | Step has no executable content |
+| `unused-variable` | info | Variable exported but never used |
+| `undefined-variable` | warning | Variable referenced but not defined |
+| `invalid-goto` | warning | Decision goto references non-existent step |
+| `invalid-depends-on` | warning | depends_on references non-existent step |
+| `circular-dependency` | warning | Circular step dependencies detected |
+
+**Examples:**
+
+```bash
+# Validate by workflow name
+osmedeus workflow validate subdomain-enum
+
+# Validate YAML file
+osmedeus workflow lint ./my-workflow.yaml
+
+# Validate all workflows in folder
+osmedeus workflow validate /path/to/workflows/
+
+# CI mode - exit with error if issues found
+osmedeus workflow lint my-workflow.yaml --check
+
+# JSON output for tooling
+osmedeus workflow lint my-workflow.yaml --format json
+
+# GitHub Actions annotations
+osmedeus workflow lint . --format github
+
+# Only show warnings and errors
+osmedeus workflow lint . --severity warning
+
+# Disable specific rules
+osmedeus workflow lint . --disable unused-variable,empty-step
+
+# Stop on first error
+osmedeus workflow validate . --fail-fast
+```
+
+**JSON Output Format:**
+
+```json
+{
+  "file_path": "workflows/test.yaml",
+  "issues": [
+    {
+      "rule": "undefined-variable",
+      "severity": "warning",
+      "message": "Variable 'unknown_var' is not defined",
+      "suggestion": "Check that the variable is defined in params or a previous step's exports",
+      "line": 15,
+      "column": 12,
+      "field": "steps[2].command"
+    }
+  ],
+  "errors": 0,
+  "warnings": 1,
+  "infos": 0
+}
+```
+
+**GitHub Actions Format:**
+
+```
+::warning file=workflows/test.yaml,line=15,col=12::undefined-variable: Variable 'unknown_var' is not defined
 ```
 
 ---
 
-## function / func
+## func
 
-Execute utility functions.
+Execute and inspect utility functions.
 
-### function list
+### func list
+
+List all available utility functions.
 
 ```bash
 osmedeus func list
 osmedeus func ls
 ```
 
-### function eval
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--category` | Filter by category |
+| `--search` | Search function names/descriptions |
+
+### func execute
+
+Execute a function expression.
 
 ```bash
-osmedeus func eval <script> [flags]
-osmedeus func e <script> [flags]  # alias
+osmedeus func execute '<expression>'
+osmedeus func e '<expression>'
 ```
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--eval` | `-e` | Script to evaluate |
-| `--target` | `-t` | Target for `{{target}}` variable |
-| `--params` | | Parameters (key=value) |
-| `--stdin` | | Read from stdin |
-
-### Examples
+**Examples:**
 
 ```bash
-# List functions
-osmedeus func list
+# Check file exists
+osmedeus func e 'fileExists("/tmp/test.txt")'
 
-# Simple function
+# Count lines
+osmedeus func e 'fileLength("/path/to/file.txt")'
+
+# String operations
 osmedeus func e 'trim("  hello  ")'
 
-# With target
-osmedeus func e 'fileExists("{{target}}")' -t /tmp/test.txt
+# With variables
+osmedeus func e 'log_info("{{target}}")' -p target=example.com
+```
 
-# HTTP request
-osmedeus func e 'httpRequest("https://api.example.com", "GET", {}, "")'
+---
 
-# From stdin
-echo 'log_info("hello")' | osmedeus func e -
+## server
+
+Start the REST API server.
+
+```bash
+osmedeus server
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--port` | Server port (default: 8080) |
+| `--host` | Bind address (default: 0.0.0.0) |
+| `--master` | Run as distributed master |
+| `--token` | API authentication token |
+
+**Examples:**
+
+```bash
+# Start server
+osmedeus server --port 8080
+
+# As distributed master
+osmedeus server --master --port 8080
 ```
 
 ---
@@ -260,288 +326,242 @@ Manage distributed workers.
 
 ### worker join
 
+Join as a distributed worker.
+
 ```bash
-osmedeus worker join [flags]
+osmedeus worker join --master <master_url>
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--redis-url` | Redis connection URL |
+**Options:**
 
-### worker status
+| Option | Description |
+|--------|-------------|
+| `--master` | Master server URL |
+| `--token` | Authentication token |
+| `--name` | Worker name |
+
+---
+
+## install
+
+Install external binaries and configure environment.
+
+### install binary
+
+Install security tools.
 
 ```bash
-osmedeus worker status [flags]
+osmedeus install binary --name <binary_name>
+osmedeus install binary --all
 ```
 
-### Examples
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--name` | Specific binary to install |
+| `--all` | Install all binaries |
+| `--check` | Check installation status |
+| `--nix-build-install` | Install via Nix |
+| `--nix-installation` | Install Nix package manager |
+| `--list-registry-nix-build` | List Nix-available binaries |
+| `--list-registry-direct-fetch` | List direct-download binaries |
+
+**Examples:**
 
 ```bash
-osmedeus worker join --redis-url redis://localhost:6379
-osmedeus worker status
+# Install specific binary
+osmedeus install binary --name nuclei
+
+# Install all binaries
+osmedeus install binary --all
+
+# Check status
+osmedeus install binary --name nuclei --check
+
+# Install via Nix
+osmedeus install binary --nix-build-install
+
+# List available binaries
+osmedeus install binary --list-registry-nix-build
+```
+
+### install env
+
+Configure shell environment.
+
+```bash
+osmedeus install env
+osmedeus install env --all
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--all` | Add to all shell configs |
+| `--shell` | Specific shell (bash, zsh, fish) |
+
+---
+
+## update
+
+Self-update Osmedeus.
+
+```bash
+osmedeus update
+osmedeus update --check
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--check` | Check for updates without installing |
+
+---
+
+## snapshot
+
+Export and import workspace archives.
+
+### snapshot export
+
+Export workspace as ZIP archive.
+
+```bash
+osmedeus snapshot export <workspace>
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--output` | Output file path |
+| `--include-artifacts` | Include all artifacts |
+
+### snapshot import
+
+Import workspace from archive.
+
+```bash
+osmedeus snapshot import <source>
+```
+
+**Source formats:**
+
+- Local file path
+- HTTP/HTTPS URL
+
+### snapshot list
+
+List available snapshots.
+
+```bash
+osmedeus snapshot list
 ```
 
 ---
 
 ## db
 
-Database operations.
+Database management commands.
 
 ### db list
 
+List database entries.
+
 ```bash
-osmedeus db list [flags]
-osmedeus db ls [flags]
+osmedeus db list assets
+osmedeus db list vulnerabilities
+osmedeus db list workspaces
 ```
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--table` | `-t` | Table name |
-| `--offset` | | Skip records (default: 0) |
-| `--limit` | | Max records (default: 50) |
-| `--json` | | JSON output |
-| `--no-tui` | | Disable interactive TUI |
-| `--where` | | Filter (key=value) |
-| `--columns` | | Columns to display |
-| `--search` | | Search all columns |
+**Options:**
 
-Tables: `runs`, `step_results`, `artifacts`, `assets`, `event_logs`, `schedules`, `workspaces`
+| Option | Description |
+|--------|-------------|
+| `--workspace` | Filter by workspace |
+| `--format` | Output format (table, json, csv) |
 
-### db seed / clean / migrate
+### db export
+
+Export database to file.
 
 ```bash
-osmedeus db seed              # Seed sample data
-osmedeus db clean --force     # Clear all data
-osmedeus db migrate           # Run migrations
-```
-
-### db index workflow
-
-```bash
-osmedeus db index workflow [--force]
-```
-
-### Examples
-
-```bash
-osmedeus db list
-osmedeus db list -t runs --limit 10
-osmedeus db list -t assets --where 'status_code=200' --json
-osmedeus db seed
-```
-
----
-
-## config
-
-Manage configuration.
-
-### config set
-
-```bash
-osmedeus config set <key> <value>
-```
-
-Available keys:
-- `server.host`, `server.port`, `server.username`, `server.password`
-- `server.jwt.secret_signing_key`, `server.jwt.expiration_minutes`
-- `server.enabled_auth_api`, `server.auth_api_key`
-- `database.db_engine`, `database.host`, `database.port`
-- `scan_tactic.aggressive`, `scan_tactic.default`, `scan_tactic.gently`
-- `redis.host`, `redis.port`
-- `global_vars.<name>`
-- `notification.enabled`, `notification.telegram.bot_token`
-- `storage.enabled`
-
-### config view
-
-```bash
-osmedeus config view <key> [--redact]
-```
-
-### config list
-
-```bash
-osmedeus config list [--show-secrets]
-```
-
-### config clean
-
-```bash
-osmedeus config clean
-```
-
-### Examples
-
-```bash
-osmedeus config set server.port 9000
-osmedeus config view server.port
-osmedeus config list --show-secrets
-```
-
----
-
-## install
-
-Installation commands.
-
-### install workflow
-
-```bash
-osmedeus install workflow <source>
-```
-
-### install base
-
-```bash
-osmedeus install base <source>
-osmedeus install base --sample
-```
-
-### install binary
-
-```bash
-osmedeus install binary [flags]
-```
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--name` | `-n` | Binary name(s) - repeatable |
-| `--all` | | Install all binaries |
-| `--check` | | Check installation status |
-| `--registry` | `-r` | Custom registry file/URL |
-| `--nix-build-install` | | Use Nix for installation |
-| `--nix-installation` | | Install Nix package manager |
-| `--list-registry-direct-fetch` | | List direct-fetch binaries |
-| `--list-registry-nix-build` | | List Nix binaries |
-
-### install env
-
-```bash
-osmedeus install env
-```
-
-### install validate
-
-```bash
-osmedeus install validate
-osmedeus install val
-```
-
-### Examples
-
-```bash
-osmedeus install binary --list-registry-direct-fetch
-osmedeus install binary -n nuclei -n httpx
-osmedeus install binary --all --check
-osmedeus install env
-osmedeus install validate
-```
-
----
-
-## snapshot
-
-Workspace export/import.
-
-### snapshot export
-
-```bash
-osmedeus snapshot export <workspace> [-o output.zip]
-```
-
-### snapshot import
-
-```bash
-osmedeus snapshot import <source> [--force] [--skip-db]
-```
-
-### snapshot list
-
-```bash
-osmedeus snapshot list
-```
-
-### Examples
-
-```bash
-osmedeus snapshot export example.com
-osmedeus snapshot import backup.zip --force
-osmedeus snapshot list
-```
-
----
-
-## update
-
-Self-update from GitHub releases.
-
-```bash
-osmedeus update [flags]
-```
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--check` | | Check only, don't install |
-| `--yes` | `-y` | Skip confirmation |
-| `--force` | | Force reinstall |
-| `--version` | | Specific version (e.g., `v5.1.0`) |
-
-### Examples
-
-```bash
-osmedeus update --check
-osmedeus update -y
-osmedeus update --version v5.1.0
+osmedeus db export --workspace <name> --output <file>
 ```
 
 ---
 
 ## health
 
-Check environment health.
+Check system health and configuration.
 
 ```bash
 osmedeus health
 ```
 
-Alias for `osmedeus install validate`.
+**Checks performed:**
 
----
+- Configuration file status
+- Database connectivity
+- External binaries availability
+- Workflows loaded count
+- Disk space
+- Network connectivity
 
-## version
+**Output Example:**
 
-Show version information.
+```
+Health Check Results
+━━━━━━━━━━━━━━━━━━━━
 
-```bash
-osmedeus version
-osmedeus --version
-osmedeus -V
+Configuration
+  ✓ Config file loaded: ~/.osmedeus/config.yaml
+  ✓ Base folder: ~/osmedeus-base
+  ✓ Workflows path: ~/osmedeus-base/workflows
+
+Database
+  ✓ Database connected: sqlite
+  ✓ Assets count: 15,234
+  ✓ Vulnerabilities count: 423
+
+Binaries
+  ✓ nuclei: installed (v3.0.0)
+  ✓ httpx: installed (v1.3.0)
+  ✗ subfinder: not found
+
+Workflows
+  ✓ Flows loaded: 5
+  ✓ Modules loaded: 32
+  ✓ Fragments loaded: 8
+
+System
+  ✓ Disk space: 45GB available
+  ✓ Memory: 8GB available
 ```
 
 ---
 
-## Quick Reference
+## Usage Examples
+
+Show all usage examples.
 
 ```bash
-# List workflows
-osmedeus workflow list
-
-# Run module
-osmedeus run -m <module> -t <target>
-
-# Run flow
-osmedeus run -f <flow> -t <target>
-
-# Multiple targets
-osmedeus run -m <module> -T targets.txt -c 5
-
-# Start server
-osmedeus serve
-
-# Check health
-osmedeus health
-
-# Update
-osmedeus update --check
+osmedeus --usage-example
 ```
+
+This displays comprehensive examples for all major use cases.
+
+---
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `OSM_CONFIG` | Config file path |
+| `OSM_BASE` | Base folder path |
+| `OSM_WORKSPACES` | Workspaces folder path |
+| `OSM_DEBUG` | Enable debug mode |
+| `OSM_TOKEN` | API authentication token |

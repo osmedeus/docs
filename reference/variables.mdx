@@ -1,524 +1,445 @@
 ---
-title: "Built-in Variables"
-icon: "code-simple"
+title: Variables Reference
+description: Complete reference for template variables and utility functions in Osmedeus
 ---
 
-This document describes all template variables and utility functions available in Osmedeus workflows.
+# Variables Reference
+
+Osmedeus workflows use template variables for dynamic content substitution. Variables are enclosed in double curly braces: `{{variable}}`.
 
 ## Template Syntax
 
-- **Standard variables:** `{{VariableName}}` - Available throughout workflows
-- **Foreach loop variables:** `[[variable]]` - Only within foreach step inner steps
+### Standard Variables
 
-## Built-in Template Variables
+Standard variables use `{{variable}}` syntax and are evaluated at step execution time.
 
-### Settings Variables
+```yaml
+command: "nuclei -l {{Output}}/urls.txt -t {{Data}}/templates/"
+```
 
-From configuration (`osm-settings.yaml`):
+### Secondary Variables (Foreach)
 
-| Variable | Description |
-|----------|-------------|
-| `{{BaseFolder}}` | Base installation folder |
-| `{{Binaries}}` | Binaries directory path |
-| `{{Data}}` | Data directory path (wordlists, etc.) |
-| `{{ExternalData}}` | Alias for `{{Data}}` |
-| `{{ExternalConfigs}}` | External configurations path |
-| `{{ExternalAgentConfigs}}` | External agent configs path |
-| `{{ExternalAgents}}` | Alias for `{{ExternalAgentConfigs}}` |
-| `{{ExternalScripts}}` | External scripts directory |
-| `{{Workflows}}` | Workflows directory path |
-| `{{MarkdownTemplates}}` | Markdown report templates path |
-| `{{ExternalMarkdowns}}` | Alias for `{{MarkdownTemplates}}` |
-| `{{SnapshotsFolder}}` | Snapshots directory path |
-| `{{Workspaces}}` | Workspaces directory (override with -W flag) |
+Foreach loops use `[[variable]]` syntax to avoid conflicts with standard templates:
 
-### Thread Settings
+```yaml
+- name: scan-each
+  type: foreach
+  input: "{{Output}}/subdomains.txt"
+  variable: sub
+  step:
+    type: bash
+    command: "httpx -u [[sub]] >> {{Output}}/httpx.txt"
+```
 
-| Variable | Description |
-|----------|-------------|
-| `{{threads}}` | Number of threads (configurable per tactic, override with --threads-hold) |
-| `{{baseThreads}}` | Base thread count (typically half of threads) |
+## Built-in Variables
+
+### Path Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `{{BaseFolder}}` | Base installation folder | `~/osmedeus-base` |
+| `{{Binaries}}` | Path to binaries | `{{BaseFolder}}/external-binaries` |
+| `{{Data}}` | Path to data files | `{{BaseFolder}}/data` |
+| `{{ExternalData}}` | Path to external data | `{{BaseFolder}}/external-data` |
+| `{{ExternalConfigs}}` | Path to external configs | `{{BaseFolder}}/configs` |
+| `{{ExternalScripts}}` | Path to external scripts | `{{BaseFolder}}/scripts` |
+| `{{ExternalAgents}}` | Path to agent configs | `{{BaseFolder}}/external-agent-configs` |
+| `{{ExternalAgentConfigs}}` | Alias for ExternalAgents | `{{BaseFolder}}/external-agent-configs` |
+| `{{Workflows}}` | Path to workflows | `{{BaseFolder}}/workflows` |
+| `{{MarkdownTemplates}}` | Path to markdown templates | `{{BaseFolder}}/markdown-templates` |
+| `{{ExternalMarkdowns}}` | Path to external markdowns | `{{BaseFolder}}/markdown-report-templates` |
+| `{{Workspaces}}` | Path to workspaces | `~/workspaces-osmedeus` |
+| `{{SnapshotsFolder}}` | Path to snapshots | `{{BaseFolder}}/snapshots` |
 
 ### Target Variables
 
-| Variable | Description |
-|----------|-------------|
-| `{{Target}}` | Target being scanned (from -t parameter) |
-| `{{TargetFile}}` | Target file path (from CLI parameter) |
-| `{{TargetSpace}}` | Filesystem-safe target identifier (override with -S flag) |
-| `{{Workspace}}` | Workspace name (same as TargetSpace) |
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{{Target}}` | Current scan target | `example.com` |
+| `{{target}}` | Alias for Target | `example.com` |
+| `{{TargetFile}}` | File containing targets | `/path/to/targets.txt` |
+| `{{TargetSpace}}` | Sanitized target (workspace name) | `example_com` |
+| `{{Output}}` | Output directory for target | `{{Workspaces}}/example_com` |
+| `{{output}}` | Alias for Output | `{{Workspaces}}/example_com` |
+| `{{Workspace}}` | Alias for TargetSpace | `example_com` |
+| `{{workspace}}` | Alias for Workspace | `example_com` |
 
-### Execution Variables
+### Target Heuristics (Auto-Detected)
 
-| Variable | Description |
-|----------|-------------|
-| `{{workflow}}` | Workflow name (lowercase) |
-| `{{run_id}}` | 8-character unique run identifier (lowercase) |
-| `{{Output}}` | Output directory path for results |
-| `{{HeuristicsCheck}}` | Heuristics analysis level (`basic`, `advanced`, or `none`) |
+These variables are automatically populated based on target type detection:
 
-### Context Variables
+| Variable | Description | Applies To |
+|----------|-------------|------------|
+| `{{TargetType}}` | Detected type (domain/url/ip/cidr/file) | All |
+| `{{TargetRootDomain}}` | Root domain | Domain, URL |
+| `{{TargetTLD}}` | Top-level domain | Domain, URL |
+| `{{TargetSLD}}` | Second-level domain | Domain, URL |
+| `{{Org}}` | Alias for TargetSLD | Domain, URL |
+| `{{TargetBaseURL}}` | Base URL | URL |
+| `{{TargetRootURL}}` | Root URL (scheme+host) | URL |
+| `{{TargetHostname}}` | Hostname | URL |
+| `{{TargetHost}}` | Host with port | URL |
+| `{{TargetPort}}` | Port number | URL |
+| `{{TargetPath}}` | URL path | URL |
+| `{{TargetScheme}}` | URL scheme | URL |
+| `{{TargetFileExt}}` | File extension | URL, File |
+| `{{TargetIsWildcard}}` | Is wildcard subdomain | Domain |
+| `{{TargetResolvedIP}}` | Resolved IP address | Domain |
+| `{{TargetStatusCode}}` | HTTP status code | URL |
+| `{{TargetContentLength}}` | Content length | URL |
+| `{{HeuristicsCheck}}` | Heuristics status | All |
 
-Additional lowercase variables available in template context:
+### Thread Variables
 
-| Variable | Description |
-|----------|-------------|
-| `{{target}}` | Target being scanned (lowercase alias) |
-| `{{workspace}}` | Workspace path |
-| `{{base_folder}}` | Base installation folder (lowercase alias) |
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `{{threads}}` | Thread count (tactic based) | `10` |
+| `{{Threads}}` | Alias for threads | `10` |
+| `{{baseThreads}}` | Base thread count | `10` |
 
-### Time Variables
+### Metadata Variables
 
-| Variable | Description |
-|----------|-------------|
-| `{{TaskDate}}` | Current date (`2006-01-02` format) |
-| `{{TaskID}}` | Same as run_id |
-| `{{TimeStamp}}` | Unix timestamp (seconds since epoch) |
-| `{{CurrentTime}}` | Current time ISO format (`2006-01-02T15:04:05`) |
-| `{{Today}}` | Current date (`2006-01-02` format) |
-| `{{RandomString}}` | 8-character random alphanumeric string |
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{{Version}}` | Osmedeus version | `5.0.0` |
+| `{{TaskID}}` | Unique task identifier (8 chars) | `ab12cd34` |
+| `{{TaskDate}}` | Task date | `2025-01-15` |
+| `{{Today}}` | Current date | `2025-01-15` |
+| `{{TimeStamp}}` | Unix timestamp | `1705312800` |
+| `{{CurrentTime}}` | Current time (ISO 8601) | `2025-01-15T10:00:00Z` |
+| `{{RandomString}}` | Random 8-char alphanumeric | `xK9mPq2n` |
+| `{{RunID}}` | Current run identifier | `run-abc123` |
+| `{{run_id}}` | Alias for RunID | `run-abc123` |
 
-### State Path Variables
-
-| Variable | Description |
-|----------|-------------|
-| `{{StateExecutionLog}}` | Execution log (`{{Output}}/run-execution.log`) |
-| `{{StateConsoleLog}}` | Console log (`{{Output}}/run-console.log`) |
-| `{{StateCompletedFile}}` | Completion marker (`{{Output}}/run-completed.json`) |
-| `{{StateFile}}` | Run state file (`{{Output}}/run-state.json`) |
-| `{{StateWorkflowFile}}` | Exported workflow (`{{Output}}/run-workflow.yaml`) |
-| `{{StateWorkflowFolder}}` | Module storage (`{{Output}}/run-modules`) |
-
-### Constants
-
-| Variable | Description |
-|----------|-------------|
-| `{{DefaultUA}}` | Default User-Agent string |
-| `{{Version}}` | Osmedeus version |
-
-## Heuristics Variables
-
-When `heuristics_check` is not `"none"`, additional variables are auto-detected.
-
-
-**Example Target:** `https://api.shop.example.com:8443/v2/products/search?q=test#results`
-
-| Variable | Description | Example Value |
-|----------|-------------|---------------|
-| `{{TargetType}}` | Target type identifier | `"url"` |
-| `{{TargetBaseURL}}` | Base URL (scheme + host + port) | `https://api.shop.example.com:8443` |
-| `{{TargetRootURL}}` | Root URL (scheme + host + port) | `https://api.shop.example.com:8443` |
-| `{{TargetHostname}}` | Full hostname | `api.shop.example.com` |
-| `{{TargetRootDomain}}` | Root domain extracted from hostname | `example.com` |
-| `{{TargetHost}}` | Host (hostname + port) | `api.shop.example.com:8443` |
-| `{{TargetPort}}` | Port number | `8443` |
-| `{{TargetPath}}` | URL path component | `/v2/products/search` |
-| `{{TargetFileExt}}` | File extension if present | `` (empty) |
-| `{{TargetScheme}}` | HTTP scheme | `https` |
-| `{{TargetStatusCode}}` | HTTP status code (if reachable) | `200` |
-| `{{TargetContentLength}}` | Content length of response | `4521` |
-| `{{TargetTLD}}` | Top-level domain | `com` |
-| `{{TargetSLD}}` | Second-level domain | `example` |
-| `{{Org}}` | Alias for `{{TargetSLD}}` | `example` |
-
-### Additional URL Examples
-
-**Example with file path:** `https://cdn.example.org/assets/images/logo.png`
-
-| Variable | Example Value |
-|----------|---------------|
-| `{{TargetBaseURL}}` | `https://cdn.example.org` |
-| `{{TargetHostname}}` | `cdn.example.org` |
-| `{{TargetRootDomain}}` | `example.org` |
-| `{{TargetHost}}` | `cdn.example.org` |
-| `{{TargetPort}}` | `443` |
-| `{{TargetPath}}` | `/assets/images/logo.png` |
-| `{{TargetFileExt}}` | `png` |
-| `{{TargetScheme}}` | `https` |
-| `{{TargetTLD}}` | `org` |
-| `{{TargetSLD}}` | `example` |
-| `{{Org}}` | `example` |
-
-**Example with HTTP and explicit port:** `http://staging.app.example.io:3000/api/health`
-
-| Variable | Example Value |
-|----------|---------------|
-| `{{TargetBaseURL}}` | `http://staging.app.example.io:3000` |
-| `{{TargetHostname}}` | `staging.app.example.io` |
-| `{{TargetRootDomain}}` | `example.io` |
-| `{{TargetHost}}` | `staging.app.example.io:3000` |
-| `{{TargetPort}}` | `3000` |
-| `{{TargetPath}}` | `/api/health` |
-| `{{TargetFileExt}}` | `` (empty) |
-| `{{TargetScheme}}` | `http` |
-| `{{TargetTLD}}` | `io` |
-| `{{TargetSLD}}` | `example` |
-| `{{Org}}` | `example` |
-
----
-
-## Domain Target Variables
-
-**Example Target:** `mail.corp.example.com`
-
-| Variable | Description | Example Value |
-|----------|-------------|---------------|
-| `{{TargetType}}` | Target type identifier | `"domain"` |
-| `{{TargetRootDomain}}` | Root domain | `example.com` |
-| `{{TargetIsWildcard}}` | Boolean indicating wildcard domain | `false` |
-| `{{TargetResolvedIP}}` | Resolved IP address (if DNS succeeds) | `93.184.216.34` |
-| `{{TargetTLD}}` | Top-level domain | `com` |
-| `{{TargetSLD}}` | Second-level domain | `example` |
-| `{{Org}}` | Alias for `{{TargetSLD}}` | `example` |
-
-### Additional Domain Examples
-
-**Example wildcard domain:** `*.example.net`
-
-| Variable | Example Value |
-|----------|---------------|
-| `{{TargetType}}` | `"domain"` |
-| `{{TargetRootDomain}}` | `example.net` |
-| `{{TargetIsWildcard}}` | `true` |
-| `{{TargetResolvedIP}}` | `` (empty - wildcard cannot be resolved) |
-| `{{TargetTLD}}` | `net` |
-| `{{TargetSLD}}` | `example` |
-| `{{Org}}` | `example` |
-
-**Example subdomain:** `dev.api.example.co.uk`
-
-| Variable | Example Value |
-|----------|---------------|
-| `{{TargetType}}` | `"domain"` |
-| `{{TargetRootDomain}}` | `example.co.uk` |
-| `{{TargetIsWildcard}}` | `false` |
-| `{{TargetResolvedIP}}` | `185.199.108.153` |
-| `{{TargetTLD}}` | `co.uk` |
-| `{{TargetSLD}}` | `example` |
-| `{{Org}}` | `example` |
-
----
-
-## IP Target Variables
-
-**Example Target:** `192.168.1.100`
-
-| Variable | Description | Example Value |
-|----------|-------------|---------------|
-| `{{TargetType}}` | Target type identifier | `"ip"` |
-| `{{TargetRootDomain}}` | Original IP address | `192.168.1.100` |
-
----
-
-## Usage in Workflows
-
-```yaml
-steps:
-  - name: probe-url
-    type: bash
-    cmd: |
-      echo "Scanning {{TargetHostname}} on port {{TargetPort}}"
-      curl -s -o /dev/null -w "%{http_code}" {{TargetBaseURL}}{{TargetPath}}
-
-  - name: enumerate-domain
-    type: bash
-    cmd: |
-      echo "Root domain: {{TargetRootDomain}}"
-      echo "Resolved IP: {{TargetResolvedIP}}"
-      subfinder -d {{TargetRootDomain}} -o {{Output}}/subdomains.txt
-```
-
-## Foreach Loop Variables
-
-Within foreach step inner steps, use double bracket syntax:
+### State File Variables
 
 | Variable | Description |
 |----------|-------------|
-| `[[item]]` or `[[<variable>]]` | Current loop item value |
-| `[[_id_]]` | 1-based iteration counter |
+| `{{StateExecutionLog}}` | Path to execution log |
+| `{{StateConsoleLog}}` | Path to console log |
+| `{{StateCompletedFile}}` | Path to run-completed.json |
+| `{{StateFile}}` | Path to run-state.json |
+| `{{StateWorkflowFile}}` | Path to run-workflow.yaml |
+| `{{StateWorkflowFolder}}` | Path to run-modules folder |
 
-**Example:**
-```yaml
-- name: process-items
-  type: foreach
-  input: "{{Output}}/targets.txt"
-  variable: target
-  threads: 5
-  step:
-    type: bash
-    command: echo "Processing [[target]] (iteration [[_id_]])"
-```
+### Chunk Mode Variables
 
-## Parameter Generators
+Used for distributed scanning with `--chunk` flag:
 
-Auto-generate values for workflow parameters:
-
-| Generator | Description |
-|-----------|-------------|
-| `uuid()` | Generate UUID v4 |
-| `currentDate(format?)` | Current date (default: `2006-01-02`) |
-| `currentTimestamp()` | Unix timestamp |
-| `getEnvVar(key, default?)` | Environment variable |
-| `concat(str1, str2, ...)` | Concatenate strings |
-| `randomInt(min?, max?)` | Random integer (default: 0-100) |
-| `randomString(length?)` | Random alphanumeric (default: 16 chars) |
-| `execCmd(command)` | Execute shell command |
-| `toLower(str)` | Convert to lowercase |
-| `toUpper(str)` | Convert to uppercase |
-| `trim(str)` | Trim whitespace |
-| `replace(str, old, new)` | Replace occurrences |
-| `split(str, delim, index?)` | Split and return element |
-| `join(delim, str1, str2, ...)` | Join with delimiter |
-
-**Example:**
-```yaml
-params:
-  - name: run_id
-    generator: uuid()
-  - name: start_date
-    generator: currentDate()
-  - name: api_key
-    generator: getEnvVar("API_KEY", "default-key")
-```
+| Variable | Description |
+|----------|-------------|
+| `{{ChunkIndex}}` | Current chunk index (1-based) |
+| `{{ChunkSize}}` | Number of items per chunk |
+| `{{TotalChunks}}` | Total number of chunks |
+| `{{ChunkStart}}` | Start line number |
+| `{{ChunkEnd}}` | End line number |
 
 ## Utility Functions
 
-Functions available in `pre_condition`, `decision`, `exports`, and function steps.
+Utility functions are executed via the Goja JavaScript runtime and can be used in function steps or template expressions.
 
-### File Functions
+### File Operations
 
-| Function | Return | Description |
-|----------|--------|-------------|
+| Function | Returns | Description |
+|----------|---------|-------------|
 | `fileExists(path)` | bool | Check if file exists |
-| `fileLength(path)` | int | Count non-empty lines |
-| `dirLength(path)` | int | Count directory entries |
+| `fileLength(path)` | int | Count non-empty lines in file |
+| `dirLength(path)` | int | Count entries in directory |
 | `fileContains(path, pattern)` | bool | Check if file contains pattern |
-| `regexExtract(path, pattern)` | []string | Extract regex matches from file |
-| `readFile(path)` | string | Read file contents |
-| `readLines(path)` | []string | Read file as line array |
-| `removeFile(path)` | bool | Remove file |
-| `removeFolder(path)` | bool | Remove folder |
-| `rm_rf(path)` | bool | Remove recursively |
-| `remove_all_except(folder, keep)` | bool | Remove all except one file |
-| `createFolder(path)` | bool | Create directory |
-| `appendFile(dest, source)` | bool | Append source to dest |
-| `glob(pattern)` | []string | Find files matching glob |
-| `grep_string_to_file(dest, src, str)` | bool | Grep string to file |
-| `grep_regex_to_file(dest, src, pat)` | bool | Grep regex to file |
-| `grep_string(source, str)` | string | Grep string from file |
-| `grep_regex(source, pattern)` | string | Grep regex from file |
+| `regexExtract(path, pattern)` | []string | Extract matching lines from file |
+| `readFile(path)` | string | Read entire file contents |
+| `readLines(path)` | []string | Read file as array of lines |
+| `removeFile(path)` | bool | Delete a file |
+| `removeFolder(path)` | bool | Delete folder recursively |
+| `rm_rf(path)` | bool | Delete file or folder recursively |
+| `remove_all_except(folder, keep)` | bool | Remove all except keep_file |
+| `createFolder(path)` | bool | Create folder recursively |
+| `appendFile(dest, source)` | bool | Append source file to dest |
+| `moveFile(source, dest)` | bool | Move/rename file |
+| `glob(pattern)` | []string | List files matching glob pattern |
+| `grep_string(source, str)` | string | Return lines containing string |
+| `grep_regex(source, pattern)` | string | Return lines matching regex |
+| `grep_string_to_file(dest, source, str)` | bool | Write matching lines to file |
+| `grep_regex_to_file(dest, source, pattern)` | bool | Write matching lines to file |
+| `remove_blank_lines(path)` | bool | Remove blank lines in-place |
 
-### String Functions
+### String Operations
 
-| Function | Return | Description |
-|----------|--------|-------------|
+| Function | Returns | Description |
+|----------|---------|-------------|
 | `trim(str)` | string | Trim whitespace |
-| `split(str, delim)` | []string | Split string |
-| `join(arr, delim)` | string | Join array |
+| `split(str, delim)` | []string | Split by delimiter |
+| `join(arr, delim)` | string | Join with delimiter |
 | `replace(str, old, new)` | string | Replace all occurrences |
-| `contains(str, substr)` | bool | Check substring |
-| `startsWith(str, prefix)` | bool | Check prefix |
-| `endsWith(str, suffix)` | bool | Check suffix |
+| `contains(str, substr)` | bool | Check contains substring |
+| `startsWith(str, prefix)` | bool | Check starts with prefix |
+| `endsWith(str, suffix)` | bool | Check ends with suffix |
 | `toLowerCase(str)` | string | Convert to lowercase |
 | `toUpperCase(str)` | string | Convert to uppercase |
-| `match(str, pattern)` | bool | Regex match |
-| `regex_match(pattern, str)` | bool | Regex match (alt) |
+| `match(str, pattern)` | bool | Check regex match |
+| `regex_match(pattern, str)` | bool | Check regex match (pattern first) |
 | `cut_with_delim(input, delim, field)` | string | Extract field (1-indexed) |
-| `normalize_path(input)` | string | Normalize path |
-| `clean_sub(path, target?)` | bool | Clean subdomain file |
+| `normalize_path(input)` | string | Replace special chars with _ |
+| `clean_sub(path, target?)` | bool | Clean and dedupe subdomains |
 
 ### Type Conversion
 
-| Function | Return | Description |
-|----------|--------|-------------|
-| `parseInt(str)` | int | Parse integer |
-| `parseFloat(str)` | float | Parse float |
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `parseInt(str)` | int | Parse string to integer |
+| `parseFloat(str)` | float | Parse string to float |
 | `toString(val)` | string | Convert to string |
 | `toBoolean(val)` | bool | Convert to boolean |
 
 ### Utility
 
-| Function | Return | Description |
-|----------|--------|-------------|
-| `len(val)` | int | Get length |
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `len(val)` | int | Get length of string/array |
 | `isEmpty(val)` | bool | Check if empty |
 | `isNotEmpty(val)` | bool | Check if not empty |
-| `printf(message)` | void | Print message |
-| `cat_file(path)` | void | Print file contents |
+| `printf(message)` | void | Print to stdout |
+| `cat_file(path)` | void | Print file content |
 | `exit(code)` | void | Exit with code |
-| `exec_cmd(command)` | string | Execute command |
-| `sleep(seconds)` | void | Sleep |
+| `exec_cmd(command)` | string | Execute bash command |
+| `sleep(seconds)` | void | Pause execution |
 
 ### Logging
 
-| Function | Return | Description |
-|----------|--------|-------------|
-| `log_debug(message)` | void | Debug log |
-| `log_info(message)` | void | Info log |
-| `log_warn(message)` | void | Warning log |
-| `log_error(message)` | void | Error log |
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `log_debug(message)` | void | Log with [DEBUG] prefix |
+| `log_info(message)` | void | Log with [INFO] prefix |
+| `log_warn(message)` | void | Log with [WARN] prefix |
+| `log_error(message)` | void | Log with [ERROR] prefix |
 
 ### HTTP
 
-| Function | Return | Description |
-|----------|--------|-------------|
-| `httpRequest(url, method, headers, body)` | object | HTTP request |
-| `http_get(url)` | object | GET request |
-| `http_post(url, body)` | object | POST request |
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `httpRequest(url, method, headers, body)` | object | Make HTTP request |
+| `http_get(url)` | object | HTTP GET request |
+| `http_post(url, body)` | object | HTTP POST request |
 
 ### Generation
 
-| Function | Return | Description |
-|----------|--------|-------------|
-| `randomString(length)` | string | Random alphanumeric |
-| `uuid()` | string | Generate UUID |
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `randomString(length)` | string | Random alphanumeric string |
+| `uuid()` | string | Generate UUID v4 |
 
 ### Encoding
 
-| Function | Return | Description |
-|----------|--------|-------------|
-| `base64Encode(str)` | string | Base64 encode |
-| `base64Decode(str)` | string | Base64 decode |
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `base64Encode(str)` | string | Encode to base64 |
+| `base64Decode(str)` | string | Decode from base64 |
 
 ### Data Query
 
-| Function | Return | Description |
-|----------|--------|-------------|
-| `jq(jsonData, query)` | any | JQ query on JSON |
-| `jq_from_file(path, query)` | any | JQ query on file |
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `jq(jsonData, query)` | any | Extract data using jq syntax |
+| `jq_from_file(path, query)` | any | jq from JSON file |
 
 ### Notification
 
-| Function | Return | Description |
-|----------|--------|-------------|
+| Function | Returns | Description |
+|----------|---------|-------------|
 | `notifyTelegram(message)` | bool | Send Telegram message |
-| `sendTelegramFile(path, caption?)` | bool | Send file via Telegram |
-| `notifyWebhook(message)` | bool | Send webhook |
-| `sendWebhookEvent(type, data)` | bool | Send webhook event |
+| `sendTelegramFile(path, caption?)` | bool | Send file to Telegram |
+| `notifyWebhook(message)` | bool | Send to all webhooks |
+| `sendWebhookEvent(eventType, data)` | bool | Send event to webhooks |
 
 ### CDN/Storage
 
-| Function | Return | Description |
-|----------|--------|-------------|
-| `cdnUpload(local, remote)` | bool | Upload to CDN |
-| `cdnDownload(remote, local)` | bool | Download from CDN |
-| `cdnExists(remote)` | bool | Check CDN file exists |
-| `cdnDelete(remote)` | bool | Delete from CDN |
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `cdnUpload(localPath, remotePath)` | bool | Upload to cloud storage |
+| `cdnDownload(remotePath, localPath)` | bool | Download from cloud storage |
+| `cdnExists(remotePath)` | bool | Check if file exists |
+| `cdnDelete(remotePath)` | bool | Delete from cloud storage |
+| `cdnSyncUpload(localDir, remotePrefix)` | object | Sync directory to cloud |
+| `cdnSyncDownload(remotePrefix, localDir)` | object | Sync from cloud |
+| `cdnGetPresignedURL(remotePath, expiryMins?)` | string | Generate presigned URL |
+| `cdnList(prefix?)` | []object | List files with metadata |
+| `cdnStat(remotePath)` | object\|null | Get file metadata |
 
 ### Unix Commands
 
-| Function | Return | Description |
-|----------|--------|-------------|
-| `sortUnix(input, output?)` | bool | Sort file |
-| `wgetUnix(url, output?)` | bool | Download URL |
-| `gitClone(repo, dest?)` | bool | Clone repository |
-| `zipUnix(source, dest)` | bool | Create zip |
-| `unzipUnix(source, dest?)` | bool | Extract zip |
-| `tarUnix(source, dest)` | bool | Create tar |
-| `untarUnix(source, dest?)` | bool | Extract tar |
-| `diffUnix(file1, file2, output?)` | string | Diff files |
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `sortUnix(input, output?)` | bool | Sort with LC_ALL=C sort -u |
+| `wgetUnix(url, output?)` | bool | Download with wget |
+| `gitClone(repo, dest?)` | bool | Clone git repository |
+| `zipUnix(source, dest)` | bool | Create zip archive |
+| `unzipUnix(source, dest?)` | bool | Extract zip archive |
+| `tarUnix(source, dest)` | bool | Create tar.gz archive |
+| `untarUnix(source, dest?)` | bool | Extract tar.gz archive |
+| `diffUnix(file1, file2, output?)` | string | Compare files |
+| `sed_string_replace(syntax, src, dest)` | bool | String replacement |
+| `sed_regex_replace(syntax, src, dest)` | bool | Regex replacement |
 
-### Archive
+### Archive (Go implementations)
 
-| Function | Return | Description |
-|----------|--------|-------------|
-| `zip_dir(source, dest)` | bool | Zip directory |
-| `unzip_dir(source, dest)` | bool | Unzip directory |
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `zip_dir(source, dest)` | bool | Zip using Go archive/zip |
+| `unzip_dir(source, dest)` | bool | Unzip using Go archive/zip |
+
+### Diff
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `extractDiff(file1, file2)` | string | Lines only in file2 |
 
 ### Output
 
-| Function | Return | Description |
-|----------|--------|-------------|
+| Function | Returns | Description |
+|----------|---------|-------------|
 | `save_content(content, path)` | bool | Save content to file |
 | `jsonl_to_csv(source, dest)` | bool | Convert JSONL to CSV |
 | `csv_to_jsonl(source, dest)` | bool | Convert CSV to JSONL |
 | `jsonl_unique(source, dest, fields)` | bool | Deduplicate JSONL |
 | `jsonl_filter(source, dest, fields)` | bool | Filter JSONL fields |
 
+### URL Processing
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `interesting_urls(src, dest, field?)` | bool | Dedupe and filter URLs |
+
 ### Markdown
 
-| Function | Return | Description |
-|----------|--------|-------------|
+| Function | Returns | Description |
+|----------|---------|-------------|
 | `render_markdown_from_file(path)` | string | Render markdown |
-| `print_markdown_from_file(path)` | void | Print markdown |
-| `convert_jsonl_to_markdown(path)` | string | JSONL to markdown |
-| `convert_csv_to_markdown(path)` | string | CSV to markdown |
-| `render_markdown_report(tpl, out)` | bool | Render report |
-| `generate_security_report(tpl)` | bool | Generate security report |
+| `print_markdown_from_file(path)` | void | Print with highlighting |
+| `convert_jsonl_to_markdown(input, output)` | bool | JSONL to markdown table |
+| `convert_csv_to_markdown(path)` | string | CSV to markdown table |
+| `render_markdown_report(template, output)` | bool | Render report template |
+| `generate_security_report(template)` | bool | Generate security report |
 
 ### Database
 
-| Function | Return | Description |
-|----------|--------|-------------|
-| `db_update(table, key, field, val)` | bool | Update record |
-| `db_import_asset(workspace, json)` | bool | Import asset |
-| `db_raw_insert_asset(workspace, json)` | int | Insert asset (return ID) |
-| `db_total_urls(file)` | int | Count URLs |
-| `db_total_subdomains(file)` | int | Count subdomains |
-| `db_total_assets(file)` | int | Count assets |
-| `db_total_vulns(file)` | int | Count vulnerabilities |
-| `db_vuln_critical(file)` | int | Count critical vulns |
-| `db_vuln_high(file)` | int | Count high vulns |
-| `db_vuln_medium(file)` | int | Count medium vulns |
-| `db_vuln_low(file)` | int | Count low vulns |
-| `runtime_export()` | bool | Export runtime state |
-| `register_artifact(path, type?)` | bool | Register artifact |
-| `store_artifact(path)` | bool | Store artifact |
-| `db_select_assets(workspace, fmt)` | string | Select assets |
-| `db_select_assets_filtered(...)` | string | Select assets filtered |
-| `db_select_vulnerabilities(ws, fmt)` | string | Select vulnerabilities |
-| `db_select_vulnerabilities_filtered(...)` | string | Select vulns filtered |
-| `db_select(sql, format)` | string | Raw SQL query |
-| `db_select_total_subdomains()` | int | Total subdomains |
-| `db_select_total_urls()` | int | Total URLs |
-| `db_select_total_assets()` | int | Total assets |
-| `db_select_total_vulns()` | int | Total vulnerabilities |
-| `db_select_vuln_critical()` | int | Critical vulns count |
-| `db_select_vuln_high()` | int | High vulns count |
-| `db_select_vuln_medium()` | int | Medium vulns count |
-| `db_select_vuln_low()` | int | Low vulns count |
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `db_update(table, key, field, value)` | bool | Update database field |
+| `db_import_asset(workspace, json)` | bool | Import asset (upsert) |
+| `db_raw_insert_asset(workspace, json)` | int | Insert asset (returns ID) |
+| `db_import_asset_from_file(workspace, path)` | int | Import from JSONL |
+| `db_import_vuln(workspace, json)` | bool | Import vulnerability |
+| `db_import_vuln_from_file(workspace, path)` | int | Import vulns from JSONL |
+| `db_total_subdomains(path)` | int | Count and update workspace |
+| `db_total_urls(path)` | int | Count and update workspace |
+| `db_total_assets(path)` | int | Count and update workspace |
+| `db_total_vulns(path)` | int | Count and update workspace |
+| `db_vuln_critical(path)` | int | Count critical vulns |
+| `db_vuln_high(path)` | int | Count high vulns |
+| `db_vuln_medium(path)` | int | Count medium vulns |
+| `db_vuln_low(path)` | int | Count low vulns |
+| `db_total_ips(path)` | int | Count and update IPs |
+| `db_total_links(path)` | int | Count and update links |
+| `db_total_content(path)` | int | Count and update content |
+| `db_total_archive(path)` | int | Count and update archive |
+| `runtime_export()` | bool | Export run state |
+| `register_artifact(path, type?)` | bool | Register as artifact |
+| `store_artifact(path)` | bool | Store as artifact |
+| `db_select_assets(workspace, format)` | string | Select assets |
+| `db_select_assets_filtered(ws, status, type, fmt)` | string | Filtered assets |
+| `db_select_vulnerabilities(workspace, format)` | string | Select vulns |
+| `db_select_vulnerabilities_filtered(ws, sev, asset, fmt)` | string | Filtered vulns |
+| `db_select(sql_query, format)` | string | Execute SELECT |
+| `db_select_to_file(sql_query, dest)` | bool | SELECT to file |
+| `db_select_to_jsonl(sql_query, fields, dest)` | bool | SELECT to JSONL |
+| `db_select_total_subdomains()` | int | Get workspace subdomain count |
+| `db_select_total_urls()` | int | Get workspace URL count |
+| `db_select_total_assets()` | int | Get workspace asset count |
+| `db_select_total_vulns()` | int | Get workspace vuln count |
+| `db_select_vuln_critical()` | int | Get critical count |
+| `db_select_vuln_high()` | int | Get high count |
+| `db_select_vuln_medium()` | int | Get medium count |
+| `db_select_vuln_low()` | int | Get low count |
+| `db_asset_diff(workspace)` | string | Get asset diff JSONL |
+| `db_vuln_diff(workspace)` | string | Get vuln diff JSONL |
+| `db_asset_diff_to_file(workspace, dest)` | bool | Asset diff to file |
+| `db_vuln_diff_to_file(workspace, dest)` | bool | Vuln diff to file |
+
+### Environment Functions
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `os_getenv(name)` | string | Get environment variable value |
+| `os_setenv(name, value)` | bool | Set environment variable |
+
+### Installer Functions
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `go_getter(url, dest)` | bool | Download files/repos using go-getter |
+| `go_getter_with_sshkey(ssh_key, git_url, dest)` | bool | Clone git repo with SSH key |
+| `nix_install(package, dest?)` | bool | Install package via Nix |
 
 ## Usage Examples
 
-### Pre-condition
+### Using Environment Functions
 
 ```yaml
-- name: conditional-step
-  type: bash
-  pre_condition: 'fileExists("{{Output}}/targets.txt") && fileLength("{{Output}}/targets.txt") > 0'
-  command: cat {{Output}}/targets.txt
-```
-
-### Exports
-
-```yaml
-- name: count-results
-  type: function
-  function: 'toString(fileLength("{{Output}}/results.txt"))'
-  exports:
-    result_count: "{{_result_}}"
-```
-
-### Decision
-
-```yaml
-- name: check-results
-  type: bash
-  command: echo "Checking"
-  decision:
-    switch: '{{result_count}}'
-    cases:
-      "0": { goto: no-results }
-    default: { goto: process-results }
-```
-
-### Function Step
-
-```yaml
-- name: notify-completion
+- name: setup-api-key
   type: function
   functions:
-    - log_info("Scan completed for {{Target}}")
-    - notifyTelegram("Scan done: {{Target}}")
-    - runtime_export()
+    - "os_setenv('API_KEY', '{{api_token}}')"
+    - "log_info('API key configured')"
+
+- name: read-config
+  type: function
+  function: "os_getenv('HOME')"
+  exports:
+    home_dir: "{{_result}}"
+```
+
+### Using Installer Functions
+
+```yaml
+- name: install-tools
+  type: function
+  functions:
+    - "go_getter('https://github.com/projectdiscovery/nuclei/releases/download/v3.0.0/nuclei_3.0.0_linux_amd64.zip', '{{Binaries}}')"
+    - "nix_install('subfinder', '{{Binaries}}')"
+
+- name: clone-private-repo
+  type: function
+  function: "go_getter_with_sshkey('~/.ssh/id_rsa', 'git@github.com:user/private-templates.git', '{{Data}}/templates')"
+```
+
+### Database Functions
+
+```yaml
+- name: update-stats
+  type: function
+  functions:
+    - "db_total_subdomains('{{Output}}/subdomains.txt')"
+    - "db_total_urls('{{Output}}/urls.txt')"
+    - "db_import_asset_from_file('{{Workspace}}', '{{Output}}/httpx.jsonl')"
+    - "db_import_vuln_from_file('{{Workspace}}', '{{Output}}/nuclei.jsonl')"
+```
+
+### Conditional Logic with Functions
+
+```yaml
+- name: check-and-process
+  type: function
+  pre_condition: "fileExists('{{Output}}/results.txt')"
+  function: "fileLength('{{Output}}/results.txt')"
+  exports:
+    result_count: "{{_result}}"
+
+- name: decide-next
+  type: function
+  function: "log_info('Results: ' + {{result_count}})"
+  decision:
+    switch: "{{result_count}}"
+    cases:
+      "0": { goto: _end }
+    default: { goto: process-results }
 ```

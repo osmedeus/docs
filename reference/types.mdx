@@ -1,61 +1,68 @@
 ---
-title: "Type Definitions"
-icon: "brackets"
+title: Type Reference
+description: Complete reference for all type constants used in Osmedeus workflows
 ---
 
-This document describes all type constants and enums defined in `internal/core/`.
+# Type Reference
+
+This document provides a comprehensive reference for all type constants used in Osmedeus workflows.
 
 ## WorkflowKind
 
-Defines the type of workflow.
-
-```go
-type WorkflowKind string
-```
+The `WorkflowKind` type defines the category of a workflow. Each workflow must declare exactly one kind.
 
 | Constant | Value | Description |
 |----------|-------|-------------|
-| `KindModule` | `"module"` | Single execution unit with steps |
+| `KindModule` | `"module"` | Single unit workflow containing steps |
 | `KindFlow` | `"flow"` | Orchestrates multiple modules |
+| `KindFragment` | `"fragment"` | Reusable step collection for embedding in modules |
 
-**Helper Methods:**
+### Helper Methods
+
 - `IsModule()` - Returns true if workflow is a module
 - `IsFlow()` - Returns true if workflow is a flow
+- `IsFragment()` - Returns true if workflow is a fragment
 
 ## StepType
 
-Defines the execution type for a step.
-
-```go
-type StepType string
-```
+The `StepType` type defines the execution behavior of a step within a module or fragment.
 
 | Constant | Value | Description |
 |----------|-------|-------------|
-| `StepTypeBash` | `"bash"` | Execute shell commands |
+| `StepTypeBash` | `"bash"` | Execute shell commands locally |
 | `StepTypeFunction` | `"function"` | Execute utility functions |
-| `StepTypeParallel` | `"parallel-steps"` | Execute steps concurrently |
-| `StepTypeForeach` | `"foreach"` | Iterate over input items |
-| `StepTypeRemoteBash` | `"remote-bash"` | Execute via Docker/SSH |
+| `StepTypeParallel` | `"parallel-steps"` | Execute steps in parallel |
+| `StepTypeForeach` | `"foreach"` | Iterate over input lines |
+| `StepTypeRemoteBash` | `"remote-bash"` | Execute commands remotely (Docker/SSH) |
 | `StepTypeHTTP` | `"http"` | Make HTTP requests |
-| `StepTypeLLM` | `"llm"` | LLM/AI interaction |
+| `StepTypeLLM` | `"llm"` | Interact with LLM APIs |
+| `StepTypeFragmentStep` | `"fragment-step"` | Execute a fragment inline |
 
-**Helper Methods:**
-- `IsBashStep()` - Check if step is bash
-- `IsFunctionStep()` - Check if step is function
-- `IsParallelStep()` - Check if step is parallel-steps
-- `IsForeachStep()` - Check if step is foreach
-- `IsRemoteBashStep()` - Check if step is remote-bash
-- `IsHTTPStep()` - Check if step is HTTP
-- `IsLLMStep()` - Check if step is LLM
+### Helper Methods
+
+- `IsBashStep()` - Returns true if step is bash type
+- `IsFunctionStep()` - Returns true if step is function type
+- `IsParallelStep()` - Returns true if step is parallel-steps type
+- `IsForeachStep()` - Returns true if step is foreach type
+- `IsRemoteBashStep()` - Returns true if step is remote-bash type
+- `IsHTTPStep()` - Returns true if step is http type
+- `IsLLMStep()` - Returns true if step is llm type
+- `IsFragmentStep()` - Returns true if step is fragment-step type
+
+## TriggerType
+
+The `TriggerType` type defines how workflows can be triggered.
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `TriggerCron` | `"cron"` | Scheduled execution via cron expression |
+| `TriggerEvent` | `"event"` | Triggered by system events |
+| `TriggerWatch` | `"watch"` | Triggered by file system changes |
+| `TriggerManual` | `"manual"` | Manual CLI execution |
 
 ## RunnerType
 
-Defines the execution environment.
-
-```go
-type RunnerType string
-```
+The `RunnerType` type defines the execution environment for steps.
 
 | Constant | Value | Description |
 |----------|-------|-------------|
@@ -63,216 +70,110 @@ type RunnerType string
 | `RunnerTypeDocker` | `"docker"` | Execute in Docker container |
 | `RunnerTypeSSH` | `"ssh"` | Execute on remote machine via SSH |
 
-## TriggerType
-
-Defines when a workflow should execute.
-
-```go
-type TriggerType string
-```
-
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `TriggerCron` | `"cron"` | Schedule via cron expression |
-| `TriggerEvent` | `"event"` | Trigger on system event |
-| `TriggerWatch` | `"watch"` | Trigger on file/directory changes |
-| `TriggerManual` | `"manual"` | Manual CLI execution |
-
-**Helper Methods:**
-- `IsCron()` - Returns true if cron trigger
-- `IsEvent()` - Returns true if event trigger
-- `IsWatch()` - Returns true if watch trigger
-- `IsManual()` - Returns true if manual trigger
-- `IsEnabled()` - Returns true if trigger is enabled
-- `MatchesTopic(topic)` - Check if event trigger matches topic
-- `HasFilters()` - Check if event trigger has filters
-- `GetFilters()` - Get filter expressions
-
 ## VariableType
 
-Defines types for variable validation in dependencies.
-
-```go
-type VariableType string
-```
+The `VariableType` type defines input validation for workflow parameters.
 
 | Constant | Value | Description |
 |----------|-------|-------------|
-| `VarTypeDomain` | `"domain"` | Domain name |
-| `VarTypePath` | `"path"` | File path |
+| `VarTypeDomain` | `"domain"` | Valid domain name |
+| `VarTypeSubdomain` | `"subdomain"` | Valid subdomain |
+| `VarTypeURL` | `"url"` | Valid URL |
+| `VarTypeCIDR` | `"cidr"` | Valid CIDR notation |
+| `VarTypePath` | `"path"` | File system path |
+| `VarTypeFile` | `"file"` | Existing file path |
+| `VarTypeFolder` | `"folder"` | Existing folder path |
 | `VarTypeNumber` | `"number"` | Numeric value |
-| `VarTypeFile` | `"file"` | File path (must exist) |
-| `VarTypeFolder` | `"folder"` | Folder path (must exist) |
-| `VarTypeString` | `"string"` | Arbitrary string |
-| `VarTypeSubdomain` | `"subdomain"` | Subdomain (domain with >=2 dots) |
-| `VarTypeURL` | `"url"` | HTTP/HTTPS URL |
-| `VarTypeCIDR` | `"cidr"` | CIDR notation (e.g., 192.168.0.0/24) |
+| `VarTypeString` | `"string"` | Any string value |
 | `VarTypeRepo` | `"repo"` | Git repository URL |
-
-**Validation:**
-Use `MatchesVariableType(value, varType)` to validate values.
 
 ## TargetType
 
-Defines allowed target types for workflows.
-
-```go
-type TargetType string
-```
+The `TargetType` type defines target input classification.
 
 | Constant | Value | Description |
 |----------|-------|-------------|
-| `TargetTypeDomain` | `"domain"` | Domain name |
-| `TargetTypeSubdomain` | `"subdomain"` | Subdomain |
-| `TargetTypeURL` | `"url"` | HTTP/HTTPS URL |
-| `TargetTypeCIDR` | `"cidr"` | CIDR notation |
-| `TargetTypeRepo` | `"repo"` | Git repository |
-| `TargetTypePath` | `"path"` | File path |
-| `TargetTypeFile` | `"file"` | File (must exist) |
-| `TargetTypeFolder` | `"folder"` | Folder (must exist) |
-| `TargetTypeNumber` | `"number"` | Numeric value |
-| `TargetTypeString` | `"string"` | Arbitrary string |
-
-**Validation:**
-Use `MatchesTargetType(target, targetType)` to validate targets.
+| `TargetTypeDomain` | `"domain"` | Domain name target |
+| `TargetTypeSubdomain` | `"subdomain"` | Subdomain target |
+| `TargetTypeURL` | `"url"` | URL target |
+| `TargetTypeCIDR` | `"cidr"` | CIDR range target |
+| `TargetTypeRepo` | `"repo"` | Git repository target |
+| `TargetTypePath` | `"path"` | File system path target |
+| `TargetTypeFile` | `"file"` | File target |
+| `TargetTypeFolder` | `"folder"` | Folder target |
+| `TargetTypeNumber` | `"number"` | Numeric target |
+| `TargetTypeString` | `"string"` | String target |
 
 ## ActionType
 
-Defines action types for on_success and on_error handlers.
-
-```go
-type ActionType string
-```
+The `ActionType` type defines handlers for `on_success` and `on_error` events.
 
 | Constant | Value | Description |
 |----------|-------|-------------|
 | `ActionLog` | `"log"` | Log a message |
 | `ActionAbort` | `"abort"` | Abort workflow execution |
-| `ActionContinue` | `"continue"` | Continue execution |
-| `ActionExport` | `"export"` | Export variable |
-| `ActionRun` | `"run"` | Run another step |
+| `ActionContinue` | `"continue"` | Continue despite error |
+| `ActionExport` | `"export"` | Export a variable |
+| `ActionRun` | `"run"` | Run a command or function |
 | `ActionNotify` | `"notify"` | Send notification |
 
 ## StepStatus
 
-Tracks individual step execution state.
-
-```go
-type StepStatus string
-```
+The `StepStatus` type represents the execution state of a step.
 
 | Constant | Value | Description |
 |----------|-------|-------------|
-| `StepStatusPending` | `"pending"` | Waiting to execute |
-| `StepStatusRunning` | `"running"` | Currently executing |
-| `StepStatusSuccess` | `"success"` | Completed successfully |
-| `StepStatusFailed` | `"failed"` | Execution failed |
-| `StepStatusSkipped` | `"skipped"` | Skipped (pre-condition failed) |
+| `StepStatusPending` | `"pending"` | Step waiting to execute |
+| `StepStatusRunning` | `"running"` | Step currently executing |
+| `StepStatusSuccess` | `"success"` | Step completed successfully |
+| `StepStatusFailed` | `"failed"` | Step failed |
+| `StepStatusSkipped` | `"skipped"` | Step was skipped |
 
 ## RunStatus
 
-Tracks overall workflow execution state.
-
-```go
-type RunStatus string
-```
+The `RunStatus` type represents the overall run state.
 
 | Constant | Value | Description |
 |----------|-------|-------------|
-| `RunStatusPending` | `"pending"` | Waiting to start |
-| `RunStatusRunning` | `"running"` | Currently executing |
-| `RunStatusCompleted` | `"completed"` | Completed successfully |
-| `RunStatusFailed` | `"failed"` | Execution failed |
-| `RunStatusCancelled` | `"cancelled"` | User-cancelled |
-| `RunStatusSkipped` | `"skipped"` | Skipped (pre-conditions) |
+| `RunStatusPending` | `"pending"` | Run waiting to start |
+| `RunStatusRunning` | `"running"` | Run in progress |
+| `RunStatusCompleted` | `"completed"` | Run completed successfully |
+| `RunStatusFailed` | `"failed"` | Run failed |
+| `RunStatusCancelled` | `"cancelled"` | Run was cancelled |
+| `RunStatusSkipped` | `"skipped"` | Run was skipped |
 
-## LLM Types
+## Severity (Linter)
 
-### LLMMessageRole
-
-Defines message roles in LLM conversations.
-
-```go
-type LLMMessageRole string
-```
+The `Severity` type defines lint issue severity levels.
 
 | Constant | Value | Description |
 |----------|-------|-------------|
-| `LLMRoleSystem` | `"system"` | System prompt |
-| `LLMRoleUser` | `"user"` | User message |
-| `LLMRoleAssistant` | `"assistant"` | Assistant response |
-| `LLMRoleTool` | `"tool"` | Tool response |
+| `SeverityInfo` | `0` | Informational issue |
+| `SeverityWarning` | `1` | Warning issue |
+| `SeverityError` | `2` | Error issue |
 
-### LLMContentType
+## OutputFormat (Linter)
 
-Defines content types in LLM messages.
-
-```go
-type LLMContentType string
-```
+The `OutputFormat` type defines linter output formats.
 
 | Constant | Value | Description |
 |----------|-------|-------------|
-| `LLMContentTypeText` | `"text"` | Plain text content |
-| `LLMContentTypeImageURL` | `"image_url"` | Image URL content |
-
-## DecisionConfig
-
-Supports switch/case routing for conditional workflow branching.
-
-```go
-type DecisionConfig struct {
-    Switch  string                    // Template variable to evaluate
-    Cases   map[string]DecisionCase   // Case values mapped to goto steps
-    Default *DecisionCase             // Default case if no matches
-}
-
-type DecisionCase struct {
-    Goto string // Target step name (use "_end" to terminate)
-}
-```
-
-**Example YAML:**
-```yaml
-decision:
-  switch: "{{variable}}"
-  cases:
-    "value1": { goto: step-a }
-    "value2": { goto: step-b }
-  default:
-    goto: fallback-step
-```
-
-## Project Metadata
-
-Constants defined in `internal/core/constants.go`:
-
-```go
-VERSION            = "v5.0.0"
-DESC               = "A Modern Orchestration Engine for Security"
-BINARY             = "osmedeus"
-SNAPSHOT           = "osm"
-AUTHOR             = "@j3ssie"
-DOCS               = "https://docs.osmedeus.org"
-LICENSE            = "open-source"
-REPO_URL           = "https://github.com/j3ssie/osmedeus"
-DEFAULT_BASE_REPO  = "https://github.com/osmedeus/osmedeus-base.git"
-METADATA           = "https://metadata.osmedeus.org"
-DefaultUA          = "Mozilla/5.0 (compatible; Osmedeus/VERSION; +REPO_URL)"
-```
+| `FormatPretty` | `"pretty"` | Colored terminal output with context |
+| `FormatJSON` | `"json"` | Machine-readable JSON |
+| `FormatGitHub` | `"github"` | GitHub Actions annotations |
 
 ## Summary Table
 
-| Category | Type Name | Values |
-|----------|-----------|--------|
-| Workflow | WorkflowKind | module, flow |
-| Step | StepType | bash, function, parallel-steps, foreach, remote-bash, http, llm |
-| Runner | RunnerType | host, docker, ssh |
-| Trigger | TriggerType | cron, event, watch, manual |
-| Variable | VariableType | domain, path, number, file, folder, string, subdomain, url, cidr, repo |
-| Target | TargetType | domain, subdomain, url, cidr, repo, path, file, folder, number, string |
-| Action | ActionType | log, abort, continue, export, run, notify |
-| Step Status | StepStatus | pending, running, success, failed, skipped |
-| Run Status | RunStatus | pending, running, completed, failed, cancelled, skipped |
-| LLM Role | LLMMessageRole | system, user, assistant, tool |
-| LLM Content | LLMContentType | text, image_url |
+| Category | Type | Values |
+|----------|------|--------|
+| Workflow | `WorkflowKind` | `module`, `flow`, `fragment` |
+| Step | `StepType` | `bash`, `function`, `parallel-steps`, `foreach`, `remote-bash`, `http`, `llm`, `fragment-step` |
+| Trigger | `TriggerType` | `cron`, `event`, `watch`, `manual` |
+| Runner | `RunnerType` | `host`, `docker`, `ssh` |
+| Variable | `VariableType` | `domain`, `subdomain`, `url`, `cidr`, `path`, `file`, `folder`, `number`, `string`, `repo` |
+| Target | `TargetType` | `domain`, `subdomain`, `url`, `cidr`, `repo`, `path`, `file`, `folder`, `number`, `string` |
+| Action | `ActionType` | `log`, `abort`, `continue`, `export`, `run`, `notify` |
+| Status | `StepStatus` | `pending`, `running`, `success`, `failed`, `skipped` |
+| Run | `RunStatus` | `pending`, `running`, `completed`, `failed`, `cancelled`, `skipped` |
+| Lint Severity | `Severity` | `info`, `warning`, `error` |
+| Lint Format | `OutputFormat` | `pretty`, `json`, `github` |

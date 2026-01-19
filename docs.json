@@ -67,6 +67,7 @@
             "group": "Advanced Topics & Extending Osmedeus",
             "icon": "cube",
             "pages": [
+              "advanced/library",
               "extending/runners",
               "extending/step-types",
               "extending/functions",

@@ -1,271 +1,546 @@
 ---
-title: "Workflows"
-description: "YAML-based workflow definitions and execution"
-icon: "diagram-project"
+title: Workflow Architecture
+description: Deep dive into the Osmedeus workflow system including fragments and linting
 ---
 
-<Callout icon="rocket" color="#FFC107" iconType="regular">Jump right in and run your first Osmedeus workflow in minutes.</Callout>
+# Workflow Architecture
 
-Osmedeus workflows define automated security scanning pipelines using YAML.
+Workflows are the core abstraction in Osmedeus, defining automated security tasks through YAML configuration. This document covers the workflow system architecture, including fragments and the linting system.
 
-## Workflow Types
+## Workflow Kinds
 
-### Module
+Osmedeus supports three workflow kinds:
 
-A **module** is a single execution unit containing a sequence of steps.
-
-```yaml
-kind: module
-name: subdomain-enum
-description: Enumerate subdomains for a target
-
-params:
-  - name: target
-    required: true
-
-steps:
-  - name: run-subfinder
-    type: bash
-    command: subfinder -d {{target}} -o {{Output}}/subdomains.txt
-```
-
-Use modules for:
-- Single scanning tasks
-- Atomic operations
-- Building blocks for flows
-
-### Flow
-
-A **flow** orchestrates multiple modules with dependencies.
-
-```yaml
-kind: flow
-name: full-recon
-description: Complete reconnaissance pipeline
-
-params:
-  - name: target
-    required: true
-
-modules:
-  - name: subdomain-enum
-    path: modules/subdomain-enum.yaml
-
-  - name: http-probe
-    path: modules/http-probe.yaml
-    depends_on:
-      - subdomain-enum
-
-  - name: screenshot
-    path: modules/screenshot.yaml
-    depends_on:
-      - http-probe
-```
-
-Use flows for:
-- Multi-stage pipelines
-- Dependency management
-- Conditional execution
-
-## Execution Lifecycle
-
-### Module Execution
+| Kind | Purpose | Contains |
+|------|---------|----------|
+| `module` | Single execution unit | Steps array |
+| `flow` | Orchestrate modules | Modules array |
+| `fragment` | Reusable step collection | Steps array |
 
 ```
-1. Parse workflow YAML
-2. Validate structure and required params
-3. Create workspace directory
-4. Initialize execution context
-   - Inject built-in variables (Target, Output, etc.)
-   - Merge user parameters
-5. For each step:
-   a. Evaluate pre_condition (skip if false)
-   b. Render templates in step fields
-   c. Dispatch to step executor
-   d. Process exports
-   e. Evaluate decision routing
-   f. Handle on_success/on_error actions
-6. Return result
-```
-
-### Flow Execution
-
-```
-1. Parse flow YAML
-2. Build dependency graph (DAG)
-3. For each module (topologically sorted):
-   a. Check if dependencies completed
-   b. Evaluate condition (skip if false)
-   c. Execute module
-   d. Continue to dependent modules
-4. Aggregate results
+┌─────────────────────────────────────────────────────────────┐
+│                       Flow                                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
+│  │  Module A   │  │  Module B   │  │  Module C   │         │
+│  │  ┌───────┐  │  │  ┌───────┐  │  │  ┌───────┐  │         │
+│  │  │ Step  │  │  │  │ Step  │  │  │  │Fragment│  │         │
+│  │  │ Step  │  │  │  │ Step  │  │  │  │ Step   │  │         │
+│  │  │Fragment│  │  │  └───────┘  │  │  │ Step   │  │         │
+│  │  └───────┘  │  │             │  │  └───────┘  │         │
+│  └─────────────┘  └─────────────┘  └─────────────┘         │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## Workflow Structure
 
-### Module YAML
+### Workflow Type
+
+```go
+type Workflow struct {
+    Kind         WorkflowKind  // module, flow, fragment
+    Name         string        // Unique identifier
+    Description  string        // Human-readable description
+    Tags         TagList       // Comma-separated tags
+    Params       []Param       // Input parameters
+    Triggers     []Trigger     // Automated triggers
+    Dependencies *Dependencies // External tool requirements
+    Reports      []Report      // Output reports
+
+    // Execution preferences
+    Preferences  *Preferences  // Optional execution settings
+
+    // Runner configuration (module-kind only)
+    Runner       RunnerType    // host, docker, ssh
+    RunnerConfig *RunnerConfig // Runner-specific config
+
+    // Module-specific fields
+    Steps    []Step           // Execution steps
+    Includes []FragmentInclude // Fragment includes
+
+    // Flow-specific fields
+    Modules  []ModuleRef      // Module references
+
+    // Internal metadata
+    FilePath string           // Source file path
+    Checksum string           // Content checksum
+}
+```
+
+### Step Type
+
+```go
+type Step struct {
+    Name         string      // Unique step identifier
+    Type         StepType    // Step type
+    DependsOn    []string    // Step dependencies
+    StepRunner   RunnerType  // Per-step runner override
+    PreCondition string      // Skip if false
+    Log          string      // Log file path
+    Timeout      StepTimeout // Execution timeout
+
+    // Bash step fields
+    Command          string
+    Commands         []string
+    ParallelCommands []string
+    StdFile          string    // Stdout capture file
+
+    // Structured argument fields
+    SpeedArgs  string
+    ConfigArgs string
+    InputArgs  string
+    OutputArgs string
+
+    // Function step fields
+    Function          string
+    Functions         []string
+    ParallelFunctions []string
+
+    // Parallel step fields
+    ParallelSteps []Step
+
+    // Foreach step fields
+    Input    string
+    Variable string
+    Threads  StepThreads
+    Step     *Step
+
+    // Remote-bash step fields
+    StepRunnerConfig *StepRunnerConfig
+    StepRemoteFile   string
+    HostOutputFile   string
+
+    // HTTP step fields
+    URL         string
+    Method      string
+    Headers     map[string]string
+    RequestBody string
+
+    // LLM step fields
+    Messages       []LLMMessage
+    Tools          []LLMTool
+    LLMConfig      *LLMStepConfig
+    IsEmbedding    bool
+    EmbeddingInput []string
+
+    // Fragment-step fields
+    FragmentName string            // Fragment to execute
+    Override     map[string]string // Override parameters
+
+    // Common fields
+    Exports   map[string]string
+    OnSuccess []Action
+    OnError   []Action
+    Decision  *DecisionConfig
+}
+```
+
+## Fragments
+
+Fragments are reusable step collections that can be embedded in modules.
+
+### Fragment Definition
 
 ```yaml
-kind: module                    # Required: "module"
-name: my-module                 # Required: workflow name
-description: What it does       # Optional: description
-tags:                          # Optional: categorization
-  - reconnaissance
-  - subdomain
+kind: fragment
+name: common-cleanup
+description: "Clean and deduplicate results"
 
-params:                        # Parameters
-  - name: target
+params:
+  - name: input_file
     required: true
-    description: Target domain
-  - name: threads
-    default: "10"
-    description: Thread count
-
-runner: host                   # Optional: default runner (host|docker|ssh)
-runner_config:                 # Optional: runner configuration
-  image: alpine:latest
-
-trigger:                       # Optional: scheduling triggers
-  - name: daily
-    on: cron
-    schedule: "0 2 * * *"
-
-steps:                         # Required: list of steps
-  - name: step-one
-    type: bash
-    command: echo "Hello"
-```
-
-### Flow YAML
-
-```yaml
-kind: flow                     # Required: "flow"
-name: my-flow                  # Required: workflow name
-description: Pipeline          # Optional: description
-
-params:                        # Flow-level parameters
-  - name: target
+  - name: output_file
     required: true
 
-modules:                       # Required: list of module references
-  - name: first-module
-    path: modules/first.yaml
-    params:                    # Override module params
-      threads: "20"
+steps:
+  - name: sort-unique
+    type: function
+    function: "sortUnix('{{input_file}}', '{{output_file}}')"
 
-  - name: second-module
-    path: modules/second.yaml
-    depends_on:
-      - first-module
-    condition: 'fileLength("{{Output}}/data.txt") > 0'
+  - name: remove-blanks
+    type: function
+    function: "remove_blank_lines('{{output_file}}')"
 ```
 
-## Workspace Structure
+### Fragment Include
 
-Each scan creates a workspace directory:
-
-```
-~/osmedeus-base/workspaces/
-└── example.com/                    # Target workspace
-    ├── workflow.yaml               # Executed workflow (copy)
-    ├── subdomain-enum/             # Module output directory
-    │   ├── subdomains.txt
-    │   └── amass.txt
-    ├── http-probe/
-    │   └── live-hosts.txt
-    └── screenshot/
-        └── screenshots/
-```
-
-Output paths:
-- `{{Output}}` - Points to workspace root
-- `{{Output}}/module-name/` - Recommended per-module output
-
-## Dependency Graph
-
-Flows create a directed acyclic graph (DAG):
+Modules can include fragments:
 
 ```yaml
-modules:
-  - name: A                    # No dependencies - runs first
-    path: modules/a.yaml
+kind: module
+name: subdomain-scan
 
-  - name: B                    # Depends on A
-    path: modules/b.yaml
-    depends_on: [A]
-
-  - name: C                    # Depends on A
-    path: modules/c.yaml
-    depends_on: [A]
-
-  - name: D                    # Depends on B and C
-    path: modules/d.yaml
-    depends_on: [B, C]
+includes:
+  - path: fragments/common-cleanup.yaml
+    fragment_name: cleanup      # Name for fragment-step reference
+    params:                     # Parameter mapping
+      input_file: "{{Output}}/raw.txt"
+    position: prepend           # prepend or append (default: prepend)
 ```
 
-Execution order:
+### FragmentInclude Type
+
+```go
+type FragmentInclude struct {
+    Path         string            // Path to fragment YAML
+    FragmentName string            // Name for fragment-step reference
+    Params       map[string]string // Parameter mapping
+    Position     string            // "prepend" or "append"
+}
 ```
-    A
-   / \
-  B   C
-   \ /
-    D
-```
 
-- A runs first
-- B and C run in parallel (both depend only on A)
-- D runs after both B and C complete
+### Fragment-Step Execution
 
-## Conditional Execution
-
-### Pre-conditions (Steps)
-
-Skip a step based on a condition:
+The `fragment-step` type executes a named fragment inline:
 
 ```yaml
-- name: nuclei-scan
-  type: bash
-  pre_condition: 'fileLength("{{Output}}/live-hosts.txt") > 0'
-  command: nuclei -l {{Output}}/live-hosts.txt
+- name: cleanup-results
+  type: fragment-step
+  fragment_name: cleanup
+  override:
+    input_file: "{{Output}}/subdomains-raw.txt"
+    output_file: "{{Output}}/subdomains.txt"
+    threads: "20"  # Can override step fields too
 ```
 
-### Conditions (Modules in Flow)
+### FragmentStepExecutor
 
-Skip a module based on a condition:
+```go
+type FragmentStepExecutor struct {
+    dispatcher     *StepDispatcher
+    templateEngine template.TemplateEngine
+    loader         *parser.Loader
+}
+
+func (e *FragmentStepExecutor) Execute(ctx context.Context, step *core.Step, execCtx *core.ExecutionContext) (*core.StepResult, error) {
+    // 1. Validate fragment_name
+    if step.FragmentName == "" {
+        return nil, fmt.Errorf("fragment-step requires 'fragment_name' field")
+    }
+
+    // 2. Get fragment from loader
+    fragment, ok := e.loader.GetNamedFragment(step.FragmentName)
+    if !ok {
+        return nil, fmt.Errorf("fragment '%s' not found", step.FragmentName)
+    }
+
+    // 3. Clone steps and apply overrides
+    steps := e.applyOverrides(fragment.Steps, step.Override)
+
+    // 4. Execute each fragment step
+    for _, fragmentStep := range steps {
+        stepCopy := fragmentStep.Clone()
+        childResult, err := e.dispatcher.Dispatch(ctx, stepCopy, execCtx)
+        if err != nil {
+            return nil, err
+        }
+        // Merge exports
+        for k, v := range childResult.Exports {
+            result.Exports[k] = v
+        }
+    }
+
+    return result, nil
+}
+```
+
+### Override Types
+
+The `override` map supports both step fields and template variables:
+
+```go
+func (e *FragmentStepExecutor) applyOverrides(steps []core.Step, overrides map[string]string) []core.Step {
+    // Separate step fields from template variables
+    stepFields := map[string]bool{"threads": true, "timeout": true}
+
+    for i, step := range steps {
+        // 1. Apply step field overrides
+        for key, value := range overrides {
+            if stepFields[key] {
+                switch key {
+                case "threads":
+                    step.Threads = core.StepThreads(value)
+                case "timeout":
+                    step.Timeout = core.StepTimeout(value)
+                }
+            }
+        }
+
+        // 2. Apply template variable substitution
+        for oldVar, newValue := range overrides {
+            if !stepFields[oldVar] {
+                placeholder := "{{" + oldVar + "}}"
+                step.Command = strings.ReplaceAll(step.Command, placeholder, newValue)
+                // ... apply to all relevant fields
+            }
+        }
+    }
+    return steps
+}
+```
+
+## Workflow Linting
+
+The linter validates workflows for common issues.
+
+### Linter Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Linter                               │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                   LinterOptions                     │    │
+│  │  - DisabledRules: []string                          │    │
+│  │  - MinSeverity: Severity                            │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                           │                                 │
+│                           ▼                                 │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                   WorkflowAST                       │    │
+│  │  - Workflow: *core.Workflow                         │    │
+│  │  - Source: []byte                                   │    │
+│  │  - Root: ast.Node                                   │    │
+│  │  - NodeMap: map[string]ast.Node                     │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                           │                                 │
+│                           ▼                                 │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                    Rules                            │    │
+│  │  ┌──────────────────┐  ┌──────────────────┐        │    │
+│  │  │ MissingRequired  │  │ DuplicateStepName│        │    │
+│  │  └──────────────────┘  └──────────────────┘        │    │
+│  │  ┌──────────────────┐  ┌──────────────────┐        │    │
+│  │  │   EmptyStep      │  │ UnusedVariable   │        │    │
+│  │  └──────────────────┘  └──────────────────┘        │    │
+│  │  ┌──────────────────┐  ┌──────────────────┐        │    │
+│  │  │  InvalidGoto     │  │InvalidDependsOn  │        │    │
+│  │  └──────────────────┘  └──────────────────┘        │    │
+│  │  ┌──────────────────┐  ┌──────────────────┐        │    │
+│  │  │CircularDependency│  │UndefinedVariable │        │    │
+│  │  └──────────────────┘  └──────────────────┘        │    │
+│  └─────────────────────────────────────────────────────┘    │
+│                           │                                 │
+│                           ▼                                 │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │                   LintResult                        │    │
+│  │  - Issues: []LintIssue                              │    │
+│  │  - Errors: int                                      │    │
+│  │  - Warnings: int                                    │    │
+│  │  - Infos: int                                       │    │
+│  └─────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Built-in Rules
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| `missing-required-field` | warning | Required fields (name, kind, type) missing |
+| `duplicate-step-name` | warning | Multiple steps with same name |
+| `empty-step` | warning | Step has no executable content |
+| `unused-variable` | info | Variable exported but never used |
+| `undefined-variable` | warning | Variable referenced but not defined |
+| `invalid-goto` | warning | Decision goto references non-existent step |
+| `invalid-depends-on` | warning | depends_on references non-existent step |
+| `circular-dependency` | warning | Circular step dependencies detected |
+
+### LinterRule Interface
+
+```go
+type LinterRule interface {
+    Name() string                    // Unique identifier
+    Description() string             // Human-readable description
+    Severity() Severity              // Default severity
+    Check(ast *WorkflowAST) []LintIssue
+}
+```
+
+### LintIssue Type
+
+```go
+type LintIssue struct {
+    Rule       string   // Rule name
+    Severity   Severity // Issue severity
+    Message    string   // Human-readable description
+    Suggestion string   // Fix suggestion
+    Line       int      // 1-based line number
+    Column     int      // 1-based column number
+    Field      string   // YAML path (e.g., "steps[0].bash")
+}
+```
+
+### Running the Linter
+
+#### CLI Usage
+
+```bash
+# Validate by name
+osmedeus workflow validate subdomain-enum
+
+# Validate file
+osmedeus workflow lint ./my-workflow.yaml
+
+# Validate folder
+osmedeus workflow validate /path/to/workflows/
+
+# CI mode
+osmedeus workflow lint . --check --format json
+```
+
+#### Output Formats
+
+**Pretty (default)**:
+```
+workflows/test.yaml:15:12 warning undefined-variable
+  Variable 'unknown_var' is not defined
+  Suggestion: Check that the variable is defined in params or a previous step's exports
+```
+
+**JSON**:
+```json
+{
+  "file_path": "workflows/test.yaml",
+  "issues": [
+    {
+      "rule": "undefined-variable",
+      "severity": "warning",
+      "message": "Variable 'unknown_var' is not defined",
+      "line": 15,
+      "column": 12,
+      "field": "steps[2].command"
+    }
+  ]
+}
+```
+
+**GitHub Actions**:
+```
+::warning file=workflows/test.yaml,line=15,col=12::undefined-variable: Variable 'unknown_var' is not defined
+```
+
+### Disabling Rules
+
+```bash
+# Disable specific rules
+osmedeus workflow lint . --disable unused-variable,empty-step
+```
+
+### Custom Rules
+
+Implement the `LinterRule` interface:
+
+```go
+type MyCustomRule struct{}
+
+func (r *MyCustomRule) Name() string { return "my-custom-rule" }
+
+func (r *MyCustomRule) Description() string {
+    return "Description of what this rule checks"
+}
+
+func (r *MyCustomRule) Severity() Severity { return SeverityWarning }
+
+func (r *MyCustomRule) Check(wast *WorkflowAST) []LintIssue {
+    var issues []LintIssue
+    w := wast.Workflow
+
+    // Implement your validation logic
+    for i, step := range w.Steps {
+        if /* condition */ {
+            line, col := wast.FindStepPosition(step.Name)
+            issues = append(issues, LintIssue{
+                Rule:       r.Name(),
+                Severity:   r.Severity(),
+                Message:    "Issue description",
+                Suggestion: "How to fix",
+                Line:       line,
+                Column:     col,
+                Field:      fmt.Sprintf("steps[%d]", i),
+            })
+        }
+    }
+
+    return issues
+}
+
+// Register the rule
+linter := linter.NewDefaultLinter()
+linter.RegisterRule(&MyCustomRule{})
+```
+
+## Decision Routing
+
+Steps support conditional branching:
 
 ```yaml
-modules:
-  - name: vuln-scan
-    path: modules/vuln.yaml
-    depends_on: [http-probe]
-    condition: 'fileLength("{{Output}}/live-hosts.txt") > 0'
+decision:
+  switch: "{{status}}"
+  cases:
+    "critical": { goto: alert-step }
+    "high": { goto: process-high }
+    "none": { goto: _end }
+  default: { goto: continue-step }
 ```
 
-## Workflow Resolution
+### DecisionConfig Type
 
-When you run `osmedeus run -m <name>`, the loader searches:
+```go
+type DecisionConfig struct {
+    Switch  string                  // Variable to evaluate
+    Cases   map[string]DecisionCase // Case mappings
+    Default *DecisionCase           // Default case
+}
 
-1. `workflows/<name>.yaml`
-2. `workflows/<name>-module.yaml`
-3. `workflows/modules/<name>.yaml`
-4. `workflows/modules/<name>-module.yaml`
+type DecisionCase struct {
+    Goto string // Target step name or "_end"
+}
+```
 
-For flows (`-f <name>`):
-1. `workflows/<name>.yaml`
-2. `workflows/<name>-flow.yaml`
-3. `workflows/flows/<name>.yaml`
-4. `workflows/flows/<name>-flow.yaml`
+## Workflow Execution Context
+
+```go
+type ExecutionContext struct {
+    RunID         string
+    Target        string
+    Workspace     string
+    Output        string
+    Variables     map[string]interface{}
+    Exports       map[string]interface{}
+    StepResults   map[string]*StepResult
+    Config        *config.Config
+    Runner        runner.Runner
+    TemplateEngine template.TemplateEngine
+    Runtime       *functions.GojaRuntime
+}
+```
 
 ## Best Practices
 
-1. **One task per module** - Keep modules focused
-2. **Use flows for pipelines** - Orchestrate with dependencies
-3. **Parameterize everything** - Make workflows reusable
-4. **Check file existence** - Use pre_condition to avoid errors
-5. **Organize output** - Use `{{Output}}/module-name/` paths
+### Workflow Design
 
-## Next Steps
+1. **Use fragments** for reusable step collections
+2. **Keep modules focused** - Single responsibility
+3. **Use flows** to orchestrate complex pipelines
+4. **Leverage decision routing** for adaptive workflows
+5. **Define dependencies** with `depends_on` for DAG execution
 
-- [Step Types](../workflows/step-types) - Available step types
-- [Variables](../workflows/variables) - Parameters and exports
-- [Control Flow](../workflows/control-flow) - Conditions and routing
+### Performance
+
+1. **Use parallel_commands** for independent commands
+2. **Use parallel_functions** for independent function calls
+3. **Set appropriate timeouts** to prevent hanging
+4. **Use foreach** with appropriate thread counts
+
+### Validation
+
+1. **Run linter** before deploying workflows
+2. **Use CI integration** with `--check --format github`
+3. **Enable all rules** during development
+4. **Use type annotations** in params for validation
+
+### Error Handling
+
+1. **Use on_error handlers** for graceful failures
+2. **Use pre_condition** to skip steps safely
+3. **Export meaningful error information**
+4. **Log appropriately** for debugging
