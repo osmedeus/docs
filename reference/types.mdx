@@ -1,6 +1,7 @@
 ---
 title: Type Reference
 description: Complete reference for all type constants used in Osmedeus workflows
+icon: "brackets"
 ---
 
 # Type Reference
@@ -162,6 +163,19 @@ The `OutputFormat` type defines linter output formats.
 | `FormatJSON` | `"json"` | Machine-readable JSON |
 | `FormatGitHub` | `"github"` | GitHub Actions annotations |
 
+## OverrideMode (Inheritance)
+
+The `OverrideMode` type defines merge strategies for workflow inheritance.
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `OverrideModeReplace` | `"replace"` | Completely replace parent items with child items |
+| `OverrideModePrepend` | `"prepend"` | Add child items before parent items |
+| `OverrideModeAppend` | `"append"` | Add child items after parent items (default) |
+| `OverrideModeMerge` | `"merge"` | Match by name: replace, append new, remove specified |
+
+Used in the `override.steps.mode` and `override.modules.mode` fields when inheriting workflows.
+
 ## Summary Table
 
 | Category | Type | Values |
@@ -177,3 +191,4 @@ The `OutputFormat` type defines linter output formats.
 | Run | `RunStatus` | `pending`, `running`, `completed`, `failed`, `cancelled`, `skipped` |
 | Lint Severity | `Severity` | `info`, `warning`, `error` |
 | Lint Format | `OutputFormat` | `pretty`, `json`, `github` |
+| Override | `OverrideMode` | `replace`, `prepend`, `append`, `merge` |

@@ -272,6 +272,60 @@ http_request("PUT", "https://api.example.com/update",
   '{"data":"value"}')
 ```
 
+## Event Generation Functions
+
+### generate_event(topic, source, data_type, data)
+
+Generate a structured event and send to all configured webhooks.
+
+```javascript
+// Simple string data
+generate_event("discovery", "subdomain-scan", "domain", "api.example.com")  // Returns: true or false
+
+// Complex object data
+generate_event("vulnerability", "nuclei", "finding", {
+  url: "https://example.com/admin",
+  severity: "critical",
+  template: "CVE-2024-1234"
+})
+```
+
+**Parameters:**
+- `topic` - Event category/topic (e.g., "discovery", "vulnerability")
+- `source` - Origin of the event (e.g., "amass", "nuclei")
+- `data_type` - Type of data being sent (e.g., "domain", "url", "finding")
+- `data` - The actual data payload (string or object)
+
+**Returns:** `boolean` - `true` if event was sent successfully
+
+### generate_event_from_file(topic, source, data_type, path)
+
+Read a file and generate an event for each non-empty line.
+
+```javascript
+generate_event_from_file("discovery", "amass", "subdomain", "{{Output}}/subdomains.txt")
+// Returns: number of events generated (e.g., 42)
+```
+
+**Parameters:**
+- `topic` - Event category/topic
+- `source` - Origin of the event
+- `data_type` - Type of data being sent
+- `path` - Path to the file to read
+
+**Returns:** `integer` - Count of events successfully generated
+
+**Event Payload Structure:**
+```json
+{
+  "topic": "discovery",
+  "source": "amass",
+  "data_type": "subdomain",
+  "data": "api.example.com",
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
 ## Database Functions
 
 ### db_select_assets(workspace, format)

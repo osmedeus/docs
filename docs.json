@@ -2,6 +2,11 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "aspen",
   "name": "Osmedeus Docs",
+  "logo": {
+    "light": "/logo/osm-svg-light.svg",
+    "dark": "/logo/osm-svg-dark.svg",
+    "href": "https://www.osmedeus.org"
+  },
   "colors": {
     "primary": "#8B5CF6",
     "light": "#bd93f9",
@@ -26,11 +31,13 @@
             ]
           },
           {
-            "group": "Extra Configuration",
+            "group": "Advanced Setup",
             "icon": "hat-wizard",
             "pages": [
               "advanced/api-key-configuration",
               "advanced/deployment",
+              "advanced/event-driven",
+              "advanced/distributed",
               "advanced/development"
             ]
           },
@@ -72,7 +79,6 @@
               "extending/step-types",
               "extending/functions",
               "extending/cli-commands",
-              "advanced/distributed",
               "advanced/scheduling",
               "advanced/snapshots",
               "advanced/llm"
@@ -101,7 +107,7 @@
         },
         {
           "anchor": "Sponring",
-          "href": "/others/sponsor",
+          "href": "/sponsor",
           "icon": "hands-holding-diamond"
         },
         {
@@ -112,7 +118,6 @@
       ]
     }
   },
-  
 
   "navbar": {
     "links": [
@@ -122,7 +127,7 @@
       },
       {
         "label": "Twitter",
-        "href": "https://osmedeus.org/"
+        "href": "https://x.com/OsmedeusEngine"
       }
     ],
     "primary": {

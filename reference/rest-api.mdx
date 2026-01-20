@@ -1,6 +1,7 @@
 ---
 title: REST API Reference
 description: Complete REST API reference for the Osmedeus server
+icon: "plug"
 ---
 
 # REST API Reference
@@ -156,12 +157,48 @@ GET /osm/api/workflows?tags=recon,fast
 GET /osm/api/workflows/:name
 ```
 
+### Get Workflow Tags
+
+Get all unique tags from indexed workflows.
+
+```bash
+GET /osm/api/workflows/tags
+```
+
+**Response:**
+
+```json
+{
+  "tags": ["recon", "subdomain", "fast", "vuln", "scan"],
+  "count": 5
+}
+```
+
 ### Refresh Workflow Index
 
-Reload workflows from disk.
+Re-index all workflows from filesystem to database.
 
 ```bash
 POST /osm/api/workflows/refresh
+POST /osm/api/workflows/refresh?force=true
+```
+
+**Query Parameters:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `force` | No | Force re-index all workflows regardless of checksum |
+
+**Response:**
+
+```json
+{
+  "message": "Workflows indexed successfully",
+  "added": 5,
+  "updated": 2,
+  "removed": 1,
+  "errors": []
+}
 ```
 
 ---

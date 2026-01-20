@@ -46,6 +46,160 @@ pre_condition: 'fileExists("{{Output}}/subs.txt") && {{threads}} > 0'
 | `isEmpty(str)` | True if string is empty |
 | `contains(str, substr)` | True if string contains substring |
 
+## Step Dependencies (DAG Execution)
+
+Steps can declare dependencies on other steps using the `depends_on` field. This enables:
+
+- Parallel execution of independent steps
+- Automatic ordering based on dependencies
+- DAG (Directed Acyclic Graph) execution
+
+### Basic Dependencies
+
+```yaml
+steps:
+  - name: subfinder
+    type: bash
+    command: "subfinder -d {{Target}} -o {{Output}}/subfinder.txt"
+
+  - name: amass
+    type: bash
+    command: "amass enum -d {{Target}} -o {{Output}}/amass.txt"
+
+  - name: merge-results
+    type: function
+    depends_on:
+      - subfinder
+      - amass
+    functions:
+      - "appendFile('{{Output}}/all-subs.txt', '{{Output}}/subfinder.txt')"
+      - "appendFile('{{Output}}/all-subs.txt', '{{Output}}/amass.txt')"
+```
+
+In this example:
+- `subfinder` and `amass` run in parallel (no dependencies)
+- `merge-results` waits for both to complete before executing
+
+### DAG Execution
+
+The executor builds a dependency graph and uses topological sorting (Kahn's algorithm) to determine execution order:
+
+```
+┌───────────┐     ┌───────────┐
+│ subfinder │     │   amass   │
+└─────┬─────┘     └─────┬─────┘
+      │                 │
+      │  ┌──────────────┘
+      │  │
+      ▼  ▼
+┌─────────────┐
+│merge-results│
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│ http-probe  │
+└─────────────┘
+```
+
+Steps at the same "level" (no dependencies between them) execute concurrently.
+
+### Multiple Dependencies
+
+```yaml
+- name: final-report
+  type: bash
+  depends_on:
+    - vuln-scan
+    - port-scan
+    - screenshot
+  command: "generate-report {{Output}}"
+```
+
+The step waits for all listed dependencies to complete successfully.
+
+### Cascade Failure
+
+If a dependency fails:
+
+1. The dependent step is marked as failed (not executed)
+2. All downstream steps are also marked as failed
+3. Independent branches continue execution
+
+```yaml
+# If subfinder fails:
+# - merge-results is skipped
+# - amass continues (independent)
+```
+
+### Dependencies vs Sequential Execution
+
+Without `depends_on`, steps execute sequentially in order:
+
+```yaml
+steps:
+  - name: step1     # Runs first
+    type: bash
+    command: "..."
+
+  - name: step2     # Runs second (waits for step1)
+    type: bash
+    command: "..."
+```
+
+With `depends_on`, steps can run in parallel:
+
+```yaml
+steps:
+  - name: step1     # Runs first (parallel with step2)
+    type: bash
+    command: "..."
+
+  - name: step2     # Runs first (parallel with step1)
+    type: bash
+    command: "..."
+
+  - name: step3     # Waits for both
+    type: bash
+    depends_on: [step1, step2]
+    command: "..."
+```
+
+### Linter Validation
+
+The workflow linter validates dependencies:
+
+| Rule | Description |
+|------|-------------|
+| `invalid-depends-on` | Dependency references non-existent step |
+| `circular-dependency` | Circular dependencies detected |
+
+```bash
+osmedeus workflow lint my-workflow.yaml
+```
+
+### Flow Module Dependencies
+
+Flows also support `depends_on` for modules:
+
+```yaml
+kind: flow
+name: full-pipeline
+
+modules:
+  - name: subdomain-enum
+    path: modules/subdomain-enum.yaml
+
+  - name: port-scan
+    path: modules/port-scan.yaml
+
+  - name: http-probe
+    path: modules/http-probe.yaml
+    depends_on:
+      - subdomain-enum
+      - port-scan
+```
+
 ## Decision Routing
 
 Route to different steps based on variable values using switch/case syntax.

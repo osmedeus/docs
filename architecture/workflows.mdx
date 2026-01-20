@@ -1,6 +1,7 @@
 ---
 title: Workflow Architecture
 description: Deep dive into the Osmedeus workflow system including fragments and linting
+icon: "diagram-project"
 ---
 
 # Workflow Architecture
@@ -133,6 +134,113 @@ type Step struct {
     Decision  *DecisionConfig
 }
 ```
+
+## Workflow Inheritance
+
+Workflows support inheritance through the `extends` field, allowing child workflows to inherit and override parent configurations.
+
+### Inheritance Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  InheritanceResolver                        │
+│                                                             │
+│   Child Workflow                                            │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │ extends: parent-workflow                            │   │
+│   │ override: { params: ..., steps: ... }               │   │
+│   └─────────────────────────────────────────────────────┘   │
+│                           │                                 │
+│                           ▼                                 │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │ 1. Check for circular dependency                    │   │
+│   │ 2. Load parent workflow                             │   │
+│   │ 3. Recursively resolve parent's inheritance         │   │
+│   │ 4. Validate kind compatibility                      │   │
+│   │ 5. Merge parent → child with overrides              │   │
+│   └─────────────────────────────────────────────────────┘   │
+│                           │                                 │
+│                           ▼                                 │
+│   Merged Workflow                                           │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │ All parent fields + child overrides                 │   │
+│   │ ResolvedFrom: "parent-workflow"                     │   │
+│   └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### InheritanceResolver Type
+
+```go
+type InheritanceResolver struct {
+    loader    *Loader
+    resolving map[string]bool  // Track workflows being resolved (circular detection)
+    childPath string           // Directory of current child (for relative resolution)
+}
+```
+
+### Resolution Process
+
+1. **Circular Detection**: Track workflows being resolved to detect circular inheritance
+2. **Parent Loading**: Load parent by name (same directory) or path (relative/absolute)
+3. **Recursive Resolution**: If parent also extends, resolve recursively
+4. **Kind Validation**: Child and parent must have matching `kind` (module/flow)
+5. **Merge**: Apply child's direct fields and override section
+
+### Override Modes
+
+```go
+const (
+    OverrideModeReplace OverrideMode = "replace"   // Replace parent items entirely
+    OverrideModePrepend OverrideMode = "prepend"   // Add child items before parent
+    OverrideModeAppend  OverrideMode = "append"    // Add child items after parent (default)
+    OverrideModeMerge   OverrideMode = "merge"     // Match by name, replace/remove/append
+)
+```
+
+### WorkflowOverride Type
+
+```go
+type WorkflowOverride struct {
+    Params       map[string]*ParamOverride  // Override parameter properties
+    Steps        *StepsOverride             // Steps override (modules only)
+    Modules      *ModulesOverride           // Modules override (flows only)
+    Triggers     []Trigger                  // Replace triggers entirely
+    Dependencies *Dependencies              // Merge with parent dependencies
+    Preferences  *Preferences               // Child overrides parent
+    RunnerConfig *RunnerConfig              // Child overrides parent
+    Runner       *RunnerType                // Override runner type
+}
+```
+
+### StepsOverride Type
+
+```go
+type StepsOverride struct {
+    Mode    OverrideMode  // replace, prepend, append, merge
+    Steps   []Step        // Steps to add/match
+    Remove  []string      // Step names to remove (merge mode)
+    Replace []Step        // Steps to replace by name (merge mode)
+}
+```
+
+### Merge Priority
+
+```
+Priority: Child direct fields > Child override > Parent
+
+1. Start with clone of parent workflow
+2. Apply child's direct fields (name, description, tags)
+3. Apply override section by mode
+4. Clear extends field to prevent re-resolution
+```
+
+### Parent Resolution Order
+
+1. Same directory as child (name + .yaml/.yml)
+2. Relative path from child's directory
+3. Workflows directory search by name
+4. Absolute path
 
 ## Fragments
 

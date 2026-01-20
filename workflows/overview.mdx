@@ -284,6 +284,187 @@ The `undefined-variable` rule exists but is not enabled by default due to the la
 - **warning** - Potential issues that may cause problems (e.g., duplicate names)
 - **error** - Critical issues that will likely cause failures
 
+## Workflow Inheritance
+
+Workflows can extend parent workflows using the `extends` field. This enables:
+
+- Reusing common configurations across workflows
+- Creating specialized variants (e.g., fast, aggressive, stealth)
+- Maintaining consistent base workflows with targeted overrides
+
+### Basic Inheritance
+
+```yaml
+kind: module
+name: subdomain-enum-fast
+extends: subdomain-enum-base
+
+# Override description
+description: "Fast subdomain enumeration (reduced timeout)"
+
+# Override section specifies what to change
+override:
+  params:
+    threads:
+      default: 50
+    timeout:
+      default: "10m"
+```
+
+### Extends Field
+
+The `extends` field specifies the parent workflow to inherit from:
+
+```yaml
+extends: parent-workflow-name     # By name (same directory)
+extends: ./parent.yaml            # By relative path
+extends: modules/base-module.yaml # By path from workflow directory
+```
+
+The child workflow inherits all fields from the parent, with the child's fields taking precedence.
+
+### Override Modes
+
+When overriding steps (modules) or modules (flows), you can specify a merge strategy:
+
+| Mode | Description |
+|------|-------------|
+| `replace` | Completely replace parent items with child items |
+| `prepend` | Add child items before parent items |
+| `append` | Add child items after parent items (default) |
+| `merge` | Match by name: replace matching, append new, remove specified |
+
+#### Append Mode (Default)
+
+```yaml
+kind: module
+name: extended-enum
+extends: base-enum
+
+override:
+  steps:
+    mode: append
+    steps:
+      - name: additional-step
+        type: bash
+        command: "extra-tool -t {{Target}}"
+```
+
+#### Prepend Mode
+
+```yaml
+override:
+  steps:
+    mode: prepend
+    steps:
+      - name: setup-step
+        type: bash
+        command: "setup-tool"
+```
+
+#### Replace Mode
+
+```yaml
+override:
+  steps:
+    mode: replace
+    steps:
+      - name: only-step
+        type: bash
+        command: "completely-different-tool"
+```
+
+#### Merge Mode
+
+```yaml
+override:
+  steps:
+    mode: merge
+    # Replace existing step by name
+    replace:
+      - name: subfinder
+        type: bash
+        command: "subfinder -d {{Target}} --all -o {{Output}}/subfinder.txt"
+    # Remove steps by name
+    remove:
+      - amass-passive
+    # Append new steps
+    steps:
+      - name: new-tool
+        type: bash
+        command: "new-tool -t {{Target}}"
+```
+
+### Override Sections
+
+The `override` block supports these sections:
+
+| Section | Description |
+|---------|-------------|
+| `params` | Override parameter defaults, types, or required status |
+| `steps` | Override steps (module workflows only) |
+| `modules` | Override modules (flow workflows only) |
+| `triggers` | Replace parent triggers entirely |
+| `dependencies` | Merge with parent dependencies |
+| `preferences` | Override execution preferences |
+| `runner_config` | Override runner configuration |
+| `runner` | Override runner type |
+
+### Parameter Overrides
+
+Override specific parameter properties:
+
+```yaml
+override:
+  params:
+    threads:
+      default: 50           # Override default value
+    wordlist:
+      default: "{{Data}}/fast-wordlist.txt"
+    new_param:              # Add new parameter
+      default: "value"
+      required: false
+```
+
+### Multi-Level Inheritance
+
+Workflows can form inheritance chains:
+
+```yaml
+# base.yaml
+kind: module
+name: scan-base
+steps:
+  - name: common-step
+    type: bash
+    command: "common-tool"
+
+# fast.yaml
+kind: module
+name: scan-fast
+extends: scan-base
+override:
+  params:
+    threads:
+      default: 100
+
+# aggressive-fast.yaml
+kind: module
+name: scan-aggressive-fast
+extends: scan-fast
+override:
+  params:
+    rate_limit:
+      default: 1000
+```
+
+### Inheritance Rules
+
+1. **Kind must match** - Child and parent must have the same `kind` (module/flow)
+2. **Circular detection** - Circular inheritance chains are detected and rejected
+3. **Name uniqueness** - Child's `name` overrides parent's name
+4. **File path** - Child's `FilePath` is preserved (for error reporting)
+
 ## Best Practices
 
 1. **One task per module** - Keep modules focused
@@ -291,6 +472,8 @@ The `undefined-variable` rule exists but is not enabled by default due to the la
 3. **Descriptive names** - `subdomain-enum` not `step1`
 4. **Document parameters** - Add descriptions
 5. **Use tags** - Enable filtering
+6. **Use inheritance** - Create base workflows and specialized variants
+7. **Prefer merge mode** - For fine-grained step control in child workflows
 
 ## Next Steps
 

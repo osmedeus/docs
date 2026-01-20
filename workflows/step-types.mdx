@@ -131,7 +131,7 @@ Execute utility functions via Goja JavaScript VM.
 
 ## foreach
 
-Iterate over lines in a file.
+Iterate over lines in a file with parallel execution using a worker pool.
 
 ### Basic Loop
 
@@ -161,16 +161,78 @@ Iterate over lines in a file.
     command: nuclei -u [[host]] -t {{templates}} -o {{Output}}/nuclei-[[host]].txt
 ```
 
+### Bounded Concurrency
+
+The foreach executor uses a worker pool pattern:
+
+```
+┌───────────────────────────────────────────────────┐
+│                  Foreach Executor                  │
+│                                                    │
+│   Input File: subdomains.txt (1000 lines)         │
+│                      │                             │
+│                      ▼                             │
+│   ┌────────────────────────────────────────────┐  │
+│   │            Worker Pool (threads: 10)        │  │
+│   │  ┌────┐ ┌────┐ ┌────┐ ... ┌────┐          │  │
+│   │  │ W1 │ │ W2 │ │ W3 │     │ W10│          │  │
+│   │  └────┘ └────┘ └────┘     └────┘          │  │
+│   └────────────────────────────────────────────┘  │
+│                      │                             │
+│                      ▼                             │
+│   Results collected after all items processed      │
+│                                                    │
+└───────────────────────────────────────────────────┘
+```
+
+- Workers pull items from a shared queue
+- Maximum `threads` items processed concurrently
+- Memory-efficient: doesn't spawn all goroutines upfront
+- Graceful cancellation on context timeout
+
 ### Fields
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `input` | Yes | Path to file with items (one per line) |
 | `variable` | Yes | Variable name for current item |
-| `threads` | No | Concurrent iterations (default: 1) |
+| `threads` | No | Maximum concurrent iterations (default: 1) |
 | `step` | Yes | Step to execute for each item |
 
-Note: Use `[[variable]]` (double brackets) for loop variables to avoid conflicts with `{{templates}}`.
+### Variable Syntax
+
+Use `[[variable]]` (double brackets) for loop variables to avoid conflicts with `{{templates}}`:
+
+```yaml
+step:
+  name: scan
+  type: bash
+  # [[subdomain]] - replaced per iteration
+  # {{Output}} - resolved once before loop
+  command: nuclei -u [[subdomain]] -o {{Output}}/result-[[subdomain]].txt
+```
+
+### Nested Foreach
+
+Foreach steps can contain other foreach steps:
+
+```yaml
+- name: scan-ports-per-host
+  type: foreach
+  input: "{{Output}}/hosts.txt"
+  variable: host
+  threads: 5
+  step:
+    name: scan-ports
+    type: foreach
+    input: "{{Output}}/ports.txt"
+    variable: port
+    threads: 10
+    step:
+      name: probe
+      type: bash
+      command: nc -zv [[host]] [[port]]
+```
 
 ## parallel-steps
 
@@ -264,7 +326,17 @@ Execute commands in Docker or SSH without module-level runner.
 
 ## http
 
-Make HTTP requests.
+Make HTTP requests with automatic retries and connection pooling.
+
+### Supported Methods
+
+| Method | Description |
+|--------|-------------|
+| `GET` | Retrieve data (default) |
+| `POST` | Create/submit data |
+| `PUT` | Update/replace resource |
+| `PATCH` | Partial update |
+| `DELETE` | Remove resource |
 
 ### GET Request
 
@@ -276,8 +348,8 @@ Make HTTP requests.
   headers:
     Authorization: "Bearer {{api_token}}"
   exports:
-    api_response: "{{http_response_body}}"
-    status: "{{http_status_code}}"
+    api_response: "{{fetch_api_http_resp.response_body}}"
+    status: "{{fetch_api_http_resp.status_code}}"
 ```
 
 ### POST Request
@@ -296,16 +368,68 @@ Make HTTP requests.
     }
 ```
 
+### PUT Request
+
+```yaml
+- name: update-config
+  type: http
+  url: "https://api.example.com/config/{{target}}"
+  method: PUT
+  headers:
+    Content-Type: application/json
+    Authorization: "Bearer {{api_token}}"
+  request_body: '{"enabled": true}'
+```
+
+### PATCH Request
+
+```yaml
+- name: patch-status
+  type: http
+  url: "https://api.example.com/scan/{{scan_id}}"
+  method: PATCH
+  headers:
+    Content-Type: application/json
+  request_body: '{"status": "completed"}'
+```
+
+### DELETE Request
+
+```yaml
+- name: remove-entry
+  type: http
+  url: "https://api.example.com/entries/{{entry_id}}"
+  method: DELETE
+  headers:
+    Authorization: "Bearer {{api_token}}"
+```
+
 ### Auto-Exported Variables
 
-After HTTP step execution:
-- `http_status_code` - Response status code
-- `http_response_body` - Response body
-- `http_response_headers` - Response headers (JSON)
+After HTTP step execution, variables are exported with the pattern `<step_name>_http_resp`:
+
+```yaml
+# Access as: {{step_name_http_resp.field}}
+# Fields available:
+#   status_code      - HTTP status code (int)
+#   response_body    - Response body (string)
+#   response_headers - Response headers (map)
+#   content_length   - Response size in bytes (int)
+#   response_time_ms - Request duration in ms (int)
+#   error            - Error message if failed (string or null)
+#   message          - Status message (string)
+```
+
+### HTTP Features
+
+- **Connection Pooling**: Reuses connections for efficiency
+- **Automatic Retries**: Retries on network errors and 5xx responses (up to 3 attempts)
+- **Timeout**: Configurable via step `timeout` field (default: 30s)
+- **Template Support**: Headers and request body support `{{variable}}` interpolation
 
 ## llm
 
-AI-powered processing using LLM APIs.
+AI-powered processing using LLM APIs (OpenAI-compatible).
 
 ### Chat Completion
 
@@ -320,10 +444,21 @@ AI-powered processing using LLM APIs.
         Analyze these vulnerability findings:
         {{readFile("{{Output}}/vulnerabilities.txt")}}
   exports:
-    analysis: "{{llm_response}}"
+    analysis: "{{analyze_findings_content}}"
 ```
 
+### Message Roles
+
+| Role | Description |
+|------|-------------|
+| `system` | System prompt defining behavior |
+| `user` | User input/question |
+| `assistant` | Model's previous response |
+| `tool` | Tool/function call result |
+
 ### With Tool Calling
+
+Define tools the LLM can invoke (OpenAI-compatible function calling):
 
 ```yaml
 - name: intelligent-scan
@@ -344,9 +479,20 @@ AI-powered processing using LLM APIs.
             scan_type:
               type: string
               enum: [port, vuln, web]
+            target:
+              type: string
+              description: Target to scan
+          required:
+            - scan_type
+            - target
+  tool_choice: auto  # auto, none, or {"type": "function", "function": {"name": "run_scan"}}
 ```
 
+Tool calls are available in exports as `{{step_name_llm_resp.tool_calls}}`.
+
 ### Embeddings
+
+Generate vector embeddings for text:
 
 ```yaml
 - name: generate-embeddings
@@ -356,22 +502,110 @@ AI-powered processing using LLM APIs.
     - "{{readFile('{{Output}}/finding1.txt')}}"
     - "{{readFile('{{Output}}/finding2.txt')}}"
   exports:
-    embeddings: "{{llm_embeddings}}"
+    embeddings: "{{generate_embeddings_llm_resp.embeddings}}"
+```
+
+### Multimodal Content (Vision)
+
+Include images in messages:
+
+```yaml
+- name: analyze-screenshot
+  type: llm
+  messages:
+    - role: user
+      content:
+        - type: text
+          text: "Analyze this application screenshot for security issues"
+        - type: image_url
+          image_url:
+            url: "{{Output}}/screenshot.png"
+```
+
+### Structured Output (JSON Schema)
+
+Force structured JSON responses:
+
+```yaml
+- name: structured-analysis
+  type: llm
+  messages:
+    - role: system
+      content: You are a security analyst.
+    - role: user
+      content: Analyze {{target}} and return structured findings.
+  llm_config:
+    response_format:
+      type: json_schema
+      json_schema:
+        name: security_findings
+        schema:
+          type: object
+          properties:
+            severity:
+              type: string
+              enum: [critical, high, medium, low, info]
+            findings:
+              type: array
+              items:
+                type: object
+                properties:
+                  title:
+                    type: string
+                  description:
+                    type: string
+          required:
+            - severity
+            - findings
 ```
 
 ### Configuration Override
+
+Override global LLM settings per step:
 
 ```yaml
 - name: custom-llm
   type: llm
   llm_config:
-    provider: ollama
-    base_url: http://localhost:11434
-    model: llama2
+    model: gpt-4-turbo
+    max_tokens: 4000
+    temperature: 0.3
+    top_p: 0.95
+    timeout: 5m
+    max_retries: 5
+    custom_headers:
+      X-Custom-Header: value
   messages:
     - role: user
       content: Analyze {{target}}
 ```
+
+### Auto-Exported Variables
+
+After LLM step execution:
+
+```yaml
+# Access as: {{step_name_llm_resp.field}} or {{step_name_content}}
+# Fields available in step_name_llm_resp:
+#   id             - Response ID
+#   model          - Model used
+#   content        - Response text (first choice)
+#   finish_reason  - Why generation stopped
+#   role           - Message role
+#   tool_calls     - Tool calls if any (array)
+#   all_contents   - All choices if n > 1
+#   usage          - Token usage (prompt_tokens, completion_tokens, total_tokens)
+#   embeddings     - Embedding vectors (for embedding mode)
+#
+# Shorthand: {{step_name_content}} directly contains the response text
+```
+
+### Provider Rotation
+
+If multiple LLM providers are configured, the executor automatically:
+- Rotates to next provider on rate limits or errors
+- Retries up to `max_retries * provider_count` times
+- Records rate limit metrics for monitoring
 
 ## fragment-step
 
@@ -413,20 +647,46 @@ All steps support these fields:
 ```yaml
 - name: step-name              # Required: unique name
   type: bash                   # Required: step type
+
+  depends_on:                  # Step dependencies (DAG execution)
+    - previous-step-1
+    - previous-step-2
+
   pre_condition: 'expr'        # Skip if false
+  timeout: 30m                 # Step timeout (e.g., 30s, 30m, 1h, 1d)
+  log: "{{Output}}/step.log"   # Log file path
+
   exports:                     # Export values
     var_name: "{{value}}"
+
   on_success:                  # Success handlers
     - action: log
       message: "Done"
+
   on_error:                    # Error handlers
     - action: continue
+
   decision:                    # Conditional routing
     switch: "{{value}}"
     cases:
       "match": { goto: other-step }
     default: { goto: fallback }
 ```
+
+### Field Reference
+
+| Field | Description |
+|-------|-------------|
+| `name` | Required. Unique step identifier |
+| `type` | Required. Step type (bash, function, foreach, etc.) |
+| `depends_on` | Array of step names this step depends on (enables parallel execution) |
+| `pre_condition` | Expression to evaluate; step skipped if false |
+| `timeout` | Maximum execution time (default varies by step type) |
+| `log` | Path to write step output log |
+| `exports` | Map of variable names to values to export |
+| `on_success` | Actions to execute on successful completion |
+| `on_error` | Actions to execute on failure |
+| `decision` | Conditional routing based on variable values |
 
 ## Next Steps
 

@@ -1,6 +1,7 @@
 ---
 title: CLI Reference
 description: Complete command-line interface reference for Osmedeus
+icon: "terminal"
 ---
 
 # CLI Reference
@@ -55,12 +56,30 @@ osmedeus run -f general -T targets.txt
 | `--exclude` | `-x` | Exclude modules (comma-separated) |
 | `--threads-hold` | | Override thread count |
 | `--dry-run` | | Validate without executing |
-| `--progress` | `-G` | Show progress bar |
-| `--chunk` | | Chunk mode for distributed scanning |
-| `--chunk-index` | | Chunk index (1-based) |
-| `--chunk-size` | | Items per chunk |
+| `--progress-bar` | `-G` | Show progress bar during execution (enables silent mode) |
 | `--workspace` | `-w` | Custom workspace name |
 | `--resume` | | Resume from previous state |
+
+### Chunk Mode Options
+
+For distributed scanning across multiple machines:
+
+| Option | Description |
+|--------|-------------|
+| `--chunk-size N` | Split targets into chunks of N targets each |
+| `--chunk-count N` | Split targets into N equal chunks |
+| `--chunk-part M` | Execute only chunk M (0-indexed) |
+| `--chunk-threads` | Override concurrency within chunk |
+
+### Advanced Options
+
+| Option | Description |
+|--------|-------------|
+| `--skip-validation` | Skip target type validation from dependencies.variables |
+| `--disable-workflow-state` | Disable writing workflow YAML to output directory |
+| `--heuristics-check` | Heuristics check level: `none`, `basic`, `advanced` (default: basic) |
+| `--module-url` | URL to fetch module YAML from (supports GitHub private repos) |
+| `--std-module` | Read module YAML from stdin |
 
 ### Examples
 
@@ -83,9 +102,43 @@ osmedeus run -f general -t example.com -x port-scan,vuln-scan
 # Dry run (validate only)
 osmedeus run -f general -t example.com --dry-run
 
-# Chunk mode for distributed scanning
-osmedeus run -f general -T large-targets.txt --chunk --chunk-index 1 --chunk-size 100
+# With progress bar
+osmedeus run -f general -t example.com -G
+
+# Skip target validation
+osmedeus run -m custom-module -t special://target --skip-validation
+
+# Load module from URL
+osmedeus run --module-url https://github.com/user/repo/blob/main/module.yaml -t example.com
+
+# Read module from stdin
+cat my-module.yaml | osmedeus run --std-module -t example.com
+
+# Advanced heuristics checking
+osmedeus run -f general -t example.com --heuristics-check advanced
 ```
+
+### Chunk Mode Examples
+
+```bash
+# Split 1000 targets into chunks of 100 (creates 10 chunks)
+# Machine 1: process chunk 0 (targets 0-99)
+osmedeus run -f general -T large-targets.txt --chunk-size 100 --chunk-part 0
+
+# Machine 2: process chunk 1 (targets 100-199)
+osmedeus run -f general -T large-targets.txt --chunk-size 100 --chunk-part 1
+
+# Split into exactly 5 equal chunks
+osmedeus run -f general -T large-targets.txt --chunk-count 5 --chunk-part 0
+
+# Override concurrency within chunk
+osmedeus run -f general -T large-targets.txt --chunk-size 50 --chunk-part 0 --chunk-threads 10
+
+# View chunk info without executing (omit --chunk-part)
+osmedeus run -f general -T large-targets.txt --chunk-size 100
+```
+
+Chunk mode variables available in workflows: `{{ChunkIndex}}`, `{{ChunkSize}}`, `{{TotalChunks}}`, `{{ChunkStart}}`, `{{ChunkEnd}}`
 
 ---
 

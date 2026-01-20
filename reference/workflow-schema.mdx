@@ -1,6 +1,7 @@
 ---
 title: Workflow Schema Reference
 description: Complete YAML schema reference for Osmedeus workflows
+icon: "diagram-project"
 ---
 
 # Workflow Schema Reference
@@ -16,6 +17,12 @@ kind: module | flow | fragment     # Required: Workflow type
 name: workflow-name               # Required: Unique identifier
 description: "Description text"   # Optional: Human-readable description
 tags: "recon, fast"               # Optional: Comma-separated tags
+
+extends: parent-workflow          # Optional: Parent workflow to inherit from
+override:                         # Optional: Override sections from parent
+  params: {}
+  steps: {}
+  modules: {}
 
 params:                           # Optional: Input parameters
   - name: param_name
@@ -40,6 +47,129 @@ dependencies:                     # Optional: External tool dependencies
 | `module` | Single execution unit | `steps` array |
 | `flow` | Orchestrate modules | `modules` array |
 | `fragment` | Reusable step collection | `steps` array |
+
+## Workflow Inheritance
+
+Workflows can extend parent workflows using the `extends` and `override` fields.
+
+### Extends Field
+
+```yaml
+# By name (searched in workflow directory)
+extends: parent-workflow-name
+
+# By relative path
+extends: ./parent.yaml
+
+# By path from workflow directory
+extends: modules/base-module.yaml
+```
+
+### Override Schema
+
+```yaml
+override:
+  # Override specific parameter properties
+  params:
+    param_name:
+      default: "new-value"
+      type: "string"
+      required: true
+      generator: "generator_func"
+
+  # Override steps (module workflows only)
+  steps:
+    mode: replace | prepend | append | merge
+    steps:                    # Steps to add/replace
+      - name: new-step
+        type: bash
+        command: "..."
+    remove:                   # Step names to remove (merge mode only)
+      - step-to-remove
+    replace:                  # Steps to replace by name (merge mode only)
+      - name: existing-step
+        type: bash
+        command: "new-command"
+
+  # Override modules (flow workflows only)
+  modules:
+    mode: replace | prepend | append | merge
+    modules:                  # Modules to add/replace
+      - name: new-module
+        path: modules/new.yaml
+    remove:                   # Module names to remove (merge mode only)
+      - module-to-remove
+    replace:                  # Modules to replace by name (merge mode only)
+      - name: existing-module
+        path: modules/replacement.yaml
+
+  # Replace triggers entirely
+  triggers:
+    - name: new-trigger
+      on: cron
+      schedule: "0 * * * *"
+
+  # Merge with parent dependencies
+  dependencies:
+    commands:
+      - new-tool
+    files:
+      - /path/to/file
+
+  # Override preferences (child values override parent)
+  preferences:
+    disable_notifications: true
+    silent: false
+
+  # Override runner configuration
+  runner_config:
+    image: "custom-image:latest"
+    env:
+      NEW_VAR: "value"
+
+  # Override runner type
+  runner: docker
+```
+
+### Override Modes
+
+| Mode | Description |
+|------|-------------|
+| `replace` | Completely replace parent items with child items |
+| `prepend` | Add child items before parent items |
+| `append` | Add child items after parent items (default) |
+| `merge` | Match by name: replace matching, append new, remove specified |
+
+### Inheritance Example
+
+```yaml
+# Parent: base-enum.yaml
+kind: module
+name: base-enum
+params:
+  - name: threads
+    default: 10
+steps:
+  - name: subfinder
+    type: bash
+    command: "subfinder -d {{Target}}"
+
+# Child: fast-enum.yaml
+kind: module
+name: fast-enum
+extends: base-enum
+
+override:
+  params:
+    threads:
+      default: 50
+  steps:
+    mode: append
+    steps:
+      - name: additional-tool
+        type: bash
+        command: "extra-tool -t {{Target}}"
+```
 
 ## Module-Specific Fields
 
