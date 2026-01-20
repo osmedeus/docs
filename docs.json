@@ -159,6 +159,11 @@
         "og:image": "https://raw.githubusercontent.com/osmedeus/assets/refs/heads/main/banner.png"
     }
   },
+
+  "banner": {
+    "content": "🛠️ This document is a work in progress, as [**Osmedeus v5.0.0**](https://github.com/j3ssie/osmedeus/releases/tag/v5.0.0-beta) is still in beta and may undergo syntax changes",
+    "dismissible": true
+  },
   "errors": {
     "404": {
       "redirect": false,

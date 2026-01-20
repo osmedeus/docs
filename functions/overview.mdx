@@ -3,7 +3,7 @@ title: "Functions Overview"
 icon: "lightbulb"
 ---
 
-Osmedeus provides utility functions via a Goja JavaScript VM runtime.
+Osmedeus provides 140+ utility functions via a Goja JavaScript runtime. Functions can be used in workflow steps, conditions, and evaluated from the CLI or API.
 
 ## Usage
 
@@ -18,7 +18,7 @@ Osmedeus provides utility functions via a Goja JavaScript VM runtime.
   type: function
   functions:
     - log_info("Checking files")
-    - fileExists("{{Output}}/data.txt")
+    - file_exists("{{Output}}/data.txt")
 ```
 
 ### In Conditions
@@ -26,7 +26,7 @@ Osmedeus provides utility functions via a Goja JavaScript VM runtime.
 ```yaml
 - name: scan
   type: bash
-  pre_condition: 'fileLength("{{Output}}/hosts.txt") > 0'
+  pre_condition: 'file_length("{{Output}}/hosts.txt") > 0'
   command: nuclei -l {{Output}}/hosts.txt
 ```
 
@@ -36,7 +36,7 @@ Osmedeus provides utility functions via a Goja JavaScript VM runtime.
 modules:
   - name: vuln-scan
     path: modules/vuln.yaml
-    condition: 'fileExists("{{Output}}/live.txt")'
+    condition: 'file_exists("{{Output}}/live.txt")'
 ```
 
 ## Function Step Types
@@ -66,9 +66,9 @@ modules:
 - name: parallel-checks
   type: function
   parallel_functions:
-    - fileLength("{{Output}}/file1.txt")
-    - fileLength("{{Output}}/file2.txt")
-    - fileLength("{{Output}}/file3.txt")
+    - file_length("{{Output}}/file1.txt")
+    - file_length("{{Output}}/file2.txt")
+    - file_length("{{Output}}/file3.txt")
 ```
 
 ## Return Values
@@ -80,7 +80,7 @@ Functions return values that can be:
 ```yaml
 - name: count-lines
   type: function
-  function: fileLength("{{Output}}/hosts.txt")
+  function: file_length("{{Output}}/hosts.txt")
   exports:
     host_count: "{{result}}"
 ```
@@ -90,7 +90,7 @@ Functions return values that can be:
 ```yaml
 - name: scan
   type: bash
-  pre_condition: 'fileLength("{{Output}}/hosts.txt") > 0'
+  pre_condition: 'file_length("{{Output}}/hosts.txt") > 0'
   command: scan {{Output}}/hosts.txt
 ```
 
@@ -99,33 +99,77 @@ Functions return values that can be:
 ```yaml
 - name: check
   type: function
-  function: fileExists("{{Output}}/critical.txt")
+  function: file_exists("{{Output}}/critical.txt")
   exports:
     has_critical: "{{result}}"
   decision:
-    - condition: '{{has_critical}}'
-      jump: handle-critical
+    switch: "{{has_critical}}"
+    cases:
+      "true": { goto: handle-critical }
+    default: { goto: continue-normal }
 ```
 
 ## CLI Evaluation
 
-Test functions from the command line:
+### Basic Evaluation
 
 ```bash
 # List all functions
 osmedeus func list
 
 # Evaluate a function
-osmedeus func e 'fileExists("/path/to/file")'
+osmedeus func e 'file_exists("/path/to/file")'
 
 # With target variable
-osmedeus func e 'log_info("Scanning {{target}}")' -t example.com
-
-# Read from stdin
-echo 'trim("  hello  ")' | osmedeus func e -
+osmedeus func e 'log_info("Scanning " + target)' -t example.com
 
 # With custom parameters
-osmedeus func e 'log_info("{{message}}")' --params 'message=Hello World'
+osmedeus func e 'log_info(prefix + target)' -t example.com --params 'prefix=test_'
+```
+
+### Script Source Priority
+
+The CLI determines the script to execute in this order:
+
+1. `--function-file` - Read script from file
+2. `-f/--function` - Function name with remaining args as arguments
+3. Positional argument - Direct expression after `e` or `eval`
+4. `-e/--eval` - Script via flag
+5. `--stdin` - Read from stdin
+
+### Bulk Processing
+
+Process multiple targets from a file:
+
+```bash
+# Process targets from file
+osmedeus func e 'log_info("Processing: " + target)' -T targets.txt
+
+# With concurrency
+osmedeus func e 'http_get("https://" + target)' -T targets.txt -c 10
+
+# Using function files
+osmedeus func e --function-file check.js -T targets.txt -c 5
+
+# With parameters
+osmedeus func e 'log_info(prefix + target)' -T targets.txt --params 'prefix=test_' -c 5
+```
+
+### Function List Options
+
+```bash
+# List all functions
+osmedeus func list
+
+# Search/filter functions
+osmedeus func list -s "event"
+osmedeus func list -s "file"
+
+# Show examples
+osmedeus func list --example
+
+# Custom column width
+osmedeus func list --width 80
 ```
 
 ## API Evaluation
@@ -136,7 +180,7 @@ Evaluate functions via REST API:
 curl -X POST http://localhost:8002/osm/api/functions/eval \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"script": "fileLength(\"/path/to/file\")"}'
+  -d '{"script": "file_length(\"/path/to/file\")"}'
 ```
 
 List available functions:
@@ -152,7 +196,7 @@ Functions have access to execution context:
 
 ```javascript
 // Built-in variables are available
-log_info("Target: " + "{{target}}")
+log_info("Target: " + target)
 log_info("Output: " + "{{Output}}")
 
 // Exports from previous steps
@@ -166,7 +210,7 @@ Functions that fail don't stop workflow execution unless you configure error han
 ```yaml
 - name: risky-function
   type: function
-  function: readFile("/possibly/missing/file.txt")
+  function: read_file("/possibly/missing/file.txt")
   on_error:
     - action: log
       message: "Function failed"
@@ -175,29 +219,45 @@ Functions that fail don't stop workflow execution unless you configure error han
 
 ## Function Categories
 
-| Category | Functions |
-|----------|-----------|
-| **File** | `fileExists`, `fileLength`, `readFile`, `writeFile`, `appendFile`, `dirLength` |
-| **String** | `trim`, `split`, `join`, `replace`, `contains`, `startsWith`, `endsWith`, `match` |
-| **Database** | `db_select`, `db_select_one`, `db_select_assets`, `db_select_vulnerabilities` |
-| **Output** | `log_info`, `log_warning`, `log_error`, `printf`, `cat_file` |
-| **Control** | `exit` |
-| **JSON** | `jq` |
-| **HTTP** | `http_get`, `http_post`, `http_request` |
-| **Event** | `generate_event`, `generate_event_from_file` |
-| **Markdown** | `render_markdown_report`, `convert_jsonl_to_markdown`, `convert_csv_to_markdown` |
-| **Unix** | Various system utilities |
+Osmedeus provides 140+ functions organized into 24 categories:
+
+| Category | Description | Count |
+|----------|-------------|-------|
+| **File** | File/directory operations, grep, glob | 20 |
+| **String** | String manipulation, regex matching | 15 |
+| **Type Conversion** | Parse/convert between types | 4 |
+| **Type Detection** | Detect input types (file, url, ip, etc.) | 1 |
+| **Utility** | General utilities (len, exec, sleep) | 9 |
+| **Logging** | Log messages with level prefixes | 4 |
+| **Color Printing** | Colored terminal output | 4 |
+| **Runtime Variables** | Get/set runtime variables | 2 |
+| **HTTP** | HTTP requests and IP resolution | 4 |
+| **Generation** | Random strings and UUIDs | 2 |
+| **Encoding** | Base64 encode/decode | 2 |
+| **Data Query** | JQ-style JSON querying | 2 |
+| **Notification** | Telegram and webhook notifications | 4 |
+| **Event Generation** | Structured event generation | 2 |
+| **CDN/Storage** | Cloud storage operations (S3-compatible) | 9 |
+| **Unix Commands** | Wrappers for sort, wget, git, tar, etc. | 10 |
+| **Archive (Go)** | Pure Go zip/unzip implementations | 2 |
+| **Diff** | File comparison and diff extraction | 1 |
+| **Output** | Save content, JSONL/CSV conversion | 5 |
+| **URL Processing** | URL deduplication and filtering | 1 |
+| **Markdown** | Markdown rendering and conversion | 6 |
+| **Database** | Asset/vuln import, queries, stats | 42 |
+| **Installer** | Download packages via go-getter/Nix | 3 |
+| **Environment** | Environment variable operations | 2 |
 
 ## Best Practices
 
 1. **Use functions for conditions**
    ```yaml
-   pre_condition: 'fileExists("{{Output}}/input.txt")'
+   pre_condition: 'file_exists("{{Output}}/input.txt")'
    ```
 
 2. **Log meaningful messages**
    ```yaml
-   function: log_info("Found {{host_count}} hosts for {{target}}")
+   function: log_info("Found " + host_count + " hosts for {{Target}}")
    ```
 
 3. **Export function results**
@@ -208,16 +268,23 @@ Functions that fail don't stop workflow execution unless you configure error han
 
 4. **Handle missing files gracefully**
    ```yaml
-   pre_condition: 'fileExists("{{Output}}/data.txt")'
+   pre_condition: 'file_exists("{{Output}}/data.txt")'
    ```
 
-5. **Use appropriate function types**
+5. **Use appropriate logging levels**
+   - `log_debug` for verbose debugging
    - `log_info` for informational messages
-   - `log_warning` for warnings
+   - `log_warn` for warnings
    - `log_error` for errors
+
+6. **Leverage bulk processing for testing**
+   ```bash
+   # Test a function against many targets
+   osmedeus func e 'http_get("https://" + target + "/api/health")' -T domains.txt -c 20
+   ```
 
 ## Next Steps
 
-- [Functions Reference](reference.md) - Complete function list
-- [Control Flow](../workflows/control-flow.md) - Using conditions
-- [Variables](../workflows/variables.md) - Exports and parameters
+- [Functions Reference](reference) - Complete function list with signatures
+- [Control Flow](/workflows/control-flow) - Using conditions and decisions
+- [Variables](/workflows/variables) - Exports and parameters

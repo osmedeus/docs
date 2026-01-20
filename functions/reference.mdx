@@ -3,83 +3,175 @@ title: "Functions Reference"
 icon: "list"
 ---
 
-Complete reference for all utility functions.
+Complete reference for all 140+ utility functions organized by category.
 
 ## File Functions
 
-### fileExists(path)
+Operations on files and directories.
+
+### file_exists(path)
 
 Check if a file exists.
 
 ```javascript
-fileExists("/path/to/file.txt")  // Returns: true or false
+file_exists("/path/to/file.txt")  // Returns: true or false
 ```
 
-### fileLength(path)
+### file_length(path)
 
 Count non-empty lines in a file.
 
 ```javascript
-fileLength("/path/to/hosts.txt")  // Returns: 42
+file_length("{{Output}}/hosts.txt")  // Returns: 42
 ```
 
-### dirLength(path)
+### dir_length(path)
 
 Count entries in a directory.
 
 ```javascript
-dirLength("/path/to/dir")  // Returns: 15
+dir_length("{{Output}}/screenshots")  // Returns: 15
 ```
 
-### readFile(path)
-
-Read entire file contents.
-
-```javascript
-readFile("/path/to/file.txt")  // Returns: file contents as string
-```
-
-### readLines(path)
-
-Read file as array of lines.
-
-```javascript
-readLines("/path/to/file.txt")  // Returns: ["line1", "line2", ...]
-```
-
-### writeFile(path, content)
-
-Write content to file (overwrites).
-
-```javascript
-writeFile("/path/to/output.txt", "Hello World")
-```
-
-### appendFile(path, content)
-
-Append content to file.
-
-```javascript
-appendFile("/path/to/log.txt", "New line\n")
-```
-
-### fileContains(path, pattern)
+### file_contains(path, pattern)
 
 Check if file contains a pattern.
 
 ```javascript
-fileContains("/path/to/file.txt", "error")  // Returns: true or false
+file_contains("{{Output}}/urls.txt", "admin")  // Returns: true or false
 ```
 
-### regexExtract(path, regex)
+### regex_extract(path, pattern)
 
-Extract lines matching a regex.
+Extract lines matching a regex from file.
 
 ```javascript
-regexExtract("/path/to/file.txt", "^https://")  // Returns: matching lines
+regex_extract("{{Output}}/urls.txt", ".*api.*")  // Returns: ["https://api.example.com", ...]
+```
+
+### read_file(path)
+
+Read entire file contents.
+
+```javascript
+read_file("{{Output}}/config.json")  // Returns: file contents as string
+```
+
+### read_lines(path)
+
+Read file as array of lines.
+
+```javascript
+read_lines("{{Output}}/subdomains.txt")  // Returns: ["sub1.example.com", "sub2.example.com", ...]
+```
+
+### remove_file(path)
+
+Delete a file.
+
+```javascript
+remove_file("{{Output}}/temp.txt")  // Returns: true or false
+```
+
+### remove_folder(path)
+
+Delete folder recursively.
+
+```javascript
+remove_folder("{{Output}}/cache")  // Returns: true or false
+```
+
+### rm_rf(path)
+
+Delete file or folder recursively (like `rm -rf`).
+
+```javascript
+rm_rf("{{Output}}/tmp")  // Returns: true or false
+```
+
+### remove_all_except(folder, keep_file)
+
+Remove everything under folder except the specified file.
+
+```javascript
+remove_all_except("{{Output}}", "{{Output}}/keep.txt")  // Returns: true or false
+```
+
+### create_folder(path)
+
+Create folder recursively (like `mkdir -p`).
+
+```javascript
+create_folder("{{Output}}/new-folder")  // Returns: true or false
+```
+
+### append_file(dest, source)
+
+Append source file content to destination file.
+
+```javascript
+append_file("{{Output}}/all.txt", "{{Output}}/part.txt")  // Returns: true or false
+```
+
+### move_file(source, dest)
+
+Move file from source to destination.
+
+```javascript
+move_file("{{Output}}/raw.txt", "{{Output}}/processed.txt")  // Returns: true or false
+```
+
+### glob(pattern)
+
+List filenames matching glob pattern.
+
+```javascript
+glob("{{Output}}/*.txt")  // Returns: ["file1.txt", "file2.txt", ...]
+```
+
+### grep_string_to_file(dest, source, str)
+
+Write lines containing string to destination file.
+
+```javascript
+grep_string_to_file("{{Output}}/admin-urls.txt", "{{Output}}/urls.txt", "admin")  // Returns: true or false
+```
+
+### grep_regex_to_file(dest, source, pattern)
+
+Write lines matching regex to destination file.
+
+```javascript
+grep_regex_to_file("{{Output}}/api-urls.txt", "{{Output}}/urls.txt", ".*api.*")  // Returns: true or false
+```
+
+### grep_string(source, str)
+
+Return lines containing string.
+
+```javascript
+grep_string("{{Output}}/urls.txt", "admin")  // Returns: "https://example.com/admin\nhttps://example.com/admin/login"
+```
+
+### grep_regex(source, pattern)
+
+Return lines matching regex.
+
+```javascript
+grep_regex("{{Output}}/urls.txt", ".*api.*")  // Returns: matching lines as string
+```
+
+### remove_blank_lines(path)
+
+Remove blank lines from file in-place.
+
+```javascript
+remove_blank_lines("{{Output}}/urls.txt")  // Returns: true or false
 ```
 
 ## String Functions
+
+String manipulation operations.
 
 ### trim(str)
 
@@ -89,17 +181,17 @@ Remove leading/trailing whitespace.
 trim("  hello world  ")  // Returns: "hello world"
 ```
 
-### split(str, separator)
+### split(str, delim)
 
-Split string into array.
+Split string by delimiter into array.
 
 ```javascript
 split("a,b,c", ",")  // Returns: ["a", "b", "c"]
 ```
 
-### join(array, separator)
+### join(arr, delim)
 
-Join array into string.
+Join array elements with delimiter.
 
 ```javascript
 join(["a", "b", "c"], "-")  // Returns: "a-b-c"
@@ -107,7 +199,7 @@ join(["a", "b", "c"], "-")  // Returns: "a-b-c"
 
 ### replace(str, old, new)
 
-Replace all occurrences.
+Replace all occurrences of old with new.
 
 ```javascript
 replace("hello world", "world", "there")  // Returns: "hello there"
@@ -121,88 +213,167 @@ Check if string contains substring.
 contains("hello world", "world")  // Returns: true
 ```
 
-### startsWith(str, prefix)
+### starts_with(str, prefix)
 
 Check if string starts with prefix.
 
 ```javascript
-startsWith("hello", "hel")  // Returns: true
+starts_with("hello", "hel")  // Returns: true
 ```
 
-### endsWith(str, suffix)
+### ends_with(str, suffix)
 
 Check if string ends with suffix.
 
 ```javascript
-endsWith("hello", "lo")  // Returns: true
+ends_with("hello.txt", ".txt")  // Returns: true
 ```
 
-### toLowerCase(str)
+### to_lower_case(str)
 
 Convert to lowercase.
 
 ```javascript
-toLowerCase("HELLO")  // Returns: "hello"
+to_lower_case("HELLO")  // Returns: "hello"
 ```
 
-### toUpperCase(str)
+### to_upper_case(str)
 
 Convert to uppercase.
 
 ```javascript
-toUpperCase("hello")  // Returns: "HELLO"
+to_upper_case("hello")  // Returns: "HELLO"
 ```
 
-### match(str, regex)
+### match(str, pattern)
 
-Test if string matches regex.
+Check if string matches regex pattern.
 
 ```javascript
-match("hello123", "\\d+")  // Returns: true
+match("test123", "[0-9]+")  // Returns: true
 ```
 
-### length(str)
+### regex_match(pattern, str)
 
-Get string or array length.
+Check if string matches regex (pattern first).
 
 ```javascript
-length("hello")  // Returns: 5
-length([1,2,3])  // Returns: 3
+regex_match("[0-9]+", "test123")  // Returns: true
 ```
 
-### isEmpty(str)
+### cut_with_delim(input, delim, field)
 
-Check if string is empty.
+Extract field by delimiter (1-indexed, like `cut`).
 
 ```javascript
-isEmpty("")      // Returns: true
-isEmpty("hello") // Returns: false
+cut_with_delim("a:b:c", ":", 2)  // Returns: "b"
 ```
 
-## Output Functions
+### normalize_path(input)
 
-### log_info(message)
-
-Log informational message.
+Replace special characters (/ | : etc.) with underscore.
 
 ```javascript
-log_info("Scanning target: example.com")
+normalize_path("test/path:file")  // Returns: "test_path_file"
 ```
 
-### log_warning(message)
+### normal_path(input)
 
-Log warning message.
+Normalize to path-friendly format (same as `{{TargetSpace}}`).
 
 ```javascript
-log_warning("File not found, using defaults")
+normal_path("https://example.com/path")  // Returns: "example.com_path"
 ```
 
-### log_error(message)
+### clean_sub(path, target?)
 
-Log error message.
+Clean and deduplicate subdomains in file, optionally filter by target domain.
 
 ```javascript
-log_error("Failed to connect to target")
+clean_sub("{{Output}}/subdomains.txt", "example.com")  // Returns: true or false
+```
+
+## Type Conversion Functions
+
+Convert between data types.
+
+### parse_int(str)
+
+Parse string to integer.
+
+```javascript
+parse_int("42")  // Returns: 42
+```
+
+### parse_float(str)
+
+Parse string to float.
+
+```javascript
+parse_float("3.14")  // Returns: 3.14
+```
+
+### to_string(val)
+
+Convert value to string.
+
+```javascript
+to_string(123)  // Returns: "123"
+```
+
+### to_boolean(val)
+
+Convert value to boolean.
+
+```javascript
+to_boolean("true")  // Returns: true
+to_boolean(1)       // Returns: true
+```
+
+## Type Detection Functions
+
+Detect input types.
+
+### get_types(input)
+
+Detect input type: file, folder, cidr, ip, url, domain, or string.
+
+```javascript
+get_types("192.168.1.0/24")     // Returns: "cidr"
+get_types("example.com")        // Returns: "domain"
+get_types("https://example.com") // Returns: "url"
+get_types("/etc/passwd")        // Returns: "file"
+```
+
+## Utility Functions
+
+General utility operations.
+
+### len(val)
+
+Get length of string or array.
+
+```javascript
+len("hello")   // Returns: 5
+len([1, 2, 3]) // Returns: 3
+```
+
+### is_empty(val)
+
+Check if value is empty.
+
+```javascript
+is_empty("")      // Returns: true
+is_empty("hello") // Returns: false
+```
+
+### is_not_empty(val)
+
+Check if value is not empty.
+
+```javascript
+is_not_empty("test")  // Returns: true
+is_not_empty("")      // Returns: false
 ```
 
 ### printf(message)
@@ -210,7 +381,7 @@ log_error("Failed to connect to target")
 Print message to stdout.
 
 ```javascript
-printf("Processing item: " + item)
+printf("Scan started for " + target)
 ```
 
 ### cat_file(path)
@@ -218,10 +389,8 @@ printf("Processing item: " + item)
 Print file contents to stdout.
 
 ```javascript
-cat_file("/path/to/results.txt")
+cat_file("{{Output}}/results.txt")
 ```
-
-## Control Functions
 
 ### exit(code)
 
@@ -232,205 +401,1002 @@ exit(0)  // Success
 exit(1)  // Error
 ```
 
-## JSON Functions
+### exec_cmd(command)
 
-### jq(json, query)
-
-Query JSON with jq syntax.
+Execute bash command and return output.
 
 ```javascript
-jq('{"name":"test","version":"1.0"}', '.name')  // Returns: "test"
-jq('{"items":[1,2,3]}', '.items[]')             // Returns: [1,2,3]
-jq('{"a":{"b":"c"}}', '.a.b')                   // Returns: "c"
+exec_cmd("whoami")  // Returns: "root"
+exec_cmd("date")    // Returns: "Mon Jan 20 10:30:00 UTC 2025"
+```
+
+### sleep(seconds)
+
+Pause execution for n seconds.
+
+```javascript
+sleep(5)  // Pause for 5 seconds
+```
+
+### command_exists(command)
+
+Check if command exists in PATH.
+
+```javascript
+command_exists("nmap")   // Returns: true or false
+command_exists("nuclei") // Returns: true or false
+```
+
+## Logging Functions
+
+Log messages with level prefixes.
+
+### log_debug(message)
+
+Log debug message with `[DEBUG]` prefix.
+
+```javascript
+log_debug("Processing target: " + target)
+```
+
+### log_info(message)
+
+Log info message with `[INFO]` prefix.
+
+```javascript
+log_info("Scan completed successfully")
+```
+
+### log_warn(message)
+
+Log warning message with `[WARN]` prefix.
+
+```javascript
+log_warn("Rate limit approaching")
+```
+
+### log_error(message)
+
+Log error message with `[ERROR]` prefix.
+
+```javascript
+log_error("Failed to connect to target")
+```
+
+## Color Printing Functions
+
+Print messages with colored output.
+
+### print_green(message)
+
+Print message in green color.
+
+```javascript
+print_green("Success!")
+```
+
+### print_blue(message)
+
+Print message in blue color.
+
+```javascript
+print_blue("Processing {{Target}}")
+```
+
+### print_yellow(message)
+
+Print message in yellow color.
+
+```javascript
+print_yellow("Warning: Rate limit hit")
+```
+
+### print_red(message)
+
+Print message in red color.
+
+```javascript
+print_red("Error occurred")
+```
+
+## Runtime Variable Functions
+
+Set and get variables at runtime.
+
+### set_var(name, value)
+
+Set a runtime variable for later retrieval.
+
+```javascript
+set_var("api_url", "https://api.example.com")
+```
+
+### get_var(name)
+
+Get a runtime variable value.
+
+```javascript
+get_var("api_url")  // Returns: "https://api.example.com"
 ```
 
 ## HTTP Functions
 
-### http_get(url)
+HTTP requests and network operations.
 
-Make GET request.
+### http_request(url, method, headers, body)
+
+Make HTTP request with full control.
 
 ```javascript
-http_get("https://api.example.com/data")  // Returns: response body
+http_request("https://api.example.com/data", "POST",
+  {"Authorization": "Bearer token", "Content-Type": "application/json"},
+  '{"key":"value"}')
+// Returns: {statusCode: 200, body: "...", headers: {...}}
+```
+
+### http_get(url)
+
+HTTP GET request with structured response.
+
+```javascript
+http_get("https://api.example.com/data")
+// Returns: {statusCode: 200, body: "...", headers: {...}}
 ```
 
 ### http_post(url, body)
 
-Make POST request.
+HTTP POST request with structured response.
 
 ```javascript
 http_post("https://api.example.com/submit", '{"key":"value"}')
+// Returns: {statusCode: 200, body: "...", headers: {...}}
 ```
 
-### http_request(method, url, headers, body)
+### get_ip(domain_or_url)
 
-Make custom HTTP request.
+Resolve domain or URL to IP address.
 
 ```javascript
-http_request("PUT", "https://api.example.com/update",
-  {"Authorization": "Bearer token"},
-  '{"data":"value"}')
+get_ip("example.com")              // Returns: "93.184.216.34"
+get_ip("https://example.com/path") // Returns: "93.184.216.34" (auto-parses URL)
+```
+
+## Generation Functions
+
+Generate random values.
+
+### random_string(length)
+
+Generate random alphanumeric string.
+
+```javascript
+random_string(16)  // Returns: "aB3xY9kLm2nP7qRs"
+```
+
+### uuid()
+
+Generate UUID v4.
+
+```javascript
+uuid()  // Returns: "550e8400-e29b-41d4-a716-446655440000"
+```
+
+## Encoding Functions
+
+Encode and decode data.
+
+### base64_encode(str)
+
+Encode string to base64.
+
+```javascript
+base64_encode("hello")  // Returns: "aGVsbG8="
+```
+
+### base64_decode(str)
+
+Decode base64 string.
+
+```javascript
+base64_decode("aGVsbG8=")  // Returns: "hello"
+```
+
+## Data Query Functions
+
+Query structured data.
+
+### jq(jsonData, query)
+
+Extract data using jq syntax.
+
+```javascript
+jq('{"name":"test","version":"1.0"}', '.name')  // Returns: "test"
+jq('{"items":[1,2,3]}', '.items[]')             // Returns: [1, 2, 3]
+jq('{"a":{"b":"c"}}', '.a.b')                   // Returns: "c"
+```
+
+### jq_from_file(path, query)
+
+Extract data using jq from JSON file.
+
+```javascript
+jq_from_file("{{Output}}/data.json", ".results[].url")
+```
+
+## Notification Functions
+
+Send notifications via various channels.
+
+### notify_telegram(message)
+
+Send message to configured Telegram chat.
+
+```javascript
+notify_telegram("Scan completed for {{Target}}")  // Returns: true or false
+```
+
+### send_telegram_file(path, caption?)
+
+Send file to Telegram with optional caption.
+
+```javascript
+send_telegram_file("{{Output}}/report.pdf", "Scan report for {{Target}}")  // Returns: true or false
+```
+
+### notify_webhook(message)
+
+Send message to all configured webhooks.
+
+```javascript
+notify_webhook("Scan completed for {{Target}}")  // Returns: true or false
+```
+
+### send_webhook_event(eventType, data)
+
+Send structured event to all webhooks.
+
+```javascript
+send_webhook_event("scan_complete", {target: "{{Target}}", status: "success"})  // Returns: true or false
 ```
 
 ## Event Generation Functions
 
-### generate_event(topic, source, data_type, data)
+Generate structured events for the event system.
 
-Generate a structured event and send to all configured webhooks.
+### generate_event(workspace, topic, source, data_type, data)
+
+Generate a structured event and send to server/webhooks.
 
 ```javascript
 // Simple string data
-generate_event("discovery", "subdomain-scan", "domain", "api.example.com")  // Returns: true or false
+generate_event("{{Workspace}}", "discovery", "subdomain-scan", "domain", "api.example.com")
 
 // Complex object data
-generate_event("vulnerability", "nuclei", "finding", {
+generate_event("{{Workspace}}", "vulnerability", "nuclei", "finding", {
   url: "https://example.com/admin",
   severity: "critical",
   template: "CVE-2024-1234"
 })
+// Returns: true (always true - events are queued if server unavailable)
 ```
 
 **Parameters:**
-- `topic` - Event category/topic (e.g., "discovery", "vulnerability")
+- `workspace` - Workspace name (required, use `{{Workspace}}`)
+- `topic` - Event category (e.g., "discovery", "vulnerability")
 - `source` - Origin of the event (e.g., "amass", "nuclei")
-- `data_type` - Type of data being sent (e.g., "domain", "url", "finding")
+- `data_type` - Type of data (e.g., "domain", "url", "finding")
 - `data` - The actual data payload (string or object)
-
-**Returns:** `boolean` - `true` if event was sent successfully
-
-### generate_event_from_file(topic, source, data_type, path)
-
-Read a file and generate an event for each non-empty line.
-
-```javascript
-generate_event_from_file("discovery", "amass", "subdomain", "{{Output}}/subdomains.txt")
-// Returns: number of events generated (e.g., 42)
-```
-
-**Parameters:**
-- `topic` - Event category/topic
-- `source` - Origin of the event
-- `data_type` - Type of data being sent
-- `path` - Path to the file to read
-
-**Returns:** `integer` - Count of events successfully generated
 
 **Event Payload Structure:**
 ```json
 {
+  "workspace": "example.com",
   "topic": "discovery",
   "source": "amass",
   "data_type": "subdomain",
   "data": "api.example.com",
-  "timestamp": "2024-01-15T10:30:00Z"
+  "run_id": "abc123",
+  "workflow_name": "recon",
+  "timestamp": "2025-01-15T10:30:00Z"
 }
 ```
 
-## Database Functions
+### generate_event_from_file(workspace, topic, source, data_type, path)
 
-### db_select_assets(workspace, format)
-
-Query assets from database.
+Read a file and generate an event for each non-empty line.
 
 ```javascript
-// Format: "markdown" or "jsonl"
-db_select_assets("example.com", "markdown")
+generate_event_from_file("{{Workspace}}", "discovery", "amass", "subdomain", "{{Output}}/subdomains.txt")
+// Returns: 42 (count of events generated)
 ```
 
-### db_select_assets_filtered(workspace, where, format)
+**Parameters:**
+- `workspace` - Workspace name (required)
+- `topic` - Event category
+- `source` - Origin of the event
+- `data_type` - Type of data
+- `path` - Path to file (one item per line)
 
-Query assets with WHERE clause.
+## CDN/Storage Functions
+
+Cloud storage operations (S3-compatible).
+
+### cdn_upload(localPath, remotePath)
+
+Upload file to cloud storage.
 
 ```javascript
-db_select_assets_filtered("example.com", "status_code = 200", "jsonl")
+cdn_upload("{{Output}}/report.zip", "scans/{{Target}}/report.zip")  // Returns: true or false
 ```
 
-### db_select_vulnerabilities(workspace, format)
+### cdn_download(remotePath, localPath)
 
-Query vulnerabilities from database.
+Download file from cloud storage.
 
 ```javascript
-db_select_vulnerabilities("example.com", "markdown")
+cdn_download("wordlists/common.txt", "/tmp/common.txt")  // Returns: true or false
 ```
 
-### db_select_vulnerabilities_filtered(workspace, where, format)
+### cdn_exists(remotePath)
 
-Query vulnerabilities with WHERE clause.
+Check if file exists in cloud storage.
 
 ```javascript
-db_select_vulnerabilities_filtered("example.com", "severity = 'high'", "markdown")
+cdn_exists("scans/{{Target}}/report.zip")  // Returns: true or false
 ```
 
-### db_select(table, where, format)
+### cdn_delete(remotePath)
 
-Generic database query.
+Delete file from cloud storage.
 
 ```javascript
-db_select("assets", "workspace = 'example.com'", "jsonl")
+cdn_delete("scans/{{Target}}/old-report.zip")  // Returns: true or false
 ```
 
-### db_select_one(table, where)
+### cdn_sync_upload(localDir, remotePrefix)
 
-Query single record.
+Sync local directory to cloud storage (delta upload).
 
 ```javascript
-db_select_one("workspaces", "name = 'example.com'")
+cdn_sync_upload("{{Output}}", "scans/{{Target}}/")
+// Returns: {uploaded: 5, skipped: 10, errors: 0}
 ```
 
-### db_delete(table, where)
+### cdn_sync_download(remotePrefix, localDir)
 
-Delete records.
+Sync cloud storage to local directory (delta download).
 
 ```javascript
-db_delete("assets", "workspace = 'old-workspace'")
+cdn_sync_download("base-setup/", "{{BaseFolder}}")
+// Returns: {downloaded: 3, skipped: 7, errors: 0}
+```
+
+### cdn_get_presigned_url(remotePath, expiryMins?)
+
+Generate presigned URL for file access.
+
+```javascript
+cdn_get_presigned_url("scans/target/report.zip", 60)
+// Returns: "https://bucket.s3.amazonaws.com/scans/target/report.zip?X-Amz-..."
+```
+
+### cdn_list(prefix?)
+
+List files with metadata from cloud storage.
+
+```javascript
+cdn_list("scans/")
+// Returns: [{key: "scans/target1/report.zip", size: 1024, lastModified: "..."}, ...]
+```
+
+### cdn_stat(remotePath)
+
+Get file metadata from cloud storage.
+
+```javascript
+cdn_stat("scans/target/report.zip")
+// Returns: {key: "...", size: 1024, lastModified: "...", etag: "..."} or null
+```
+
+## Unix Command Wrappers
+
+Wrappers around common Unix commands.
+
+### sort_unix(input, output?)
+
+Sort file with `LC_ALL=C sort -u` (in-place if no output specified).
+
+```javascript
+sort_unix("{{Output}}/urls.txt")                              // In-place
+sort_unix("{{Output}}/urls.txt", "{{Output}}/urls-sorted.txt") // To new file
+// Returns: true or false
+```
+
+### wget_unix(url, output?)
+
+Download file with wget.
+
+```javascript
+wget_unix("https://example.com/file.txt", "/tmp/file.txt")  // Returns: true or false
+```
+
+### git_clone(repo, dest?)
+
+Clone git repository (shallow clone).
+
+```javascript
+git_clone("https://github.com/user/repo", "/tmp/repo")  // Returns: true or false
+```
+
+### zip_unix(source, dest)
+
+Create zip archive using `zip -r`.
+
+```javascript
+zip_unix("{{Output}}", "{{Output}}/archive.zip")  // Returns: true or false
+```
+
+### unzip_unix(source, dest?)
+
+Extract zip archive using `unzip`.
+
+```javascript
+unzip_unix("/tmp/archive.zip", "/tmp/extracted")  // Returns: true or false
+```
+
+### tar_unix(source, dest)
+
+Create tar.gz archive using `tar -czf`.
+
+```javascript
+tar_unix("{{Output}}", "{{Output}}/archive.tar.gz")  // Returns: true or false
+```
+
+### untar_unix(source, dest?)
+
+Extract tar.gz archive using `tar -xzf`.
+
+```javascript
+untar_unix("/tmp/archive.tar.gz", "/tmp/extracted")  // Returns: true or false
+```
+
+### diff_unix(file1, file2, output?)
+
+Compare files with diff command.
+
+```javascript
+diff_unix("old.txt", "new.txt")                    // Returns: diff output
+diff_unix("old.txt", "new.txt", "changes.diff")   // Writes to file, returns: true or false
+```
+
+### sed_string_replace(sed_syntax, source, dest)
+
+String replacement with sed `s/old/new/g` syntax.
+
+```javascript
+sed_string_replace("s/http/https/g", "{{Output}}/urls.txt", "{{Output}}/urls-fixed.txt")
+// Returns: true or false
+```
+
+### sed_regex_replace(sed_syntax, source, dest)
+
+Regex replacement with sed `s/pattern/repl/g` syntax.
+
+```javascript
+sed_regex_replace("s/[0-9]+/NUM/g", "{{Output}}/data.txt", "{{Output}}/data-clean.txt")
+// Returns: true or false
+```
+
+## Archive Functions (Go)
+
+Pure Go implementations for archive operations (no Unix dependencies).
+
+### zip_dir(source, dest)
+
+Zip directory using Go's archive/zip.
+
+```javascript
+zip_dir("{{Output}}", "{{Output}}/archive.zip")  // Returns: true or false
+```
+
+### unzip_dir(source, dest)
+
+Unzip archive using Go's archive/zip.
+
+```javascript
+unzip_dir("/tmp/archive.zip", "/tmp/extracted")  // Returns: true or false
+```
+
+## Diff Functions
+
+File comparison and diff extraction.
+
+### extract_diff(file1, file2)
+
+Get lines that are only in file2 (new content).
+
+```javascript
+extract_diff("{{Output}}/old-subs.txt", "{{Output}}/new-subs.txt")
+// Returns: "newsub1.example.com\nnewsub2.example.com"
+```
+
+## Output Functions
+
+Save content and convert data formats.
+
+### save_content(content, path)
+
+Save string content to file.
+
+```javascript
+save_content("Hello World", "{{Output}}/greeting.txt")  // Returns: true or false
+```
+
+### jsonl_to_csv(source, dest)
+
+Convert JSONL file to CSV.
+
+```javascript
+jsonl_to_csv("{{Output}}/assets.jsonl", "{{Output}}/assets.csv")  // Returns: true or false
+```
+
+### csv_to_jsonl(source, dest)
+
+Convert CSV file to JSONL.
+
+```javascript
+csv_to_jsonl("{{Output}}/data.csv", "{{Output}}/data.jsonl")  // Returns: true or false
+```
+
+### jsonl_unique(source, dest, fields)
+
+Deduplicate JSONL by hashing selected fields.
+
+```javascript
+jsonl_unique("{{Output}}/httpx.jsonl", "{{Output}}/httpx-unique.jsonl", ["status", "words", "lines"])
+// Returns: true or false
+```
+
+### jsonl_filter(source, dest, fields)
+
+Filter JSONL to selected fields only.
+
+```javascript
+jsonl_filter("{{Output}}/httpx.jsonl", "{{Output}}/httpx-filtered.jsonl", "host,status,hash.body_sha256")
+// Returns: true or false
+```
+
+## URL Processing Functions
+
+URL deduplication and filtering.
+
+### interesting_urls(src, dest, json_field?)
+
+Deduplicate URLs by hostname+path+params, filter static files and noise patterns.
+
+```javascript
+// Plain text file
+interesting_urls("{{Output}}/all-urls.txt", "{{Output}}/interesting.txt")
+
+// JSONL file with URL in specific field
+interesting_urls("{{Output}}/katana.jsonl", "{{Output}}/interesting.jsonl", "url")
+// Returns: true or false
 ```
 
 ## Markdown Functions
 
-### render_markdown_report(templatePath, data)
+Markdown rendering and conversion.
 
-Render markdown from template.
+### render_markdown_from_file(path)
 
-```javascript
-render_markdown_report("{{Data}}/templates/report.md", {
-  "target": "example.com",
-  "findings": readFile("{{Output}}/findings.txt")
-})
-```
-
-### convert_jsonl_to_markdown(filePath)
-
-Convert JSONL to markdown table.
+Render markdown with terminal styling.
 
 ```javascript
-convert_jsonl_to_markdown("{{Output}}/assets.jsonl")
+render_markdown_from_file("{{Output}}/report.md")  // Returns: rendered markdown string
 ```
 
-### convert_csv_to_markdown(filePath)
+### print_markdown_from_file(path)
+
+Print markdown with syntax highlighting to stdout.
+
+```javascript
+print_markdown_from_file("{{Output}}/summary.md")
+```
+
+### convert_jsonl_to_markdown(input_path, output_path)
+
+Convert JSONL to markdown table and write to file.
+
+```javascript
+convert_jsonl_to_markdown("{{Output}}/assets.jsonl", "{{Output}}/assets.md")  // Returns: true or false
+```
+
+### convert_csv_to_markdown(path)
 
 Convert CSV to markdown table.
 
 ```javascript
-convert_csv_to_markdown("{{Output}}/results.csv")
+convert_csv_to_markdown("{{Output}}/data.csv")  // Returns: markdown table string
 ```
 
-## Utility Functions
+### render_markdown_report(template_path, output_path)
 
-### getEnvVar(key, default)
+Render markdown template with `osm-func` blocks evaluated.
+
+```javascript
+render_markdown_report("{{Templates}}/report.md", "{{Output}}/report.md")  // Returns: true or false
+```
+
+### generate_security_report(template_path)
+
+Generate security report from template to `{{Output}}/security-report.md` and register as artifact.
+
+```javascript
+generate_security_report("{{MarkdownTemplates}}/security-report-template.md")  // Returns: true or false
+```
+
+## Database Functions
+
+Database operations for assets, vulnerabilities, and statistics.
+
+### Artifact Registration
+
+#### register_artifact(path, type?)
+
+Register file as scan artifact.
+
+```javascript
+register_artifact("{{Output}}/nuclei.json", "nuclei")  // Returns: true or false
+```
+
+#### store_artifact(path)
+
+Store file as run artifact for current workspace.
+
+```javascript
+store_artifact("{{Output}}/report.md")  // Returns: true or false
+```
+
+### Database Updates
+
+#### db_update(table, key, field, value)
+
+Update database field.
+
+```javascript
+db_update("workspaces", "{{Workspace}}", "status", "completed")  // Returns: true or false
+```
+
+### Asset Import
+
+#### db_import_asset(workspace, json)
+
+Import asset from JSON (upsert - update or insert).
+
+```javascript
+db_import_asset("{{Workspace}}", '{"asset_value":"sub.example.com","asset_type":"subdomain"}')
+// Returns: true or false
+```
+
+#### db_raw_insert_asset(workspace, json)
+
+Insert asset from JSON (pure insert, returns ID).
+
+```javascript
+db_raw_insert_asset("{{Workspace}}", '{"asset_value":"api.example.com"}')  // Returns: 123 (asset ID)
+```
+
+#### db_import_asset_from_file(workspace, file_path)
+
+Import assets from JSONL file (httpx format supported).
+
+```javascript
+db_import_asset_from_file("{{Workspace}}", "{{Output}}/httpx.jsonl")  // Returns: 42 (count)
+```
+
+### Vulnerability Import
+
+#### db_import_vuln(workspace, json)
+
+Import single vulnerability from JSON (nuclei format).
+
+```javascript
+db_import_vuln("{{Workspace}}", '{"template-id":"cve-2024-1234","info":{"name":"CVE","severity":"high"}}')
+// Returns: true or false
+```
+
+#### db_import_vuln_from_file(workspace, file_path)
+
+Import vulnerabilities from JSONL file (nuclei format).
+
+```javascript
+db_import_vuln_from_file("{{Workspace}}", "{{Output}}/nuclei.jsonl")  // Returns: 15 (count)
+```
+
+### Statistics Updates (Write)
+
+These functions count lines in a file and update workspace statistics.
+
+#### db_total_subdomains(path)
+
+```javascript
+db_total_subdomains("{{Output}}/subdomains.txt")  // Returns: 150
+```
+
+#### db_total_urls(path)
+
+```javascript
+db_total_urls("{{Output}}/urls.txt")  // Returns: 5000
+```
+
+#### db_total_assets(path)
+
+```javascript
+db_total_assets("{{Output}}/assets.txt")  // Returns: 200
+```
+
+#### db_total_vulns(path)
+
+```javascript
+db_total_vulns("{{Output}}/vulns.txt")  // Returns: 25
+```
+
+#### db_vuln_critical(path)
+
+```javascript
+db_vuln_critical("{{Output}}/nuclei.json")  // Returns: 2
+```
+
+#### db_vuln_high(path)
+
+```javascript
+db_vuln_high("{{Output}}/nuclei.json")  // Returns: 5
+```
+
+#### db_vuln_medium(path)
+
+```javascript
+db_vuln_medium("{{Output}}/nuclei.json")  // Returns: 10
+```
+
+#### db_vuln_low(path)
+
+```javascript
+db_vuln_low("{{Output}}/nuclei.json")  // Returns: 8
+```
+
+#### db_total_ips(path)
+
+```javascript
+db_total_ips("{{Output}}/ips.txt")  // Returns: 50
+```
+
+#### db_total_links(path)
+
+```javascript
+db_total_links("{{Output}}/links.txt")  // Returns: 1000
+```
+
+#### db_total_content(path)
+
+```javascript
+db_total_content("{{Output}}/content.txt")  // Returns: 500
+```
+
+#### db_total_archive(path)
+
+```javascript
+db_total_archive("{{Output}}/archive.txt")  // Returns: 100
+```
+
+### Statistics Queries (Read)
+
+These functions read current workspace statistics (no arguments needed).
+
+#### db_select_total_subdomains()
+
+```javascript
+db_select_total_subdomains()  // Returns: 150
+```
+
+#### db_select_total_urls()
+
+```javascript
+db_select_total_urls()  // Returns: 5000
+```
+
+#### db_select_total_assets()
+
+```javascript
+db_select_total_assets()  // Returns: 200
+```
+
+#### db_select_total_vulns()
+
+```javascript
+db_select_total_vulns()  // Returns: 25
+```
+
+#### db_select_vuln_critical()
+
+```javascript
+db_select_vuln_critical()  // Returns: 2
+```
+
+#### db_select_vuln_high()
+
+```javascript
+db_select_vuln_high()  // Returns: 5
+```
+
+#### db_select_vuln_medium()
+
+```javascript
+db_select_vuln_medium()  // Returns: 10
+```
+
+#### db_select_vuln_low()
+
+```javascript
+db_select_vuln_low()  // Returns: 8
+```
+
+### Data Selection
+
+#### db_select_assets(workspace, format)
+
+Select all assets from workspace.
+
+```javascript
+db_select_assets("{{Workspace}}", "markdown")  // Returns: markdown table
+db_select_assets("{{Workspace}}", "jsonl")     // Returns: JSONL string
+```
+
+#### db_select_assets_filtered(workspace, status_code, asset_type, format)
+
+Select assets with filters.
+
+```javascript
+db_select_assets_filtered("{{Workspace}}", "200", "subdomain", "jsonl")
+// Returns: filtered JSONL
+```
+
+#### db_select_vulnerabilities(workspace, format)
+
+Select all vulnerabilities from workspace.
+
+```javascript
+db_select_vulnerabilities("{{Workspace}}", "markdown")  // Returns: markdown table
+```
+
+#### db_select_vulnerabilities_filtered(workspace, severity, asset_value, format)
+
+Select vulnerabilities with filters.
+
+```javascript
+db_select_vulnerabilities_filtered("{{Workspace}}", "critical", "", "jsonl")
+// Returns: filtered JSONL
+```
+
+#### db_select(sql_query, format)
+
+Execute SELECT query with format.
+
+```javascript
+db_select("SELECT * FROM assets WHERE workspace = '{{Workspace}}' LIMIT 10", "markdown")
+```
+
+#### db_select_to_file(sql_query, dest)
+
+Execute SELECT and write markdown to file.
+
+```javascript
+db_select_to_file("SELECT * FROM assets", "{{Output}}/assets.md")  // Returns: true or false
+```
+
+#### db_select_to_jsonl(sql_query, fields, dest)
+
+Execute SELECT and write JSONL with specified fields.
+
+```javascript
+db_select_to_jsonl("SELECT * FROM assets", "asset_value,status_code", "{{Output}}/assets.jsonl")
+// Returns: true or false
+```
+
+### Diff Tracking
+
+#### db_asset_diff(workspace)
+
+Get asset diff as JSONL string (new/changed assets since last scan).
+
+```javascript
+db_asset_diff("{{Workspace}}")  // Returns: JSONL string
+```
+
+#### db_vuln_diff(workspace)
+
+Get vulnerability diff as JSONL string.
+
+```javascript
+db_vuln_diff("{{Workspace}}")  // Returns: JSONL string
+```
+
+#### db_asset_diff_to_file(workspace, dest)
+
+Write asset diff to JSONL file.
+
+```javascript
+db_asset_diff_to_file("{{Workspace}}", "{{Output}}/asset-diff.jsonl")  // Returns: true or false
+```
+
+#### db_vuln_diff_to_file(workspace, dest)
+
+Write vulnerability diff to JSONL file.
+
+```javascript
+db_vuln_diff_to_file("{{Workspace}}", "{{Output}}/vuln-diff.jsonl")  // Returns: true or false
+```
+
+### Runtime Export
+
+#### runtime_export()
+
+Export scan and workspace state to `run-state.json`.
+
+```javascript
+runtime_export()  // Returns: true or false
+```
+
+## Installer Functions
+
+Download and install packages.
+
+### go_getter(url, dest)
+
+Download files/repos using go-getter (supports git, http, s3, gcs, etc.).
+
+```javascript
+go_getter("https://github.com/user/repo.git?ref=main", "{{Output}}/repo")
+go_getter("s3::https://bucket.s3.amazonaws.com/file.zip", "/tmp/file.zip")
+// Returns: true or false
+```
+
+### go_getter_with_sshkey(ssh_key_path, git_url, dest)
+
+Clone git repo via SSH with specified key.
+
+```javascript
+go_getter_with_sshkey("~/.ssh/id_rsa", "git@github.com:user/private-repo.git", "{{Output}}/repo")
+// Returns: true or false
+```
+
+### nix_install(package, dest?)
+
+Install package via Nix package manager.
+
+```javascript
+nix_install("nuclei", "{{Binaries}}")  // Returns: true or false
+```
+
+## Environment Functions
+
+Environment variable operations.
+
+### os_getenv(name)
 
 Get environment variable.
 
 ```javascript
-getEnvVar("HOME")                    // Returns: "/home/user"
-getEnvVar("API_KEY", "not-set")      // Returns: value or "not-set"
+os_getenv("HOME")      // Returns: "/home/user"
+os_getenv("API_KEY")   // Returns: "secret" or ""
 ```
 
-### execCmd(command)
+### os_setenv(name, value)
 
-Execute shell command.
+Set environment variable.
 
 ```javascript
-execCmd("whoami")  // Returns: command output
+os_setenv("API_KEY", "new-secret")  // Returns: true or false
 ```
 
 ## Usage Examples
@@ -440,7 +1406,7 @@ execCmd("whoami")  // Returns: command output
 ```yaml
 - name: scan-if-hosts
   type: bash
-  pre_condition: 'fileLength("{{Output}}/hosts.txt") > 0 && fileExists("{{Output}}/hosts.txt")'
+  pre_condition: 'file_length("{{Output}}/hosts.txt") > 0 && file_exists("{{Output}}/hosts.txt")'
   command: nuclei -l {{Output}}/hosts.txt
 ```
 
@@ -451,7 +1417,7 @@ execCmd("whoami")  // Returns: command output
   type: function
   functions:
     - log_info("Starting processing")
-    - writeFile("{{Output}}/status.txt", "processing")
+    - save_content("processing", "{{Output}}/status.txt")
     - log_info("Processing complete")
 ```
 
@@ -460,13 +1426,13 @@ execCmd("whoami")  // Returns: command output
 ```yaml
 - name: count
   type: function
-  function: fileLength("{{Output}}/results.txt")
+  function: file_length("{{Output}}/results.txt")
   exports:
     result_count: "{{result}}"
 
 - name: report
   type: function
-  function: log_info("Found {{result_count}} results")
+  function: log_info("Found " + result_count + " results")
 ```
 
 ### Decision Based on Function
@@ -474,14 +1440,14 @@ execCmd("whoami")  // Returns: command output
 ```yaml
 - name: check-size
   type: function
-  function: fileLength("{{Output}}/data.txt")
+  function: file_length("{{Output}}/data.txt")
   exports:
     size: "{{result}}"
   decision:
-    - condition: '{{size}} > 1000'
-      jump: large-dataset
-    - condition: '{{size}} <= 1000'
-      jump: small-dataset
+    switch: "{{size}}"
+    cases:
+      "0": { goto: no-data }
+    default: { goto: process-data }
 ```
 
 ### HTTP API Integration
@@ -491,7 +1457,17 @@ execCmd("whoami")  // Returns: command output
   type: function
   function: |
     http_post("https://api.example.com/results",
-      '{"target": "{{target}}", "count": {{result_count}}}')
+      '{"target": "{{Target}}", "count": ' + result_count + '}')
+```
+
+### Event Generation
+
+```yaml
+- name: emit-discoveries
+  type: function
+  functions:
+    - generate_event_from_file("{{Workspace}}", "discovery", "amass", "subdomain", "{{Output}}/subdomains.txt")
+    - log_info("Emitted subdomain discovery events")
 ```
 
 ### Database Reporting
@@ -500,8 +1476,8 @@ execCmd("whoami")  // Returns: command output
 - name: generate-report
   type: function
   functions:
-    - writeFile("{{Output}}/report.md", "# Vulnerability Report\n\n")
-    - appendFile("{{Output}}/report.md", db_select_vulnerabilities("{{target}}", "markdown"))
+    - save_content("# Vulnerability Report\n\n", "{{Output}}/report.md")
+    - append_file("{{Output}}/report.md", db_select_vulnerabilities("{{Workspace}}", "markdown"))
     - log_info("Report generated at {{Output}}/report.md")
 ```
 
@@ -509,22 +1485,32 @@ execCmd("whoami")  // Returns: command output
 
 ```bash
 # Test file functions
-osmedeus func e 'fileExists("/etc/passwd")'
-osmedeus func e 'fileLength("/etc/passwd")'
+osmedeus func e 'file_exists("/etc/passwd")'
+osmedeus func e 'file_length("/etc/hosts")'
 
 # Test string functions
 osmedeus func e 'trim("  hello  ")'
 osmedeus func e 'split("a,b,c", ",")'
 
 # Test with target
-osmedeus func e 'log_info("Target: {{target}}")' -t example.com
+osmedeus func e 'log_info("Target: " + target)' -t example.com
 
 # Test JSON
 osmedeus func e 'jq("{\"a\":1}", ".a")'
+
+# Test event generation
+osmedeus func e 'generate_event("test-workspace", "test.topic", "cli", "test", "data")'
+
+# Bulk processing
+osmedeus func e 'log_info("Processing: " + target)' -T targets.txt -c 10
+
+# List functions
+osmedeus func list -s "file"
+osmedeus func list -s "event" --example
 ```
 
 ## Next Steps
 
-- [Functions Overview](overview.md) - How to use functions
-- [Step Types](../workflows/step-types.md) - Function steps
-- [Control Flow](../workflows/control-flow.md) - Conditions
+- [Functions Overview](overview) - How to use functions in workflows
+- [Step Types](/workflows/step-types) - Function steps
+- [Control Flow](/workflows/control-flow) - Conditions and decisions
