@@ -1,0 +1,456 @@
+---
+title: "Docker Installation & Setup"
+description: "Containerized Setup and Execution Using Docker"
+icon: "docker"
+---
+
+Osmedeus provides multiple Docker deployment options to suit different use cases:
+
+| Option | Best For | Image |
+|--------|----------|-------|
+| **Toolbox** | Quick start, interactive scanning | `osmedeus-toolbox:latest` |
+| **Production** | Standalone deployments, API server | `osmedeus:latest` |
+| **Distributed** | Large-scale scanning with workers | Master + Workers |
+
+## Prerequisites
+
+- **Docker** version 20.10 or later
+- **Docker Compose** version 2.0 or later (included with Docker Desktop)
+
+```bash
+# Verify installation
+docker --version
+docker compose version
+```
+
+## Quick Start with Toolbox
+
+The Toolbox image is the fastest way to get started. It includes all security tools pre-installed via the official install script.
+
+### Using Make Targets
+
+```bash
+# Build the toolbox image
+make docker-toolbox
+
+# Start the container
+make docker-toolbox-run
+
+# Enter interactive shell
+make docker-toolbox-shell
+```
+
+### Manual Docker Commands
+
+```bash
+# Build the image
+docker compose -f build/docker/docker-compose.toolbox.yaml build
+
+# Start the container
+docker compose -f build/docker/docker-compose.toolbox.yaml up -d
+
+# Enter the container
+docker exec -it osmedeus-toolbox bash
+
+# Run commands directly
+docker exec -it osmedeus-toolbox osmedeus run -m subdomain -t example.com
+```
+
+<Note>
+The toolbox container persists data using Docker volumes for `osmedeus-base` and `workspaces-osmedeus`, so your scan results survive container restarts.
+</Note>
+
+## Running Workflows
+
+### Interactive Mode
+
+Enter the container shell and run scans interactively:
+
+```bash
+docker exec -it osmedeus-toolbox bash
+
+# Inside the container
+osmedeus run -f extensive -t example.com
+osmedeus run -m subdomain -t example.com
+osmedeus workflow list
+```
+
+### One-Off Commands
+
+Run scans without entering the container:
+
+```bash
+# Run a module
+docker exec -it osmedeus-toolbox osmedeus run -m subdomain -t example.com
+
+# Run a flow
+docker exec -it osmedeus-toolbox osmedeus run -f extensive -t example.com
+
+# List workflows
+docker exec -it osmedeus-toolbox osmedeus workflow list
+```
+
+### Persisting Results with Volume Mounts
+
+For host-accessible scan results, mount local directories:
+
+```bash
+docker run -it --rm \
+  -v $(pwd)/workspaces:/root/workspaces-osmedeus \
+  -v $(pwd)/osmedeus-base:/root/osmedeus-base \
+  osmedeus-toolbox:latest \
+  osmedeus run -m subdomain -t example.com
+```
+
+## Running the Server
+
+### Basic Server Startup
+
+Start the REST API server inside the toolbox container:
+
+```bash
+# Start in background
+docker exec -d osmedeus-toolbox osmedeus serve --port 8002 --host 0.0.0.0
+
+# Or enter container and run
+docker exec -it osmedeus-toolbox bash
+osmedeus serve --port 8002 --host 0.0.0.0
+```
+
+### Server with Authentication
+
+The API server uses JWT authentication by default. Configure credentials in `osm-settings.yaml`:
+
+```yaml
+server:
+  host: "0.0.0.0"
+  port: 8002
+  simple_user_map_key:
+    admin: "your-secure-password"
+  jwt:
+    secret_signing_key: "your-jwt-secret-min-32-chars"
+    expiration_minutes: 1440
+```
+
+Start with authentication enabled:
+
+```bash
+osmedeus serve --port 8002 --host 0.0.0.0
+```
+
+For development without authentication, use the `-A` flag:
+
+```bash
+osmedeus serve --port 8002 --host 0.0.0.0 -A
+```
+
+## Distributed Mode with Docker Compose
+
+For large-scale scanning, use the distributed architecture with a master node coordinating multiple workers.
+
+### Architecture
+
+```
+                    ┌─────────────────────────────────────────┐
+                    │              Load Balancer              │
+                    │             (optional)                  │
+                    └────────────────┬────────────────────────┘
+                                     │
+                    ┌────────────────▼────────────────────────┐
+                    │           Master Server                 │
+                    │  - REST API (port 8002)                │
+                    │  - Task Coordinator                     │
+                    │  - Web UI                               │
+                    └────────────────┬────────────────────────┘
+                                     │
+                    ┌────────────────▼────────────────────────┐
+                    │              Redis                      │
+                    │  - Message Queue                        │
+                    │  - Task Distribution                    │
+                    └────────────────┬────────────────────────┘
+                                     │
+        ┌────────────────────────────┼────────────────────────────┐
+        │                            │                            │
+┌───────▼───────┐          ┌─────────▼───────┐          ┌─────────▼───────┐
+│   Worker 1    │          │    Worker 2     │          │    Worker N     │
+│  - Executes   │          │  - Executes     │          │  - Executes     │
+│    scans      │          │    scans        │          │    scans        │
+└───────────────┘          └─────────────────┘          └─────────────────┘
+```
+
+### Basic Setup
+
+The basic compose file (`docker-compose.yml`) includes Redis, master, and workers with SQLite:
+
+```bash
+# Start the distributed stack
+docker compose -f build/docker/docker-compose.yml up -d
+
+# Scale workers
+docker compose -f build/docker/docker-compose.yml up -d --scale worker=5
+
+# View logs
+docker compose -f build/docker/docker-compose.yml logs -f
+
+# Stop all services
+docker compose -f build/docker/docker-compose.yml down
+```
+
+### Production Setup
+
+For production deployments with PostgreSQL, use `docker-compose.production.yaml`:
+
+**Step 1: Create environment file**
+
+```bash
+cp build/docker/.env.example build/docker/.env
+```
+
+Edit `.env` with secure values:
+
+```bash
+# PostgreSQL Configuration
+POSTGRES_USER=osmedeus
+POSTGRES_PASSWORD=your_secure_postgres_password
+POSTGRES_DB=osmedeus
+
+# Redis (optional)
+# REDIS_PASSWORD=your_secure_redis_password
+
+# Server
+OSM_SERVER_PORT=8002
+TZ=UTC
+
+# Workers
+WORKER_REPLICAS=2
+```
+
+<Note>
+Generate secure passwords with: `openssl rand -base64 24`
+</Note>
+
+**Step 2: Configure application settings**
+
+The production compose file mounts `osm-settings.production.yaml`. Key settings:
+
+```yaml
+# Database - PostgreSQL for production
+database:
+  db_engine: postgresql
+  host: postgres
+  port: 5432
+  username: osmedeus
+  password: "CHANGE_ME_POSTGRES_PASSWORD"  # Must match .env
+  db_name: osmedeus
+  ssl_mode: disable
+
+# Server
+server:
+  host: "0.0.0.0"
+  port: 8002
+  simple_user_map_key:
+    admin: "CHANGE_ME_ADMIN_PASSWORD"
+  jwt:
+    secret_signing_key: "CHANGE_ME_JWT_SECRET_MIN_32_CHARS"
+    expiration_minutes: 1440
+
+# Redis (required for distributed mode)
+redis:
+  host: redis
+  port: 6379
+  password: ""  # Set if REDIS_PASSWORD is configured in .env
+```
+
+**Step 3: Start the production stack**
+
+```bash
+# Start infrastructure first
+docker compose -f build/docker/docker-compose.production.yaml up -d postgres redis
+
+# Wait for healthy status (about 10-15 seconds)
+docker compose -f build/docker/docker-compose.production.yaml ps
+
+# Start the application
+docker compose -f build/docker/docker-compose.production.yaml up -d
+
+# Scale workers for parallel scanning
+docker compose -f build/docker/docker-compose.production.yaml up -d --scale worker=5
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `POSTGRES_USER` | PostgreSQL username | `osmedeus` |
+| `POSTGRES_PASSWORD` | PostgreSQL password | **Required** |
+| `POSTGRES_DB` | PostgreSQL database name | `osmedeus` |
+| `REDIS_PASSWORD` | Redis password (optional) | - |
+| `OSM_SERVER_PORT` | External API port | `8002` |
+| `TZ` | Container timezone | `UTC` |
+| `WORKER_REPLICAS` | Number of worker containers | `2` |
+
+### Scaling Workers
+
+Workers can be scaled dynamically based on workload:
+
+```bash
+# Scale to 10 workers
+docker compose -f build/docker/docker-compose.production.yaml up -d --scale worker=10
+
+# Scale back down
+docker compose -f build/docker/docker-compose.production.yaml up -d --scale worker=2
+```
+
+Each worker has resource limits (configurable in compose file):
+- CPU: 2 cores (limit), 0.5 cores (reservation)
+- Memory: 2GB (limit), 512MB (reservation)
+
+## Building Custom Images
+
+### Production Image
+
+The production Dockerfile (`build/docker/Dockerfile`) creates a minimal image:
+
+```bash
+# Build with make
+make docker-build
+
+# Or build directly
+docker build -t osmedeus:latest \
+  -f build/docker/Dockerfile \
+  --build-arg VERSION=5.0.0 \
+  .
+```
+
+### Development Image
+
+For development with hot-reloading:
+
+```bash
+docker build -t osmedeus:dev -f build/docker/Dockerfile.dev .
+
+docker run -it --rm \
+  -v $(pwd):/app \
+  -p 8002:8002 \
+  osmedeus:dev
+```
+
+The development image includes:
+- Full Go toolchain
+- Air for hot-reloading
+- Vim for editing
+
+### Toolbox Image
+
+Build the full-featured toolbox with all tools:
+
+```bash
+docker build -t osmedeus-toolbox:latest \
+  -f build/docker/Dockerfile.toolbox \
+  .
+```
+
+## Volume Management
+
+Osmedeus uses two primary data directories:
+
+| Volume | Container Path | Purpose |
+|--------|----------------|---------|
+| `osmedeus-data` | `/root/osmedeus-base` | Configuration, workflows, database |
+| `workspaces` | `/root/workspaces-osmedeus` | Scan results and artifacts |
+
+### Backing Up Volumes
+
+```bash
+# List volumes
+docker volume ls | grep osmedeus
+
+# Backup workspaces
+docker run --rm \
+  -v osmedeus-workspaces:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/workspaces-backup.tar.gz -C /data .
+
+# Restore workspaces
+docker run --rm \
+  -v osmedeus-workspaces:/data \
+  -v $(pwd):/backup \
+  alpine tar xzf /backup/workspaces-backup.tar.gz -C /data
+```
+
+### Removing Volumes
+
+```bash
+# Remove all osmedeus volumes (WARNING: deletes all data)
+docker compose -f build/docker/docker-compose.production.yaml down -v
+```
+
+## Troubleshooting
+
+### Container Won't Start
+
+```bash
+# Check container logs
+docker logs osmedeus-toolbox
+
+# Check compose logs
+docker compose -f build/docker/docker-compose.yml logs -f master
+```
+
+### Permission Issues
+
+If you encounter permission issues with mounted volumes:
+
+```bash
+# Run container as root (default)
+docker exec -u root -it osmedeus-toolbox bash
+
+# Or fix host directory permissions
+sudo chown -R $(id -u):$(id -g) ./workspaces
+```
+
+### Database Connection Errors
+
+For PostgreSQL connection issues:
+
+```bash
+# Check PostgreSQL is healthy
+docker compose -f build/docker/docker-compose.production.yaml ps postgres
+
+# Test connection from master
+docker exec osmedeus-server psql -h postgres -U osmedeus -d osmedeus -c "SELECT 1"
+```
+
+### Redis Connection Errors
+
+```bash
+# Check Redis is healthy
+docker exec osmedeus-redis redis-cli ping
+
+# Test with password
+docker exec osmedeus-redis redis-cli -a your_password ping
+```
+
+### Health Check Failures
+
+```bash
+# Check master health endpoint
+curl http://localhost:8002/health
+
+# View health check logs
+docker inspect --format='{{json .State.Health}}' osmedeus-server | jq
+```
+
+### Out of Memory
+
+If workers run out of memory, adjust resource limits in the compose file:
+
+```yaml
+worker:
+  deploy:
+    resources:
+      limits:
+        memory: 4G
+      reservations:
+        memory: 1G
+```

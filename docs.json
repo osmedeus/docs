@@ -27,7 +27,7 @@
               "getting-started/cli",
               "getting-started/web-ui",
               "getting-started/basic-setup",
-              "getting-started/writing-your-first-workflow"
+              "getting-started/docker-setup"
             ]
           },
           {
@@ -38,7 +38,9 @@
               "advanced/deployment",
               "advanced/event-driven",
               "advanced/distributed",
-              "advanced/development"
+              "advanced/development",
+              "advanced/writing-your-first-workflow"
+              
             ]
           },
           {
