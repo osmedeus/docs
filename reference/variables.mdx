@@ -381,6 +381,14 @@ Utility functions are executed via the Goja JavaScript runtime and can be used i
 | `go_getter_with_sshkey(ssh_key, git_url, dest)` | bool | Clone git repo with SSH key |
 | `nix_install(package, dest?)` | bool | Install package via Nix |
 
+### LLM Functions
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `llm_invoke(message)` | string | Simple LLM call with direct message |
+| `llm_invoke_custom(message, body_json)` | string | LLM call with custom POST body template (use `{{message}}` placeholder) |
+| `llm_conversations(msg1, msg2, ...)` | string | Multi-turn conversation with `role:content` format messages |
+
 ## Usage Examples
 
 ### Using Environment Functions

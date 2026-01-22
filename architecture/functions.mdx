@@ -296,6 +296,26 @@ String manipulation operations.
 | `go_getter_with_sshkey` | `go_getter_with_sshkey(key, url, dest) -> bool` | Clone with SSH |
 | `nix_install` | `nix_install(package, dest?) -> bool` | Install via Nix |
 
+### LLM Functions
+
+Invoke LLM from workflows for AI-assisted automation.
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `llm_invoke` | `llm_invoke(message) -> string` | Simple LLM call |
+| `llm_invoke_custom` | `llm_invoke_custom(message, body_json) -> string` | Custom POST body |
+| `llm_conversations` | `llm_conversations(msg1, msg2, ...) -> string` | Multi-turn conversation |
+
+**Example:**
+
+```yaml
+- name: quick-analysis
+  type: function
+  function: "llm_invoke('Summarize: ' + readFile('{{Output}}/results.txt'))"
+  exports:
+    summary: "{{_result}}"
+```
+
 ## Using Functions in Steps
 
 ### Single Function

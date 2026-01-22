@@ -344,6 +344,19 @@ osmedeus func e 'log_info("{{target}}")' -p target=example.com
 
 ---
 
+## eval
+
+Shorthand for `osmedeus func eval`. Execute function expressions directly.
+
+```bash
+osmedeus eval -e 'fileExists("/tmp/test.txt")'
+osmedeus e -e 'log_info("Hello")'
+```
+
+**Aliases:** `e`, `ev`, `evl`, `evla`
+
+---
+
 ## server
 
 Start the REST API server.
@@ -547,6 +560,54 @@ osmedeus db export --workspace <name> --output <file>
 
 ---
 
+## client
+
+Interact with a remote Osmedeus server via HTTP API.
+
+### client fetch
+
+Fetch data from a remote server.
+
+```bash
+osmedeus client fetch --table runs
+osmedeus client fetch --table assets --workspace example_com
+osmedeus client fetch --table vulnerabilities --severity critical
+```
+
+**Options:**
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--remote-url` | | Remote server URL (default: `$OSM_REMOTE_URL`) |
+| `--auth-key` | | API authentication key (default: `$OSM_REMOTE_AUTH_KEY`) |
+| `--table` | `-t` | Table to fetch: runs, step_results, artifacts, assets, event_logs, schedules, workspaces, vulnerabilities, asset_diffs, vuln_diffs |
+| `--workspace` | `-w` | Filter by workspace name |
+| `--severity` | | Filter vulnerabilities by severity |
+| `--status` | | Filter runs by status |
+| `--limit` | | Maximum records (default: 20) |
+| `--offset` | | Pagination offset (default: 0) |
+| `--refresh` | | Auto-refresh interval (e.g., 5s, 1m) |
+| `--json` | | Output as JSON instead of table |
+
+### client run
+
+Create or cancel runs on a remote server.
+
+```bash
+osmedeus client run --workflow general --target example.com
+osmedeus client run --cancel --run-id abc123
+```
+
+### client exec
+
+Execute functions on a remote server.
+
+```bash
+osmedeus client exec -e 'fileLength("/path/to/file")'
+```
+
+---
+
 ## health
 
 Check system health and configuration.
@@ -618,3 +679,5 @@ This displays comprehensive examples for all major use cases.
 | `OSM_WORKSPACES` | Workspaces folder path |
 | `OSM_DEBUG` | Enable debug mode |
 | `OSM_TOKEN` | API authentication token |
+| `OSM_REMOTE_URL` | Remote server URL for client commands |
+| `OSM_REMOTE_AUTH_KEY` | API authentication key for client commands |

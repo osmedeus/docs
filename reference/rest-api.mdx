@@ -34,6 +34,7 @@ curl -H "Authorization: Bearer <your_token>" http://localhost:8080/osm/api/...
 | Snapshots | `/osm/api/snapshots` | Export/import workspaces |
 | LLM | `/osm/api/llm` | LLM chat/embeddings |
 | Install | `/osm/api/install` | Binary management |
+| Step Results | `/osm/api/step-results` | Query step execution results |
 
 ---
 
@@ -630,6 +631,56 @@ GET /osm/api/events?run_id=run-abc123
 | `from` | Start time filter |
 | `to` | End time filter |
 | `limit` | Maximum results |
+
+---
+
+## Step Results
+
+### List Step Results
+
+Query step execution results with filtering and pagination.
+
+```bash
+GET /osm/api/step-results
+GET /osm/api/step-results?workspace=example_com
+GET /osm/api/step-results?status=completed
+GET /osm/api/step-results?run_id=123
+```
+
+**Query Parameters:**
+
+| Parameter | Description |
+|-----------|-------------|
+| `workspace` | Filter by workspace name |
+| `status` | Filter by status (pending, running, completed, failed) |
+| `step_type` | Filter by step type (bash, function, etc.) |
+| `run_id` | Filter by run ID |
+| `offset` | Pagination offset (default: 0) |
+| `limit` | Maximum results (default: 20, max: 10000) |
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": 123,
+      "step_name": "subfinder",
+      "step_type": "bash",
+      "status": "completed",
+      "run_id": 456,
+      "workspace": "example_com",
+      "started_at": "2025-01-15T10:00:00Z",
+      "completed_at": "2025-01-15T10:05:00Z"
+    }
+  ],
+  "pagination": {
+    "total": 100,
+    "offset": 0,
+    "limit": 20
+  }
+}
+```
 
 ---
 

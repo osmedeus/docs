@@ -382,6 +382,54 @@ llm:
     type: json_object
 ```
 
+## Workflow Functions
+
+Use LLM functions directly in function steps without the full `llm` step type.
+
+### llm_invoke
+
+Simple LLM call with a direct message:
+
+```yaml
+- name: quick-summary
+  type: function
+  function: "llm_invoke('Summarize these findings: ' + readFile('{{Output}}/vulns.txt'))"
+  exports:
+    summary: "{{_result}}"
+```
+
+### llm_invoke_custom
+
+LLM call with a custom POST body template. Use `{{message}}` as a placeholder:
+
+```yaml
+- name: custom-analysis
+  type: function
+  function: |
+    llm_invoke_custom(
+      'Analyze this target: {{Target}}',
+      '{"model": "gpt-4", "temperature": 0.5, "messages": [{"role": "user", "content": "{{message}}"}]}'
+    )
+```
+
+### llm_conversations
+
+Multi-turn conversation using `role:content` format:
+
+```yaml
+- name: conversation
+  type: function
+  function: |
+    llm_conversations(
+      'system:You are a security analyst.',
+      'user:What are common web vulnerabilities?',
+      'assistant:Common web vulnerabilities include SQL injection, XSS, CSRF...',
+      'user:How do I test for SQL injection?'
+    )
+  exports:
+    response: "{{_result}}"
+```
+
 ## Best Practices
 
 1. **Use system prompts** for consistent behavior

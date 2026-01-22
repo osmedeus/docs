@@ -190,6 +190,25 @@ curl http://master:8002/health
 osmedeus health
 ```
 
+## Remote Monitoring
+
+Use the `client` command to monitor distributed runs from any machine:
+
+```bash
+# Set connection details
+export OSM_REMOTE_URL=http://master:8080
+export OSM_REMOTE_AUTH_KEY=your-api-key
+
+# Monitor runs
+osmedeus client fetch -t runs --status running --refresh 5s
+
+# Check step results for a specific run
+osmedeus client fetch -t step_results --workspace example_com
+
+# View vulnerabilities
+osmedeus client fetch -t vulnerabilities --severity critical
+```
+
 ## Docker Compose Setup
 
 ```yaml

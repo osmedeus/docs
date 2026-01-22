@@ -1,93 +1,69 @@
 ---
 title: "Development"
-description: "Deploy Osmedeus as a server or in distributed mode"
+description: "Development and hacking on Osmedeus"
 icon: "code-branch"
 ---
-
-# Hacking on Osmedeus
 
 This document describes the technical architecture and development practices for Osmedeus. It's intended for developers who want to understand, modify, or extend the codebase.
 
 ## Table of Contents
 
+- [Project Structure](#project-structure)
+- [Architecture Overview](#architecture-overview)
+- [Core Components](#core-components)
+- [Workflow Engine](#workflow-engine)
+- [Execution Pipeline](#execution-pipeline)
+- [Runner System](#runner-system)
+- [Authentication Middleware](#authentication-middleware)
+- [Template Engine](#template-engine)
+- [Function Registry](#function-registry)
+- [Scheduler System](#scheduler-system)
+- [Workflow Linter](#workflow-linter)
+- [Database Layer](#database-layer)
+- [Testing](#testing)
+- [Adding New Features](#adding-new-features)
+- [CLI Shortcuts and Tips](#cli-shortcuts-and-tips)
+
+## Project Structure
+
 ```
-osmedeus-ng/
-├── cmd/osmedeus/main.go              # Application entry point
-├── internal/                         # Private packages
-│   ├── config/config.go              # Config loading and defaults
-│   ├── config/settings.go            # Settings struct definitions
-│   ├── config/secrets.go             # Secret management
-│   ├── core/workflow.go              # Workflow and RunnerConfig structs
-│   ├── core/step.go                  # Step definition
-│   ├── core/trigger.go               # Trigger types and events
-│   ├── core/types.go                 # Status types, constants
-│   ├── core/context.go               # Execution context
-│   ├── core/constants.go             # Project metadata
-│   ├── parser/parser.go              # YAML parser
-│   ├── parser/loader.go              # Workflow loader with caching
-│   ├── parser/validator.go           # Workflow validation
-│   ├── executor/executor.go          # Main executor
-│   ├── executor/dispatcher.go        # Step dispatcher
-│   ├── executor/bash_executor.go     # Bash step handler
-│   ├── executor/function_executor.go # Function step handler
-│   ├── executor/foreach_executor.go  # Foreach step handler
-│   ├── executor/parallel_executor.go # Parallel step handler
-│   ├── executor/remote_bash_executor.go # Remote-bash step handler
-│   ├── executor/http_executor.go     # HTTP request handler
-│   ├── executor/llm_executor.go      # LLM step handler
-│   ├── runner/runner.go              # Runner interface
-│   ├── runner/host_runner.go         # Local execution
-│   ├── runner/docker_runner.go       # Docker execution
-│   ├── runner/ssh_runner.go          # SSH remote execution
-│   ├── template/engine.go            # Template engine
-│   ├── template/generators.go        # Value generators
-│   ├── template/context.go           # Template context
-│   ├── functions/registry.go         # Function registry
-│   ├── functions/goja_runtime.go     # JavaScript runtime
-│   ├── functions/file_functions.go   # File operations
-│   ├── functions/string_functions.go # String operations
-│   ├── functions/util_functions.go   # Utility functions
-│   ├── functions/jq.go               # JSON query functions
-│   ├── scheduler/scheduler.go        # Cron, event, watch triggers
-│   ├── database/database.go          # Connection management
-│   ├── database/models.go            # Data models
-│   ├── database/jsonl.go             # JSONL import/export
-│   ├── database/repository/          # Data access layer
-│   ├── heuristics/heuristics.go      # Target type detection
-│   ├── heuristics/url.go             # URL parsing
-│   ├── heuristics/domain.go          # Domain analysis
-│   ├── workspace/workspace.go        # Workspace creation
-│   ├── snapshot/snapshot.go          # Export/import ZIP archives
-│   ├── installer/installer.go        # Core installer logic
-│   ├── installer/nix.go              # Nix package manager support
-│   ├── installer/registry.go         # Binary registry management
-│   ├── state/export.go               # State export functionality
-│   ├── state/types.go                # State types
-│   ├── updater/updater.go            # Update logic
-│   ├── updater/github_source.go      # GitHub releases source
-│   ├── terminal/printer.go           # Output formatting
-│   ├── terminal/colors.go            # ANSI colors
-│   ├── terminal/symbols.go           # Unicode symbols
-│   ├── terminal/spinner.go           # Loading spinners
-│   ├── terminal/table.go             # Table rendering
-│   └── logger/logger.go              # Zap logger wrapper
-├── pkg/                              # Public packages
-│   ├── cli/root.go                   # Root command
-│   ├── cli/scan.go                   # Scan command
-│   ├── cli/workflow.go               # Workflow command
-│   ├── cli/function.go               # Function command
-│   ├── cli/server.go                 # Server command
-│   ├── server/server.go              # Server setup
-│   ├── server/handlers/              # Request handlers
-│   └── server/middleware/            # Auth middleware (JWT, API Key)
-├── test/                             # Test suites
-│   ├── e2e/                          # E2E CLI tests
-│   ├── integration/                  # Integration tests
-│   ├── testdata/workflows/           # Test workflow fixtures
-│   └── testdata/complex-workflows/   # Complex workflow examples
-└── build/                            # Build artifacts
-    ├── docker/                       # Docker files
-    └── DEPLOYMENT.md                 # Deployment guide
+osmedeus/
+├── cmd/osmedeus/           # Application entry point
+├── internal/               # Private packages
+│   ├── client/             # Remote API client
+│   ├── config/             # Configuration management
+│   ├── console/            # Console output capture
+│   ├── core/               # Core types (Workflow, Step, Trigger, etc.)
+│   ├── database/           # SQLite/PostgreSQL via Bun ORM
+│   ├── distributed/        # Distributed execution (master/worker)
+│   ├── executor/           # Workflow execution engine
+│   ├── functions/          # Utility functions (Goja JS runtime)
+│   ├── heuristics/         # Target type detection
+│   ├── installer/          # Binary installation (direct/Nix)
+│   ├── linter/             # Workflow linting and validation
+│   ├── logger/             # Structured logging (Zap)
+│   ├── parser/             # YAML parsing and caching
+│   ├── runner/             # Execution environments (host/docker/ssh)
+│   ├── scheduler/          # Trigger scheduling (cron/event/watch)
+│   ├── snapshot/           # Workspace export/import
+│   ├── state/              # Run state export
+│   ├── template/           # {{Variable}} interpolation engine
+│   ├── terminal/           # Terminal UI (colors, tables, spinners)
+│   ├── updater/            # Self-update via GitHub releases
+│   └── workspace/          # Workspace management
+├── lib/                    # Shared library utilities
+├── pkg/                    # Public packages
+│   ├── cli/                # Cobra CLI commands
+│   └── server/             # Fiber REST API server
+│       ├── handlers/       # Request handlers
+│       └── middleware/     # Auth middleware (JWT, API Key)
+├── public/                 # Public assets (examples, presets, UI)
+├── test/                   # Test suites
+│   ├── e2e/                # E2E CLI tests
+│   ├── integration/        # Integration tests
+│   └── testdata/           # Test workflow fixtures
+├── docs/                   # API documentation
+└── build/                  # Build artifacts and Docker files
 ```
 
 ## Architecture Overview
@@ -103,7 +79,7 @@ Osmedeus follows a layered architecture:
 │  ┌─────────────┐ ┌──────────────┐ ┌────────────────────┐   │
 │  │  Executor   │ │  Dispatcher  │ │  Step Executors    │   │
 │  │             │ │              │ │  (bash, function,  │   │
-│  │             │ │              │ │   foreach, parallel-steps│ │
+│  │             │ │              │ │   foreach, etc.)   │   │
 │  └─────────────┘ └──────────────┘ └────────────────────┘   │
 ├─────────────────────────────────────────────────────────────┤
 │                      Runner Layer                            │
@@ -532,7 +508,7 @@ func (e *Executor) injectBuiltinVariables(cfg *config.Config, params map[string]
     execCtx.SetVariable("Target", params["target"])
     execCtx.SetVariable("Output", filepath.Join(workspacesPath, targetSpace))
     execCtx.SetVariable("threads", threads)
-    execCtx.SetVariable("TaskID", execCtx.RunID)
+    execCtx.SetVariable("RunUUID", execCtx.RunUUID)
     // ... more variables
 }
 ```
@@ -552,25 +528,25 @@ Foreach uses `[[variable]]` syntax (double brackets) to avoid conflicts with tem
 
 ## Function Registry
 
-### Goja JavaScript Runtime
+### Otto JavaScript Runtime
 
-Functions are implemented in Go and exposed to a Goja JavaScript VM:
+Functions are implemented in Go and exposed to an Otto JavaScript VM:
 
 ```go
-// internal/functions/goja_runtime.go
+// internal/functions/otto_runtime.go
 
-type GojaRuntime struct {
-    vm *goja.Runtime
+type OttoRuntime struct {
+    vm *otto.Otto
 }
 
-func NewGojaRuntime() *GojaRuntime {
-    vm := goja.New()
-    runtime := &GojaRuntime{vm: vm}
+func NewOttoRuntime() *OttoRuntime {
+    vm := otto.New()
+    runtime := &OttoRuntime{vm: vm}
     runtime.registerFunctions()
     return runtime
 }
 
-func (r *GojaRuntime) registerFunctions() {
+func (r *OttoRuntime) registerFunctions() {
     r.vm.Set("fileExists", r.fileExists)
     r.vm.Set("fileLength", r.fileLength)
     r.vm.Set("trim", r.trim)
@@ -585,7 +561,7 @@ func (r *GojaRuntime) registerFunctions() {
 ```go
 // internal/functions/file_functions.go
 
-func (r *GojaRuntime) myNewFunction(call goja.FunctionCall) goja.Value {
+func (r *OttoRuntime) myNewFunction(call otto.FunctionCall) otto.Value {
     arg := call.Argument(0).String()
     // ... implementation
     result, _ := r.vm.ToValue(output)
@@ -607,13 +583,13 @@ These functions provide output and execution control within workflows:
 // internal/functions/util_functions.go
 
 // printf prints a message to stdout
-func (r *GojaRuntime) printf(call goja.FunctionCall) goja.Value
+func (r *OttoRuntime) printf(call otto.FunctionCall) otto.Value
 
 // catFile prints file content to stdout
-func (r *GojaRuntime) catFile(call goja.FunctionCall) goja.Value
+func (r *OttoRuntime) catFile(call otto.FunctionCall) otto.Value
 
 // exit exits the scan with given code (0=success, non-zero=error)
-func (r *GojaRuntime) exit(call goja.FunctionCall) goja.Value
+func (r *OttoRuntime) exit(call otto.FunctionCall) otto.Value
 ```
 
 Usage in workflows:
@@ -627,6 +603,42 @@ steps:
     type: function
     function: cat_file("{{Output}}/results.txt")
 ```
+
+### Event Functions
+
+These functions enable event-driven workflows by generating and emitting events:
+
+```go
+// internal/functions/event_functions.go
+
+// generate_event emits a single structured event
+// Usage: generate_event(workspace, topic, source, data_type, data)
+func (vf *vmFunc) generateEvent(call goja.FunctionCall) goja.Value
+
+// generate_event_from_file emits an event for each line in a file
+// Usage: generate_event_from_file(workspace, topic, source, data_type, filePath)
+func (vf *vmFunc) generateEventFromFile(call goja.FunctionCall) goja.Value
+```
+
+Usage in workflows:
+```yaml
+steps:
+  - name: emit-single-event
+    type: function
+    function: |
+      generate_event("{{Workspace}}", "assets.new", "scanner", "subdomain", "api.example.com")
+
+  - name: emit-from-file
+    type: function
+    function: |
+      generate_event_from_file("{{Workspace}}", "assets.new", "recon", "subdomain", "{{Output}}/subdomains.txt")
+```
+
+Event delivery uses a fallback chain:
+1. **Server API** - POST to `/osm/api/events/emit` if server configured
+2. **Redis Pub/Sub** - Publish to `osm:events:{topic}` in distributed mode
+3. **Database Queue** - Store in `event_logs` table with `processed=false`
+4. **Webhooks** - Send to configured webhook endpoints
 
 ### Function Execution
 
@@ -691,7 +703,7 @@ Events are matched using JavaScript expressions:
 
 ```go
 func (s *Scheduler) evaluateFilters(filters []string, event *core.Event) bool {
-    vm := goja.New()
+    vm := otto.New()
     vm.Set("event", eventObj)
 
     for _, filter := range filters {
@@ -701,6 +713,127 @@ func (s *Scheduler) evaluateFilters(filters []string, event *core.Event) bool {
         }
     }
     return true
+}
+```
+
+## Workflow Linter
+
+The workflow linter (`internal/linter/`) provides static analysis of workflow YAML files to catch common issues before execution.
+
+### Usage
+
+```bash
+# Lint a single workflow
+osmedeus workflow lint my-workflow.yaml
+
+# Lint by workflow name (searches in workflows path)
+osmedeus workflow lint my-workflow
+
+# Lint all workflows in a directory
+osmedeus workflow lint /path/to/workflows/
+
+# Output formats
+osmedeus workflow lint my-workflow.yaml --format pretty   # Default, colored output
+osmedeus workflow lint my-workflow.yaml --format json     # Machine-readable JSON
+osmedeus workflow lint my-workflow.yaml --format github   # GitHub Actions annotations
+
+# Filter by severity
+osmedeus workflow lint my-workflow.yaml --severity warning  # Show warnings and above
+osmedeus workflow lint my-workflow.yaml --severity error    # Show only errors
+
+# Disable specific rules
+osmedeus workflow lint my-workflow.yaml --disable unused-variable,empty-step
+
+# CI mode (exit with error code if issues found)
+osmedeus workflow lint my-workflow.yaml --check
+```
+
+### Severity Levels
+
+| Severity | Description | Exit Code |
+|----------|-------------|-----------|
+| **info** | Best practice suggestions (e.g., unused exports) | 0 |
+| **warning** | Potential issues that may cause problems | 0 |
+| **error** | Critical issues that will likely cause failures | 1 (with --check) |
+
+### Built-in Rules
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| `missing-required-field` | warning | Detects missing required fields (name, kind, type) |
+| `duplicate-step-name` | warning | Detects multiple steps with the same name |
+| `empty-step` | warning | Detects steps with no executable content |
+| `unused-variable` | info | Detects exports that are never referenced |
+| `invalid-goto` | warning | Detects decision goto references to non-existent steps |
+| `invalid-depends-on` | warning | Detects depends_on references to non-existent steps |
+| `circular-dependency` | warning | Detects circular references in step dependencies |
+
+**Note**: The `undefined-variable` rule is available but not enabled by default as it can produce false positives for dynamically-injected variables.
+
+### Built-in Variables
+
+The linter recognizes all runtime-injected variables to avoid false positives. These include:
+
+**Path Variables**: `BaseFolder`, `Binaries`, `Data`, `ExternalData`, `ExternalConfigs`, `Workflows`, `Workspaces`, etc.
+
+**Target Variables**: `Target`, `target`, `TargetFile`, `TargetSpace`
+
+**Output Variables**: `Output`, `output`, `Workspace`, `workspace`
+
+**Metadata Variables**: `Version`, `RunUUID`, `TaskDate`, `TimeStamp`, `Today`, `RandomString`
+
+**Heuristic Variables**: `TargetType`, `TargetRootDomain`, `TargetTLD`, `Org`, `TargetHost`, `TargetPort`, etc.
+
+**Chunk Variables**: `ChunkIndex`, `ChunkSize`, `TotalChunks`, `ChunkStart`, `ChunkEnd`
+
+### Linter Architecture
+
+```go
+// internal/linter/linter.go
+
+type Linter struct {
+    rules   []LinterRule
+    options LinterOptions
+}
+
+// LinterRule interface for all lint rules
+type LinterRule interface {
+    Name() string
+    Description() string
+    Severity() Severity
+    Check(ast *WorkflowAST) []LintIssue
+}
+
+func (l *Linter) Lint(path string) (*LintResult, error)
+func (l *Linter) LintContent(content []byte, filename string) (*LintResult, error)
+```
+
+### Adding a New Lint Rule
+
+1. Create the rule in `internal/linter/rules.go`:
+
+```go
+type MyNewRule struct{}
+
+func (r *MyNewRule) Name() string        { return "my-new-rule" }
+func (r *MyNewRule) Description() string { return "Detects my issue" }
+func (r *MyNewRule) Severity() Severity  { return SeverityWarning }
+
+func (r *MyNewRule) Check(wast *WorkflowAST) []LintIssue {
+    var issues []LintIssue
+    // ... implementation
+    return issues
+}
+```
+
+2. Register in `GetDefaultRules()`:
+
+```go
+func GetDefaultRules() []LinterRule {
+    return []LinterRule{
+        // ... existing rules
+        &MyNewRule{},
+    }
 }
 ```
 
@@ -736,7 +869,7 @@ type Run struct {
     Target         string
     Params         map[string]string
     Status         string    // "pending", "running", "completed", "failed"
-    WorkspacePath  string
+    Workspace      string    // Logical workspace name (same as TargetSpace)
     StartedAt      time.Time
     CompletedAt    time.Time
     ErrorMessage   string
@@ -877,7 +1010,6 @@ func (i *JSONLImporter) ImportAssets(ctx context.Context, filePath, workspace, s
 ## Testing
 
 ### Test Structure
-
 
 ```
 internal/functions/registry_test.go      # Function unit tests
@@ -1106,6 +1238,83 @@ func init() {
 
 - `osmedeus func` - alias for `osmedeus function`
 - `osmedeus func e` - alias for `osmedeus function eval`
+- `osmedeus db ls` - alias for `osmedeus db list`
+
+### Database CLI Commands
+
+Query and manage database tables directly from the CLI:
+
+```bash
+# List all tables with row counts
+osmedeus db list
+
+# Query specific table (default columns shown)
+osmedeus db list --table event_logs
+
+# List available columns for a table
+osmedeus db list --table event_logs --list-columns
+
+# Filter by specific columns
+osmedeus db list --table event_logs --columns topic,source,data_type,data
+
+# Show all columns including hidden ones (id, timestamps)
+osmedeus db list --table event_logs --all
+
+# Filter by field value
+osmedeus db list --table event_logs --where topic=assets.new
+osmedeus db list --table event_logs --where processed=false
+
+# Search across all columns
+osmedeus db list --table event_logs --search "nuclei"
+
+# Output as JSON for scripting
+osmedeus db list --table event_logs --json
+
+# Pagination
+osmedeus db list --table event_logs --offset 50 --limit 100
+```
+
+Default columns per table:
+- `runs`: run_id, job_id, workflow_name, target, status, started_at
+- `event_logs`: topic, source, processed, data_type, workspace, data
+- `assets`: asset_value, host_ip, title, status_code, last_seen_at, technologies
+- `schedules`: name, workflow_name, trigger_type, schedule, is_enabled, run_count
+
+### Function Evaluation CLI
+
+Evaluate utility functions from the command line with bulk processing support:
+
+```bash
+# Single expression evaluation
+osmedeus func eval 'log_info("hello")'
+osmedeus func eval -e 'fileLength("/path/to/file.txt")'
+
+# With target variable
+osmedeus func eval -e 'httpGet("https://" + target)' -t example.com
+
+# Bulk processing from file (target variable available in script)
+osmedeus func eval -e 'log_info("Processing: " + target)' -T targets.txt
+
+# Bulk processing with concurrency
+osmedeus func eval -e 'httpGet("https://" + target)' -T targets.txt -c 10
+
+# Using function files for reusable logic
+osmedeus func eval --function-file check-host.js -T targets.txt -c 5
+
+# Additional parameters
+osmedeus func eval -e 'log_info(target + " in " + ws)' -T targets.txt --params ws=production
+
+# Function name with arguments
+osmedeus func eval log_info "hello world"
+osmedeus func eval -f httpGet "https://example.com"
+
+# Read script from stdin
+echo 'log_info("hello")' | osmedeus func eval --stdin
+
+# List available functions
+osmedeus func list
+osmedeus func list event  # Filter by category
+```
 
 ### New Scan Flags
 
