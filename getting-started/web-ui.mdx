@@ -1,10 +1,12 @@
 ---
 title: "Web UI"
-description: "Web UI for Osmedeus"
+description: "Server and Web UI for Osmedeus"
 icon: "browsers"
 ---
 
 This document describes the web UI for Osmedeus which is the main entry point for running workflows and modules and some other utilities.
+
+<Note>The Osmedeus server also acts as an event receiver, processing events from other runs and handling scheduled scans. See [Event-Driven](/advanced/event-driven) for more details.</Note>
 
 Start the web UI by running the following command:
 
@@ -12,7 +14,8 @@ Start the web UI by running the following command:
 osmedeus serve
 ```
 
-then open your browser and go to `https://localhost:8002`
+then open your browser and go to `https://localhost:8002`.
+
 
 ## How to Login into Web UI
 
@@ -30,6 +33,7 @@ osmedeus config get server.username
 osmedeus config get server.password
 ```
 
+<Danger>Many API endpoints are intentionally designed to execute code on your machine, so ensure your web UI and API endpoints are protected with strong credentials.</Danger>
 
 You can also change the default password and set API key authentication by running the following command:
 
@@ -106,7 +110,7 @@ You also have the option to enhance the UI, displaying artifacts in a cleaner, s
 
 This is where you can start a new scan by selecting the workflow and the target asset with all the extra parameters and scheduling options.
 
-<Frame caption="New Scan">
+<Frame caption="New Scan and Schedule Scan">
   <img src="/images/web-ui/web-ui-new-scan.png" alt="web-ui-new" />
 </Frame>
 
