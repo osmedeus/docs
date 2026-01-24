@@ -12,45 +12,45 @@ Osmedeus is a workflow engine for security automation. It executes YAML-defined 
 ## Layered Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     CLI / REST API                          │
-│              (pkg/cli, pkg/server)                          │
-└─────────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│                       Executor                              │
-│              (internal/executor)                            │
-│     Coordinates workflow execution and manages state        │
-└─────────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Step Dispatcher                           │
-│                                                             │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │   Bash   │ │ Function │ │ Parallel │ │ Foreach  │       │
-│  │ Executor │ │ Executor │ │ Executor │ │ Executor │       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
-│                                                             │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │  Remote  │ │   HTTP   │ │   LLM    │ │ Fragment │       │
-│  │   Bash   │ │ Executor │ │ Executor │ │ Executor │       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│                        Runner                               │
-│              (internal/runner)                              │
-│                                                             │
-│   ┌────────────┐  ┌────────────┐  ┌────────────┐           │
-│   │    Host    │  │   Docker   │  │    SSH     │           │
-│   │   Runner   │  │   Runner   │  │   Runner   │           │
-│   └────────────┘  └────────────┘  └────────────┘           │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                     CLI / REST API                          |
+|              (pkg/cli, pkg/server)                          |
++-------------------------------------------------------------+
+                           |
+                           v
++-------------------------------------------------------------+
+|                       Executor                              |
+|              (internal/executor)                            |
+|     Coordinates workflow execution and manages state        |
++-------------------------------------------------------------+
+                           |
+                           v
++-------------------------------------------------------------+
+|                   Step Dispatcher                           |
+|                                                             |
+|  +----------+ +----------+ +----------+ +----------+       |
+|  |   Bash   | | Function | | Parallel | | Foreach  |       |
+|  | Executor | | Executor | | Executor | | Executor |       |
+|  +----------+ +----------+ +----------+ +----------+       |
+|                                                             |
+|  +----------+ +----------+ +----------+ +----------+       |
+|  |  Remote  | |   HTTP   | |   LLM    | | Fragment |       |
+|  |   Bash   | | Executor | | Executor | | Executor |       |
+|  +----------+ +----------+ +----------+ +----------+       |
+|                                                             |
++-------------------------------------------------------------+
+                           |
+                           v
++-------------------------------------------------------------+
+|                        Runner                               |
+|              (internal/runner)                              |
+|                                                             |
+|   +------------+  +------------+  +------------+           |
+|   |    Host    |  |   Docker   |  |    SSH     |           |
+|   |   Runner   |  |   Runner   |  |   Runner   |           |
+|   +------------+  +------------+  +------------+           |
+|                                                             |
++-------------------------------------------------------------+
 ```
 
 ## Core Packages
@@ -76,54 +76,54 @@ Osmedeus is a workflow engine for security automation. It executes YAML-defined 
 ## Workflow Execution Flow
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ 1. CLI parses arguments                                     │
-│    osmedeus run -f general -t example.com                   │
-└─────────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 2. Load config from ~/osmedeus-base/osm-settings.yaml       │
-└─────────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 3. Parser loads YAML workflow                               │
-│    - Validates schema                                       │
-│    - Resolves includes (fragments)                          │
-│    - Caches in Loader                                       │
-└─────────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 4. Executor initializes context                             │
-│    - Injects built-in variables (Target, Output, etc.)      │
-│    - Loads params with defaults                             │
-│    - Creates execution context                              │
-└─────────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 5. For each step:                                           │
-│    ┌─────────────────────────────────────────────────────┐  │
-│    │ a. Check depends_on (wait for dependencies)         │  │
-│    │ b. Evaluate pre_condition                           │  │
-│    │ c. Render templates                                 │  │
-│    │ d. Dispatch to appropriate executor                 │  │
-│    │ e. Execute via runner                               │  │
-│    │ f. Capture output and exports                       │  │
-│    │ g. Evaluate decision routing                        │  │
-│    │ h. Handle on_success/on_error                       │  │
-│    └─────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 6. Export results                                           │
-│    - Save run state                                         │
-│    - Update database                                        │
-│    - Generate artifacts                                     │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+| 1. CLI parses arguments                                     |
+|    osmedeus run -f general -t example.com                   |
++-------------------------------------------------------------+
+                           |
+                           v
++-------------------------------------------------------------+
+| 2. Load config from ~/osmedeus-base/osm-settings.yaml       |
++-------------------------------------------------------------+
+                           |
+                           v
++-------------------------------------------------------------+
+| 3. Parser loads YAML workflow                               |
+|    - Validates schema                                       |
+|    - Resolves includes (fragments)                          |
+|    - Caches in Loader                                       |
++-------------------------------------------------------------+
+                           |
+                           v
++-------------------------------------------------------------+
+| 4. Executor initializes context                             |
+|    - Injects built-in variables (Target, Output, etc.)      |
+|    - Loads params with defaults                             |
+|    - Creates execution context                              |
++-------------------------------------------------------------+
+                           |
+                           v
++-------------------------------------------------------------+
+| 5. For each step:                                           |
+|    +-----------------------------------------------------+  |
+|    | a. Check depends_on (wait for dependencies)         |  |
+|    | b. Evaluate pre_condition                           |  |
+|    | c. Render templates                                 |  |
+|    | d. Dispatch to appropriate executor                 |  |
+|    | e. Execute via runner                               |  |
+|    | f. Capture output and exports                       |  |
+|    | g. Evaluate decision routing                        |  |
+|    | h. Handle on_success/on_error                       |  |
+|    +-----------------------------------------------------+  |
++-------------------------------------------------------------+
+                           |
+                           v
++-------------------------------------------------------------+
+| 6. Export results                                           |
+|    - Save run state                                         |
+|    - Update database                                        |
+|    - Generate artifacts                                     |
++-------------------------------------------------------------+
 ```
 
 ## Step Type Routing
@@ -131,21 +131,21 @@ Osmedeus is a workflow engine for security automation. It executes YAML-defined 
 The Step Dispatcher routes steps to the appropriate executor based on type:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Step Dispatcher                          │
-│                                                             │
-│   Step Type                    Executor                     │
-│   ─────────────────────────────────────────────────────     │
-│   "bash"           ──────────> BashExecutor ──> Runner      │
-│   "function"       ──────────> FunctionExecutor ──> Goja    │
-│   "parallel-steps" ──────────> ParallelExecutor             │
-│   "foreach"        ──────────> ForeachExecutor              │
-│   "remote-bash"    ──────────> RemoteBashExecutor ──> SSH/Docker │
-│   "http"           ──────────> HTTPExecutor                 │
-│   "llm"            ──────────> LLMExecutor                  │
-│   "fragment-step"  ──────────> FragmentStepExecutor ──> Inline │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                    Step Dispatcher                          |
+|                                                             |
+|   Step Type                    Executor                     |
+|   -------------------------------------------------         |
+|   "bash"           ---------> BashExecutor --> Runner       |
+|   "function"       ---------> FunctionExecutor --> Goja     |
+|   "parallel-steps" ---------> ParallelExecutor              |
+|   "foreach"        ---------> ForeachExecutor               |
+|   "remote-bash"    ---------> RemoteBashExecutor --> SSH/Docker |
+|   "http"           ---------> HTTPExecutor                  |
+|   "llm"            ---------> LLMExecutor                   |
+|   "fragment-step"  ---------> FragmentStepExecutor --> Inline |
+|                                                             |
++-------------------------------------------------------------+
 ```
 
 ## Key Types
@@ -214,25 +214,25 @@ const (
 The template engine provides `{{variable}}` interpolation:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Template Engine                          │
-│                                                             │
-│   Input: "nuclei -l {{Output}}/urls.txt -o {{Output}}/out"  │
-│                           │                                 │
-│                           ▼                                 │
-│   Context: { Output: "/workspaces/example_com" }            │
-│                           │                                 │
-│                           ▼                                 │
-│   Output: "nuclei -l /workspaces/example_com/urls.txt ..."  │
-│                                                             │
-│   Features:                                                 │
-│   - Standard templates: {{variable}}                        │
-│   - Secondary (foreach): [[variable]]                       │
-│   - Generators: $rand(16), $uuid()                          │
-│   - Sharded caching for high concurrency                    │
-│   - Pre-compiled templates for workflows                    │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                    Template Engine                          |
+|                                                             |
+|   Input: "nuclei -l {{Output}}/urls.txt -o {{Output}}/out"  |
+|                           |                                 |
+|                           v                                 |
+|   Context: { Output: "/workspaces/example_com" }            |
+|                           |                                 |
+|                           v                                 |
+|   Output: "nuclei -l /workspaces/example_com/urls.txt ..."  |
+|                                                             |
+|   Features:                                                 |
+|   - Standard templates: {{variable}}                        |
+|   - Secondary (foreach): [[variable]]                       |
+|   - Generators: $rand(16), $uuid()                          |
+|   - Sharded caching for high concurrency                    |
+|   - Pre-compiled templates for workflows                    |
+|                                                             |
++-------------------------------------------------------------+
 ```
 
 ## Function Runtime
@@ -240,49 +240,49 @@ The template engine provides `{{variable}}` interpolation:
 Functions are executed via the Goja JavaScript runtime with VM pooling:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Goja Runtime Pool                        │
-│                                                             │
-│   ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐       │
-│   │   VM1   │  │   VM2   │  │   VM3   │  │   VM4   │       │
-│   │ (idle)  │  │ (busy)  │  │ (idle)  │  │ (busy)  │       │
-│   └─────────┘  └─────────┘  └─────────┘  └─────────┘       │
-│                                                             │
-│   Features:                                                 │
-│   - Pool size based on CPU cores                            │
-│   - No global mutex for parallel execution                  │
-│   - Lazy variable loading for conditions                    │
-│   - Context isolation per execution                         │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                    Goja Runtime Pool                        |
+|                                                             |
+|   +---------+  +---------+  +---------+  +---------+       |
+|   |   VM1   |  |   VM2   |  |   VM3   |  |   VM4   |       |
+|   | (idle)  |  | (busy)  |  | (idle)  |  | (busy)  |       |
+|   +---------+  +---------+  +---------+  +---------+       |
+|                                                             |
+|   Features:                                                 |
+|   - Pool size based on CPU cores                            |
+|   - No global mutex for parallel execution                  |
+|   - Lazy variable loading for conditions                    |
+|   - Context isolation per execution                         |
+|                                                             |
++-------------------------------------------------------------+
 ```
 
 ## Database Schema
 
 ```
-┌─────────────────┐     ┌─────────────────┐
-│   Workspaces    │     │     Assets      │
-├─────────────────┤     ├─────────────────┤
-│ id              │     │ id              │
-│ name            │     │ workspace       │──┐
-│ target          │     │ asset_value     │  │
-│ created_at      │     │ asset_type      │  │
-│ total_subs      │     │ url             │  │
-│ total_urls      │     │ status_code     │  │
-│ ...             │     │ created_at      │  │
-└─────────────────┘     │ updated_at      │  │
-                        └─────────────────┘  │
-┌─────────────────┐                          │
-│ Vulnerabilities │                          │
-├─────────────────┤                          │
-│ id              │                          │
-│ workspace       │──────────────────────────┘
-│ asset_value     │
-│ vuln_info       │
-│ severity        │
-│ template_id     │
-│ created_at      │
-└─────────────────┘
++-----------------+     +-----------------+
+|   Workspaces    |     |     Assets      |
++-----------------+     +-----------------+
+| id              |     | id              |
+| name            |     | workspace       |--+
+| target          |     | asset_value     |  |
+| created_at      |     | asset_type      |  |
+| total_subs      |     | url             |  |
+| total_urls      |     | status_code     |  |
+| ...             |     | created_at      |  |
++-----------------+     | updated_at      |  |
+                        +-----------------+  |
++-----------------+                          |
+| Vulnerabilities |                          |
++-----------------+                          |
+| id              |                          |
+| workspace       |--------------------------+
+| asset_value     |
+| vuln_info       |
+| severity        |
+| template_id     |
+| created_at      |
++-----------------+
 ```
 
 ## Scheduler
@@ -290,25 +290,25 @@ Functions are executed via the Goja JavaScript runtime with VM pooling:
 The scheduler manages automated workflow triggers:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                       Scheduler                             │
-│                                                             │
-│   Trigger Types:                                            │
-│   ┌──────────────────────────────────────────────────────┐  │
-│   │  Cron        │ Time-based scheduling (cron syntax)   │  │
-│   │  Event       │ System events (assets.new, etc.)      │  │
-│   │  Watch       │ File system changes (fsnotify)        │  │
-│   │  Manual      │ CLI invocation                        │  │
-│   └──────────────────────────────────────────────────────┘  │
-│                                                             │
-│   Event Topics:                                             │
-│   - assets.new         New asset discovered                 │
-│   - vulnerabilities.new New vulnerability found             │
-│   - webhook.received   External webhook received            │
-│   - db.change          Database change event                │
-│   - watch.files        File system change event             │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                       Scheduler                             |
+|                                                             |
+|   Trigger Types:                                            |
+|   +------------------------------------------------------+  |
+|   |  Cron        | Time-based scheduling (cron syntax)   |  |
+|   |  Event       | System events (assets.new, etc.)      |  |
+|   |  Watch       | File system changes (fsnotify)        |  |
+|   |  Manual      | CLI invocation                        |  |
+|   +------------------------------------------------------+  |
+|                                                             |
+|   Event Topics:                                             |
+|   - assets.new         New asset discovered                 |
+|   - vulnerabilities.new New vulnerability found             |
+|   - webhook.received   External webhook received            |
+|   - db.change          Database change event                |
+|   - watch.files        File system change event             |
+|                                                             |
++-------------------------------------------------------------+
 ```
 
 ## Decision Routing

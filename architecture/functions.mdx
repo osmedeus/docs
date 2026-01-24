@@ -13,29 +13,29 @@ Osmedeus provides a rich set of utility functions executed via the Goja JavaScri
 The function system uses a pool of Goja JavaScript VMs for parallel execution without global mutex contention:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Goja Runtime Pool                        │
-│                                                             │
-│   ┌─────────────┐                                           │
-│   │  VMPool     │                                           │
-│   │  (CPU cores)│                                           │
-│   └─────────────┘                                           │
-│         │                                                   │
-│         ├───────────┬───────────┬───────────┐              │
-│         ▼           ▼           ▼           ▼              │
-│   ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐          │
-│   │  VM 1   │ │  VM 2   │ │  VM 3   │ │  VM 4   │          │
-│   │ Context │ │ Context │ │ Context │ │ Context │          │
-│   │ Funcs   │ │ Funcs   │ │ Funcs   │ │ Funcs   │          │
-│   └─────────┘ └─────────┘ └─────────┘ └─────────┘          │
-│                                                             │
-│   Features:                                                 │
-│   - Pool size: runtime.NumCPU()                             │
-│   - No global mutex for parallel execution                  │
-│   - Lazy variable loading for conditions                    │
-│   - Context isolation per execution                         │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                    Goja Runtime Pool                        |
+|                                                             |
+|   +-------------+                                           |
+|   |  VMPool     |                                           |
+|   |  (CPU cores)|                                           |
+|   +-------------+                                           |
+|         |                                                   |
+|         +-----------+-----------+-----------+               |
+|         v           v           v           v               |
+|   +---------+ +---------+ +---------+ +---------+           |
+|   |  VM 1   | |  VM 2   | |  VM 3   | |  VM 4   |           |
+|   | Context | | Context | | Context | | Context |           |
+|   | Funcs   | | Funcs   | | Funcs   | | Funcs   |           |
+|   +---------+ +---------+ +---------+ +---------+           |
+|                                                             |
+|   Features:                                                 |
+|   - Pool size: runtime.NumCPU()                             |
+|   - No global mutex for parallel execution                  |
+|   - Lazy variable loading for conditions                    |
+|   - Context isolation per execution                         |
+|                                                             |
++-------------------------------------------------------------+
 ```
 
 ## GojaRuntime Structure

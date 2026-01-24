@@ -19,17 +19,17 @@ Osmedeus supports three workflow kinds:
 | `fragment` | Reusable step collection | Steps array |
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                       Flow                                  │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
-│  │  Module A   │  │  Module B   │  │  Module C   │         │
-│  │  ┌───────┐  │  │  ┌───────┐  │  │  ┌───────┐  │         │
-│  │  │ Step  │  │  │  │ Step  │  │  │  │Fragment│  │         │
-│  │  │ Step  │  │  │  │ Step  │  │  │  │ Step   │  │         │
-│  │  │Fragment│  │  │  └───────┘  │  │  │ Step   │  │         │
-│  │  └───────┘  │  │             │  │  └───────┘  │         │
-│  └─────────────┘  └─────────────┘  └─────────────┘         │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                       Flow                                  |
+|  +-------------+  +-------------+  +-------------+          |
+|  |  Module A   |  |  Module B   |  |  Module C   |          |
+|  |  +-------+  |  |  +-------+  |  |  +-------+  |          |
+|  |  | Step  |  |  |  | Step  |  |  |  |Fragment|  |          |
+|  |  | Step  |  |  |  | Step  |  |  |  | Step   |  |          |
+|  |  |Fragment|  |  |  +-------+  |  |  | Step   |  |          |
+|  |  +-------+  |  |              |  |  +-------+  |          |
+|  +-------------+  +-------------+  +-------------+          |
++-------------------------------------------------------------+
 ```
 
 ## Workflow Structure
@@ -142,31 +142,31 @@ Workflows support inheritance through the `extends` field, allowing child workfl
 ### Inheritance Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                  InheritanceResolver                        │
-│                                                             │
-│   Child Workflow                                            │
-│   ┌─────────────────────────────────────────────────────┐   │
-│   │ extends: parent-workflow                            │   │
-│   │ override: { params: ..., steps: ... }               │   │
-│   └─────────────────────────────────────────────────────┘   │
-│                           │                                 │
-│                           ▼                                 │
-│   ┌─────────────────────────────────────────────────────┐   │
-│   │ 1. Check for circular dependency                    │   │
-│   │ 2. Load parent workflow                             │   │
-│   │ 3. Recursively resolve parent's inheritance         │   │
-│   │ 4. Validate kind compatibility                      │   │
-│   │ 5. Merge parent → child with overrides              │   │
-│   └─────────────────────────────────────────────────────┘   │
-│                           │                                 │
-│                           ▼                                 │
-│   Merged Workflow                                           │
-│   ┌─────────────────────────────────────────────────────┐   │
-│   │ All parent fields + child overrides                 │   │
-│   │ ResolvedFrom: "parent-workflow"                     │   │
-│   └─────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                  InheritanceResolver                        |
+|                                                             |
+|   Child Workflow                                            |
+|   +---------------------------------------------------------+
+|   | extends: parent-workflow                                |
+|   | override: { params: ..., steps: ... }                   |
+|   +---------------------------------------------------------+
+|                           |                                 |
+|                           v                                 |
+|   +---------------------------------------------------------+
+|   | 1. Check for circular dependency                        |
+|   | 2. Load parent workflow                                 |
+|   | 3. Recursively resolve parent's inheritance             |
+|   | 4. Validate kind compatibility                          |
+|   | 5. Merge parent -> child with overrides                 |
+|   +---------------------------------------------------------+
+|                           |                                 |
+|                           v                                 |
+|   Merged Workflow                                           |
+|   +---------------------------------------------------------+
+|   | All parent fields + child overrides                     |
+|   | ResolvedFrom: "parent-workflow"                         |
+|   +---------------------------------------------------------+
++-------------------------------------------------------------+
 ```
 
 ### InheritanceResolver Type
@@ -250,193 +250,130 @@ Fragments are reusable step collections that can be embedded in modules.
 
 ```yaml
 kind: fragment
-name: common-cleanup
-description: "Clean and deduplicate results"
-
+name: notification-fragment
+description: Common notification steps
 params:
-  - name: input_file
-    required: true
-  - name: output_file
-    required: true
-
+  - name: channel
+    type: string
+    default: "#security-alerts"
 steps:
-  - name: sort-unique
-    type: function
-    function: "sortUnix('{{input_file}}', '{{output_file}}')"
-
-  - name: remove-blanks
-    type: function
-    function: "remove_blank_lines('{{output_file}}')"
+  - name: notify
+    type: bash
+    command: notify-send "{{channel}}" "{{message}}"
 ```
 
 ### Fragment Include
 
-Modules can include fragments:
+Modules can include fragments using the `includes` field:
 
 ```yaml
 kind: module
-name: subdomain-scan
-
+name: subdomain-enum
 includes:
-  - path: fragments/common-cleanup.yaml
-    fragment_name: cleanup      # Name for fragment-step reference
-    params:                     # Parameter mapping
-      input_file: "{{Output}}/raw.txt"
-    position: prepend           # prepend or append (default: prepend)
+  - name: notification-fragment
+    as: notify
+    params:
+      channel: "#recon"
+steps:
+  - name: run-amass
+    type: bash
+    command: amass enum -d {{target}}
+  - name: send-notification
+    type: fragment
+    fragment_name: notify
+    override:
+      message: "Subdomain enumeration complete"
 ```
 
 ### FragmentInclude Type
 
 ```go
 type FragmentInclude struct {
-    Path         string            // Path to fragment YAML
-    FragmentName string            // Name for fragment-step reference
-    Params       map[string]string // Parameter mapping
-    Position     string            // "prepend" or "append"
+    Name   string            // Fragment workflow name
+    As     string            // Local alias
+    Params map[string]string // Parameter overrides
 }
 ```
 
-### Fragment-Step Execution
+### Fragment Resolution
 
-The `fragment-step` type executes a named fragment inline:
+1. **Loading**: Fragments are loaded during workflow parsing
+2. **Validation**: Fragment kind must be `fragment`
+3. **Parameter Binding**: Include params merged with fragment defaults
+4. **Step Expansion**: Fragment steps are embedded at execution time
 
-```yaml
-- name: cleanup-results
-  type: fragment-step
-  fragment_name: cleanup
-  override:
-    input_file: "{{Output}}/subdomains-raw.txt"
-    output_file: "{{Output}}/subdomains.txt"
-    threads: "20"  # Can override step fields too
-```
-
-### FragmentStepExecutor
+### Fragment Step Type
 
 ```go
-type FragmentStepExecutor struct {
-    dispatcher     *StepDispatcher
-    templateEngine template.TemplateEngine
-    loader         *parser.Loader
-}
-
-func (e *FragmentStepExecutor) Execute(ctx context.Context, step *core.Step, execCtx *core.ExecutionContext) (*core.StepResult, error) {
-    // 1. Validate fragment_name
-    if step.FragmentName == "" {
-        return nil, fmt.Errorf("fragment-step requires 'fragment_name' field")
-    }
-
-    // 2. Get fragment from loader
-    fragment, ok := e.loader.GetNamedFragment(step.FragmentName)
-    if !ok {
-        return nil, fmt.Errorf("fragment '%s' not found", step.FragmentName)
-    }
-
-    // 3. Clone steps and apply overrides
-    steps := e.applyOverrides(fragment.Steps, step.Override)
-
-    // 4. Execute each fragment step
-    for _, fragmentStep := range steps {
-        stepCopy := fragmentStep.Clone()
-        childResult, err := e.dispatcher.Dispatch(ctx, stepCopy, execCtx)
-        if err != nil {
-            return nil, err
-        }
-        // Merge exports
-        for k, v := range childResult.Exports {
-            result.Exports[k] = v
-        }
-    }
-
-    return result, nil
+type Step struct {
+    // ... other fields
+    Type         StepType // "fragment"
+    FragmentName string   // Alias from includes
+    Override     map[string]string // Runtime parameter overrides
 }
 ```
 
-### Override Types
+### Fragment Execution
 
-The `override` map supports both step fields and template variables:
+When a fragment step is executed:
 
-```go
-func (e *FragmentStepExecutor) applyOverrides(steps []core.Step, overrides map[string]string) []core.Step {
-    // Separate step fields from template variables
-    stepFields := map[string]bool{"threads": true, "timeout": true}
+1. Resolve fragment from includes by alias
+2. Merge override params with include params
+3. Execute fragment steps in sequence
+4. Return combined results
 
-    for i, step := range steps {
-        // 1. Apply step field overrides
-        for key, value := range overrides {
-            if stepFields[key] {
-                switch key {
-                case "threads":
-                    step.Threads = core.StepThreads(value)
-                case "timeout":
-                    step.Timeout = core.StepTimeout(value)
-                }
-            }
-        }
+## Linting System
 
-        // 2. Apply template variable substitution
-        for oldVar, newValue := range overrides {
-            if !stepFields[oldVar] {
-                placeholder := "{{" + oldVar + "}}"
-                step.Command = strings.ReplaceAll(step.Command, placeholder, newValue)
-                // ... apply to all relevant fields
-            }
-        }
-    }
-    return steps
-}
-```
+The workflow linter validates YAML workflows for correctness and best practices.
 
-## Workflow Linting
-
-The linter validates workflows for common issues.
-
-### Linter Architecture
+### Linting Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Linter                               │
-│                                                             │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │                   LinterOptions                     │    │
-│  │  - DisabledRules: []string                          │    │
-│  │  - MinSeverity: Severity                            │    │
-│  └─────────────────────────────────────────────────────┘    │
-│                           │                                 │
-│                           ▼                                 │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │                   WorkflowAST                       │    │
-│  │  - Workflow: *core.Workflow                         │    │
-│  │  - Source: []byte                                   │    │
-│  │  - Root: ast.Node                                   │    │
-│  │  - NodeMap: map[string]ast.Node                     │    │
-│  └─────────────────────────────────────────────────────┘    │
-│                           │                                 │
-│                           ▼                                 │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │                    Rules                            │    │
-│  │  ┌──────────────────┐  ┌──────────────────┐        │    │
-│  │  │ MissingRequired  │  │ DuplicateStepName│        │    │
-│  │  └──────────────────┘  └──────────────────┘        │    │
-│  │  ┌──────────────────┐  ┌──────────────────┐        │    │
-│  │  │   EmptyStep      │  │ UnusedVariable   │        │    │
-│  │  └──────────────────┘  └──────────────────┘        │    │
-│  │  ┌──────────────────┐  ┌──────────────────┐        │    │
-│  │  │  InvalidGoto     │  │InvalidDependsOn  │        │    │
-│  │  └──────────────────┘  └──────────────────┘        │    │
-│  │  ┌──────────────────┐  ┌──────────────────┐        │    │
-│  │  │CircularDependency│  │UndefinedVariable │        │    │
-│  │  └──────────────────┘  └──────────────────┘        │    │
-│  └─────────────────────────────────────────────────────┘    │
-│                           │                                 │
-│                           ▼                                 │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │                   LintResult                        │    │
-│  │  - Issues: []LintIssue                              │    │
-│  │  - Errors: int                                      │    │
-│  │  - Warnings: int                                    │    │
-│  │  - Infos: int                                       │    │
-│  └─────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                        Linter                               |
+|                                                             |
+|   YAML Source                                               |
+|   +---------------------------------------------------------+
+|   | kind: module                                            |
+|   | name: my-workflow                                       |
+|   | steps: ...                                              |
+|   +---------------------------------------------------------+
+|                           |                                 |
+|                           v                                 |
+|  +---------------------------------------------------------+
+|  |                   WorkflowAST                           |
+|  |  - Workflow: *core.Workflow                             |
+|  |  - Source: []byte                                       |
+|  |  - Root: ast.Node                                       |
+|  |  - NodeMap: map[string]ast.Node                         |
+|  +---------------------------------------------------------+
+|                           |                                 |
+|                           v                                 |
+|  +---------------------------------------------------------+
+|  |                    Rules                                |
+|  |  +------------------+  +------------------+              |
+|  |  | MissingRequired  |  | DuplicateStepName|              |
+|  |  +------------------+  +------------------+              |
+|  |  +------------------+  +------------------+              |
+|  |  |   EmptyStep      |  | UnusedVariable   |              |
+|  |  +------------------+  +------------------+              |
+|  |  +------------------+  +------------------+              |
+|  |  |  InvalidGoto     |  |InvalidDependsOn  |              |
+|  |  +------------------+  +------------------+              |
+|  |  +------------------+  +------------------+              |
+|  |  |CircularDependency|  |UndefinedVariable |              |
+|  |  +------------------+  +------------------+              |
+|  +---------------------------------------------------------+
+|                           |                                 |
+|                           v                                 |
+|  +---------------------------------------------------------+
+|  |                   LintResult                            |
+|  |  - Issues: []LintIssue                                  |
+|  |  - Errors: int                                          |
+|  |  - Warnings: int                                        |
+|  |  - Infos: int                                           |
+|  +---------------------------------------------------------+
++-------------------------------------------------------------+
 ```
 
 ### Built-in Rules
