@@ -29,7 +29,7 @@ params:                           # Optional: Input parameters
     default: "value"
     required: false
 
-trigger:                          # Optional: Automated triggers
+triggers:                          # Optional: Automated triggers
   - name: trigger-name
     on: cron | event | watch | manual
     enabled: true
@@ -517,7 +517,7 @@ params:
 Triggers define automated execution:
 
 ```yaml
-trigger:
+triggers:
   # Cron trigger
   - name: daily-scan
     on: cron

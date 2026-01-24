@@ -360,3 +360,27 @@ icon: "block-question"
     ```
   </Expandable>
 </ResponseField>
+
+
+## Clean up & Uninstall
+
+<ResponseField name="31. How do I clean up the workspace?" type="Answer">
+  <Expandable title="properties">
+    just run the command below to clean up workspace and database and generate the default osmedeus config
+    ```bash
+    rm -rf ~/osmedeus-base ~/workspaces-osmedeus
+    osmedeus install base --preset
+    ```
+  </Expandable>
+</ResponseField>
+
+
+<ResponseField name="31. How do I uninstall osmedeus?" type="Answer">
+  <Expandable title="properties">
+    just run the command below
+    ```bash
+    rm -rf ~/.osmedeus ~/osmedeus-base ~/workspaces-osmedeus
+    rm -rf $(which osmedeus)
+    ```
+  </Expandable>
+</ResponseField>

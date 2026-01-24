@@ -190,7 +190,7 @@ Configure event triggers in workflow YAML:
 name: probe-new-assets
 kind: module
 
-trigger:
+triggers:
   - name: on-subdomain-discovered
     on: event
     event:
@@ -220,12 +220,37 @@ steps:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `topic` | string | Event topic to match (exact match, empty = all) |
+| `topic` | string | Event topic to match (supports glob patterns: `*`, `?`, `[`; empty = all) |
 | `filters` | []string | JavaScript expressions (all must pass) |
+| `filter_functions` | []string | JavaScript expressions with utility functions available (all must pass) |
 | `dedupe_key` | string | Template for deduplication key |
 | `dedupe_window` | string | Time window for deduplication (e.g., "5m") |
 
 ### TriggerInput Options
+
+Trigger input supports two syntaxes: a legacy syntax and a new exports-style syntax.
+
+#### New Exports-Style Syntax (Recommended)
+
+Map multiple event fields to workflow variables using a concise syntax:
+
+```yaml
+input:
+  # variable_name: expression
+  target: event_data.url
+  asset_type: event_data.type
+  source: event.source
+  description: trim(event_data.desc)
+```
+
+**Expression Types:**
+- `event_data.<field>` - Access parsed event data fields (e.g., `event_data.url`, `event_data.severity`)
+- `event.<field>` - Access event metadata (`event.topic`, `event.source`, `event.name`, `event.id`, `event.data_type`, `event.workspace`, `event.run_uuid`, `event.workflow_name`)
+- `function(...)` - Transform values using utility functions (e.g., `trim(event_data.desc)`, `lower(event_data.name)`)
+
+#### Legacy Syntax
+
+The original input configuration (still supported for backward compatibility):
 
 | Type | Description | Fields |
 |------|-------------|--------|
@@ -252,6 +277,24 @@ input:
   type: param
   name: default_target
 ```
+
+### Topic Glob Patterns
+
+Event topics support glob patterns for flexible matching:
+
+```yaml
+event:
+  topic: "assets.*"         # Matches assets.new, assets.updated, etc.
+  topic: "*.new"            # Matches assets.new, vulns.new, etc.
+  topic: "scan.*.complete"  # Matches scan.nuclei.complete, scan.httpx.complete
+  topic: "*"                # Matches all topics
+```
+
+| Pattern | Description |
+|---------|-------------|
+| `*` | Matches any sequence of characters |
+| `?` | Matches any single character |
+| `[abc]` | Matches any character in the set |
 
 ### JavaScript Filters
 
@@ -307,12 +350,108 @@ filters:
   - "event.workspace == 'production'"
 ```
 
+### Filter Functions
+
+For more advanced filtering, use `filter_functions` which provides access to utility functions like `contains()`, `starts_with()`, `ends_with()`, `file_exists()`, and more:
+
+```yaml
+triggers:
+  - name: on-api-endpoint
+    on: event
+    event:
+      topic: "assets.new"
+      # Simple filters (basic JS only)
+      filters:
+        - "event.source == 'httpx'"
+      # Filter functions with utility functions available
+      filter_functions:
+        - "contains(event.data.url, '/api/')"
+        - "!ends_with(event.data.url, '.js')"
+    input:
+      type: event_data
+      field: "url"
+      name: target
+    enabled: true
+```
+
+#### Available Filter Functions
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `contains(str, substr)` | Check if string contains substring | `contains(event.data.url, '/api/')` |
+| `starts_with(str, prefix)` | Check if string starts with prefix | `starts_with(event.data.severity, 'critical')` |
+| `ends_with(str, suffix)` | Check if string ends with suffix | `ends_with(event.data.url, '.json')` |
+| `file_exists(path)` | Check if file exists | `file_exists("{{event.data.output_path}}/results.json")` |
+| `file_length(path)` | Get file line count | `file_length(event.data.results_file) > 0` |
+| `is_empty(str)` | Check if string is empty | `!is_empty(event.data.target)` |
+| `trim(str)` | Remove leading/trailing whitespace | Used in input expressions |
+
+#### Combining Filters and Filter Functions
+
+You can use both `filters` (basic JS) and `filter_functions` (with utilities) together. All expressions from both must pass:
+
+```yaml
+event:
+  topic: "vulns.discovered"
+  # Basic JS expressions
+  filters:
+    - "event.source == 'nuclei'"
+  # Expressions with utility functions
+  filter_functions:
+    - "contains(event.data.template_id, 'CVE')"
+    - "starts_with(event.data.severity, 'critical') || starts_with(event.data.severity, 'high')"
+```
+
+### Event Envelope Template Variables
+
+Event-triggered workflows have access to special template variables containing the full event data:
+
+| Variable | Description |
+|----------|-------------|
+| `{{EventEnvelope}}` | Full JSON-encoded event envelope |
+| `{{EventTopic}}` | Event topic (e.g., "assets.new") |
+| `{{EventSource}}` | Event source (e.g., "nuclei", "httpx") |
+| `{{EventDataType}}` | Data type (e.g., "subdomain", "url") |
+| `{{EventTimestamp}}` | Event timestamp (RFC3339 format) |
+| `{{EventData}}` | Raw event data payload |
+
+**Example usage:**
+
+```yaml
+name: event-processor
+kind: module
+
+triggers:
+  - name: on-event
+    on: event
+    event:
+      topic: "scan.complete"
+    input:
+      type: event_data
+      field: "target"
+      name: target
+    enabled: true
+
+steps:
+  - name: log-event-details
+    type: function
+    functions:
+      - 'log_info("Topic: {{EventTopic}}")'
+      - 'log_info("Source: {{EventSource}}")'
+      - 'log_info("Full envelope: {{EventEnvelope}}")'
+
+  - name: save-envelope
+    type: bash
+    command: |
+      echo '{{EventEnvelope}}' > {{Output}}/event-envelope.json
+```
+
 ### Deduplication
 
 Prevent duplicate workflow triggers using time-windowed deduplication:
 
 ```yaml
-trigger:
+triggers:
   - name: on-unique-url
     on: event
     event:
@@ -399,7 +538,7 @@ steps:
 name: http-probe
 kind: module
 
-trigger:
+triggers:
   - name: on-subdomain
     on: event
     event:
@@ -434,7 +573,7 @@ steps:
 name: vuln-scan
 kind: module
 
-trigger:
+triggers:
   - name: on-live-host
     on: event
     event:
@@ -531,7 +670,7 @@ Automatically notify on critical findings:
 name: vuln-notifier
 kind: module
 
-trigger:
+triggers:
   - name: on-critical-vuln
     on: event
     event:
@@ -565,7 +704,7 @@ Trigger scans on repository pushes:
 name: github-triggered-scan
 kind: module
 
-trigger:
+triggers:
   - name: on-github-push
     on: event
     event:

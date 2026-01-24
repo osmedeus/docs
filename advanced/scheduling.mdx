@@ -24,7 +24,7 @@ Execute workflows on a schedule using cron expressions.
 kind: module
 name: scheduled-scan
 
-trigger:
+triggers:
   - name: daily-scan
     on: cron
     schedule: "0 2 * * *"    # Daily at 2 AM
@@ -73,7 +73,7 @@ Execute workflows in response to events.
 kind: module
 name: on-asset-discovered
 
-trigger:
+triggers:
   - name: new-asset
     on: event
     event:
@@ -95,6 +95,15 @@ steps:
 
 ### Event Topics
 
+Topics support glob patterns for flexible matching:
+
+```yaml
+event:
+  topic: "assets.*"         # Matches assets.new, assets.updated
+  topic: "*.new"            # Matches assets.new, vulns.new
+  topic: "*"                # Matches all topics
+```
+
 | Topic | Description |
 |-------|-------------|
 | `run.started` | Workflow run started |
@@ -115,9 +124,34 @@ filters:
   - "event.workspace == 'example.com'"
 ```
 
+For advanced filtering with utility functions, use `filter_functions`:
+
+```yaml
+event:
+  topic: "assets.new"
+  filters:
+    - "event.source == 'httpx'"
+  filter_functions:
+    - "contains(event.data.url, '/api/')"
+    - "!ends_with(event.data.url, '.js')"
+```
+
+See [Event-Driven Triggers](event-driven.mdx) for available filter functions.
+
 ### Event Input Mapping
 
-Map event data to workflow parameters:
+Two syntaxes are supported:
+
+**New exports-style syntax (recommended):**
+
+```yaml
+input:
+  target: event_data.url
+  source: event.source
+  description: trim(event_data.desc)
+```
+
+**Legacy syntax:**
 
 ```yaml
 input:
@@ -126,9 +160,21 @@ input:
   name: target         # Workflow parameter name
 ```
 
+### Event Template Variables
+
+Event-triggered workflows have access to these template variables:
+
+| Variable | Description |
+|----------|-------------|
+| `{{EventEnvelope}}` | Full JSON event envelope |
+| `{{EventTopic}}` | Event topic |
+| `{{EventSource}}` | Event source |
+| `{{EventDataType}}` | Data type |
+| `{{EventTimestamp}}` | Event timestamp |
+
 ## Watch Triggers
 
-Execute workflows when files change.
+Execute workflows when files change. Uses fsnotify for instant inotify-based file system notifications.
 
 ### Workflow Definition
 
@@ -136,13 +182,11 @@ Execute workflows when files change.
 kind: module
 name: process-new-targets
 
-trigger:
+triggers:
   - name: new-targets
     on: watch
-    watch:
-      path: "/data/targets/"
-      pattern: "*.txt"
-      events: ["create", "modify"]
+    path: "/data/targets/"
+    debounce: "500ms"    # Optional: debounce rapid changes
     input:
       type: file_path
       name: target_file
@@ -157,6 +201,28 @@ steps:
       type: bash
       command: scan {{target}}
 ```
+
+### Watch Configuration
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `path` | string | Directory or file path to watch |
+| `debounce` | string | Optional debounce duration (e.g., "500ms", "1s", "2s") |
+
+### Debounce
+
+When files are modified rapidly (e.g., during a write operation), multiple events may fire. Use `debounce` to consolidate rapid changes into a single trigger:
+
+```yaml
+triggers:
+  - name: watch-logs
+    on: watch
+    path: "/var/log/scan-results/"
+    debounce: "1s"    # Wait 1 second after last change before triggering
+    enabled: true
+```
+
+The debounce timer resets on each new file event. The workflow only triggers after the specified duration has passed without new events.
 
 ### Watch Events
 
@@ -228,7 +294,7 @@ A workflow can have multiple triggers:
 kind: module
 name: flexible-scan
 
-trigger:
+triggers:
   # Run daily
   - name: daily
     on: cron

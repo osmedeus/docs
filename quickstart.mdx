@@ -20,15 +20,24 @@ icon: "rocket"
   ```
   </Tab>
 
-    <Tab title="Nightly Build " icon="bolt">
+  <Tab title="Nightly Build " icon="bolt">
   ```bash
   curl -fsSL https://www.osmedeus.org/nightly-install.sh | bash
+  ```
+  </Tab>
+
+  <Tab title="Build from Source" icon="bolt">
+  ```bash
+  git clone https://github.com/osmedeus/osmedeus.git
+  cd osmedeus
+  make build
   ```
   </Tab>
 
   <Tab title="Windows">
     <Check>Osmedeus only supports Linux and macOS natively. Windows users please use WSL or See [Docker Setup here](/getting-started/docker-setup)</Check>
   </Tab>
+
 </Tabs>
 
 <Frame caption="Installation Osmedeus Core Engine">

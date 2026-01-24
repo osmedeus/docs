@@ -22,6 +22,15 @@ then open your browser and go to `https://localhost:8002`
 
 <Tip>Your default password is in `$HOME/osmedeus-base/osm-settings.yaml`</Tip>
 
+
+You can view the default credentials by running the following command as it is auto-generated:
+
+```bash
+osmedeus config get server.username
+osmedeus config get server.password
+```
+
+
 You can also change the default password and set API key authentication by running the following command:
 
 ```bash
@@ -93,7 +102,7 @@ You also have the option to enhance the UI, displaying artifacts in a cleaner, s
 </Frame>
 </Columns>
 
-### 2. Start New Scan
+### 2. Start New Scan (Simple Run & Scheduled)
 
 This is where you can start a new scan by selecting the workflow and the target asset with all the extra parameters and scheduling options.
 
