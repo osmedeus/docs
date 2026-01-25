@@ -36,6 +36,7 @@
             "icon": "hat-wizard",
             "pages": [
               "advanced/api-key-configuration",
+              "advanced/notification-and-cdn",
               "advanced/deployment",
               "advanced/event-driven",
               "advanced/distributed",

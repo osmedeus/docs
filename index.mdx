@@ -2,6 +2,7 @@
 title: "Introduction"
 description: "Welcome to the Osmedeus Documentation"
 icon: "hand-wave"
+"og:title": "Osmedeus - Modern Orchestration Engine for Security"
 ---
 
 <Frame>
@@ -16,13 +17,16 @@ Built for both beginners and experts, it delivers powerful, composable automatio
 ## Key Features
 
 - **Declarative YAML Workflows** - Define reconnaissance pipelines using simple, readable YAML syntax
-- **Two Workflow Types** - Modules for single execution units, Flows for multi-module orchestration
 - **Multiple Runners** - Execute on local host, Docker containers, or remote machines via SSH
+- **Event-Driven Triggers** - Cron scheduling, file watching, and event-based workflow triggers with deduplication and filter functions
+- **Template Engine** - Powerful variable interpolation with built-in and custom variables
+- **Utility Functions** - Rich function library with event generation, bulk processing, and JSON operations
+- **REST API Server** - Manage, trigger, and cancel workflows programmatically
 - **Distributed Execution** - Scale with Redis-based master-worker pattern for parallel scanning
-- **Template Engine** - Powerful variable interpolation with `{{Variable}}` syntax
-- **Utility Functions** - Rich function library for file operations, string manipulation, and JSON processing
-- **REST API Server** - Manage and trigger workflows programmatically
+- **Notifications** - Telegram bot and webhook integrations
+- **Cloud Storage** - S3-compatible storage for artifact management
 - **LLM Integration** - AI-powered workflow steps with chat completions and embeddings
+
 
 <Card>
   <img className="block dark:hidden rounded-t-lg w-full" src="/images/introduction/hall-of-fame-light.png" alt="Hall of fame in light mode" />
