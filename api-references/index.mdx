@@ -1,0 +1,74 @@
+---
+title: "Osmedeus API Documentation"
+description: "RESTful API reference for managing security automation workflows"
+icon: "plug"
+---
+
+# Osmedeus API Documentation
+
+## Overview
+
+The Osmedeus API provides a RESTful interface for managing security automation workflows, runs, and distributed task execution.
+
+**Base URL:** `http://localhost:8002`
+
+**Default Port:** `8002`
+
+## Authentication
+
+Most API endpoints require authentication. Two methods are supported:
+
+1. **JWT Token**: Obtain a token via the login endpoint, then include it in requests using the `Authorization: Bearer <token>` header.
+
+2. **API Key**: Use a static API key via the `x-osm-api-key` header. Configure in `~/osmedeus-base/osm-settings.yaml` under `server.auth_api_key`.
+
+See [Authentication](/api-references/authentication) for details.
+
+## API Reference
+
+| Category | Description |
+|----------|-------------|
+| [Public Endpoints](/api-references/public) | Server info, health checks, Swagger docs |
+| [Authentication](/api-references/authentication) | Login, logout, and JWT token management |
+| [Workflows](/api-references/workflows) | List, view, and refresh workflows |
+| [Runs](/api-references/runs) | Create and manage workflow executions |
+| [File Uploads](/api-references/uploads) | Upload target files and workflows |
+| [Snapshots](/api-references/snapshots) | Export and import workspace snapshots |
+| [Workspaces](/api-references/workspaces) | List and manage workspaces |
+| [Artifacts](/api-references/artifacts) | List and download output artifacts |
+| [Assets](/api-references/assets) | View discovered assets |
+| [Vulnerabilities](/api-references/vulnerabilities) | View and manage vulnerabilities |
+| [Event Logs](/api-references/event-logs) | View execution event logs |
+| [Step Results](/api-references/steps) | Query step execution results |
+| [Functions](/api-references/functions) | Execute and list utility functions |
+| [System Statistics](/api-references/system) | Get aggregated system stats |
+| [Settings](/api-references/settings) | Manage server configuration |
+| [Database](/api-references/database) | Database management and cleanup |
+| [Installation](/api-references/install) | Install binaries and workflows |
+| [Schedules](/api-references/schedules) | Manage scheduled workflows |
+| [Event Receiver](/api-references/event-receiver) | Event-triggered workflows |
+| [Distributed Mode](/api-references/distributed) | Worker and task management |
+| [LLM API](/api-references/llm) | Large Language Model API |
+| [Reference](/api-references/reference) | Error codes, pagination, cron expressions, step types |
+
+## Quick Start
+
+```bash
+# Get server info (no auth required)
+curl http://localhost:8002/server-info
+
+# Login and get token
+export TOKEN=$(curl -s -X POST http://localhost:8002/osm/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "osmedeus", "password": "admin"}' | jq -r '.token')
+
+# List workflows
+curl http://localhost:8002/osm/api/workflows \
+  -H "Authorization: Bearer $TOKEN"
+
+# Start a scan
+curl -X POST http://localhost:8002/osm/api/runs \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"flow": "subdomain-enum", "target": "example.com"}'
+```

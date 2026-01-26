@@ -95,7 +95,7 @@
               "reference/workflow-schema",
               "reference/types",
               "reference/variables",
-              "reference/rest-api",
+              "api-references/index",
               "others/faq"
             ]
           }
