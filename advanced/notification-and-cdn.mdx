@@ -16,12 +16,13 @@ osmedeus config set notification.telegram.enabled true
 osmedeus config set notification.provider telegram
 osmedeus config set notification.telegram.bot_token "12345:your-token"
 osmedeus config set notification.telegram.chat_id "-1001234567890"
-
 ```
 
 verify your setup by sending a sample message with utility function `osmedeus eval 'notify_telegram("**hola** osmedeus from cli")'`
 
 Use `osmedeus func ls noti` to list all available notification functions.
+
+### How to get your telegram token and channel ID
 
 Here are a quick guide on how to get your telegram token and channel ID
 
@@ -86,8 +87,6 @@ osmedeus config set storage.enabled 'true'
 ```
 
 verify your setup by sending a sample message with utility function `osmedeus eval 'cdn_ls_tree()'`
-
-
 
 ## Full Notification and CDN Configuration
 
