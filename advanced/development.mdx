@@ -878,6 +878,9 @@ type Run struct {
     TriggerName    string
     TotalSteps     int
     CompletedSteps int
+    CurrentPid     int       // PID of running process for cancellation
+    RunPriority    int       // Execution priority
+    RunMode        string    // "sequential", "parallel", etc.
     CreatedAt      time.Time
     UpdatedAt      time.Time
 }
@@ -910,24 +913,28 @@ type Asset struct {
 }
 
 type Workspace struct {
-    ID              int64
-    Name            string
-    LocalPath       string
-    TotalAssets     int
-    TotalSubdomains int
-    TotalURLs       int
-    TotalVulns      int
-    VulnCritical    int
-    VulnHigh        int
-    VulnMedium      int
-    VulnLow         int
-    VulnPotential   int
-    RiskScore       float64
-    Tags            []string  // JSON array
-    LastRun         time.Time
-    RunWorkflow     string
-    CreatedAt       time.Time
-    UpdatedAt       time.Time
+    ID                  int64
+    Name                string
+    LocalPath           string
+    TotalAssets         int
+    TotalSubdomains     int
+    TotalURLs           int
+    TotalVulns          int
+    VulnCritical        int
+    VulnHigh            int
+    VulnMedium          int
+    VulnLow             int
+    VulnPotential       int
+    RiskScore           float64
+    Tags                []string  // JSON array
+    LastRun             time.Time
+    RunWorkflow         string
+    StateExecutionLog   string    // Path to execution log
+    StateCompletedFile  string    // Path to completed marker file
+    StateWorkflowFile   string    // Path to workflow state file
+    StateWorkflowFolder string    // Path to workflow state folder
+    CreatedAt           time.Time
+    UpdatedAt           time.Time
 }
 
 type EventLog struct {
@@ -936,6 +943,7 @@ type EventLog struct {
     EventID      string
     Name         string
     Source       string    // "executor", "scheduler", "api"
+    SourceType   string    // "executor", "scheduler", "api", "trigger"
     DataType     string
     Data         string    // JSON payload
     Workspace    string
@@ -1275,10 +1283,12 @@ osmedeus db list --table event_logs --offset 50 --limit 100
 ```
 
 Default columns per table:
-- `runs`: run_id, job_id, workflow_name, target, status, started_at
-- `event_logs`: topic, source, processed, data_type, workspace, data
+- `runs`: run_uuid, workflow_name, target, workspace, status, completed_steps, total_steps, started_at
+- `event_logs`: topic, source, source_type, processed, data_type, workspace, data
+- `artifacts`: artifact_path, artifact_type, content_type, workspace, run_id
 - `assets`: asset_value, host_ip, title, status_code, last_seen_at, technologies
 - `schedules`: name, workflow_name, trigger_type, schedule, is_enabled, run_count
+- `workspaces`: name, local_path, total_assets, total_vulns, risk_score, last_run
 
 ### Function Evaluation CLI
 
