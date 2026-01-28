@@ -1,10 +1,10 @@
 ---
-title: Variables Reference
+title: Default Variables Reference
 description: Complete reference for template variables and utility functions in Osmedeus
 icon: "code-simple"
 ---
 
-# Variables Reference
+# Default Variables Reference
 
 Osmedeus workflows use template variables for dynamic content substitution. Variables are enclosed in double curly braces: `{{variable}}`.
 
@@ -134,6 +134,7 @@ These variables are automatically populated based on target type detection. Set 
 | `{{Version}}` | Osmedeus version | `5.0.0` |
 | `{{ModuleName}}` | Current workflow/module name | `subdomain-enum` |
 | `{{workflow}}` | Alias for ModuleName | `subdomain-enum` |
+| `{{FlowName}}` | Parent flow name (empty if running module directly) | `recon-flow` |
 | `{{RunUUID}}` | UUID for current run execution | `550e8400-e29b-41d4-a716-446655440000` |
 | `{{run_uuid}}` | Alias for RunUUID | `550e8400-e29b-41d4-a716-446655440000` |
 | `{{DBRunID}}` | Integer Run.ID for database foreign keys | `42` |
