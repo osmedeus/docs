@@ -39,17 +39,18 @@ Foreach loops use `[[variable]]` syntax to avoid conflicts with standard templat
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `{{BaseFolder}}` | Base installation folder | `~/osmedeus-base` |
+| `{{base_folder}}` | Alias for BaseFolder | `~/osmedeus-base` |
 | `{{Binaries}}` | Path to binaries | `{{BaseFolder}}/external-binaries` |
 | `{{Data}}` | Path to data files | `{{BaseFolder}}/data` |
-| `{{ExternalData}}` | Path to external data | `{{BaseFolder}}/external-data` |
+| `{{ExternalData}}` | Alias for Data | `{{BaseFolder}}/data` |
 | `{{ExternalConfigs}}` | Path to external configs | `{{BaseFolder}}/configs` |
 | `{{ExternalScripts}}` | Path to external scripts | `{{BaseFolder}}/scripts` |
-| `{{ExternalAgents}}` | Path to agent configs | `{{BaseFolder}}/external-agent-configs` |
-| `{{ExternalAgentConfigs}}` | Alias for ExternalAgents | `{{BaseFolder}}/external-agent-configs` |
+| `{{ExternalAgentConfigs}}` | Path to agent configs | `{{BaseFolder}}/external-agent-configs` |
+| `{{ExternalAgents}}` | Alias for ExternalAgentConfigs | `{{BaseFolder}}/external-agent-configs` |
 | `{{Workflows}}` | Path to workflows | `{{BaseFolder}}/workflows` |
-| `{{MarkdownTemplates}}` | Path to markdown templates | `{{BaseFolder}}/markdown-templates` |
-| `{{ExternalMarkdowns}}` | Path to external markdowns | `{{BaseFolder}}/markdown-report-templates` |
-| `{{Workspaces}}` | Path to workspaces | `~/workspaces-osmedeus` |
+| `{{MarkdownTemplates}}` | Path to markdown report templates | `{{BaseFolder}}/markdown-report-templates` |
+| `{{ExternalMarkdowns}}` | Alias for MarkdownTemplates | `{{BaseFolder}}/markdown-report-templates` |
+| `{{Workspaces}}` | Path to workspaces (overridable with -W flag) | `~/workspaces-osmedeus` |
 | `{{SnapshotsFolder}}` | Path to snapshots | `{{BaseFolder}}/snapshots` |
 
 ### Target Variables
@@ -58,59 +59,95 @@ Foreach loops use `[[variable]]` syntax to avoid conflicts with standard templat
 |----------|-------------|---------|
 | `{{Target}}` | Current scan target | `example.com` |
 | `{{target}}` | Alias for Target | `example.com` |
-| `{{TargetFile}}` | File containing targets | `/path/to/targets.txt` |
+| `{{TargetFile}}` | File containing targets (-T flag) | `/path/to/targets.txt` |
 | `{{TargetSpace}}` | Sanitized target (workspace name) | `example_com` |
 | `{{Output}}` | Output directory for target | `{{Workspaces}}/example_com` |
-| `{{output}}` | Alias for Output | `{{Workspaces}}/example_com` |
 | `{{Workspace}}` | Alias for TargetSpace | `example_com` |
 | `{{workspace}}` | Alias for Workspace | `example_com` |
 
 ### Target Heuristics (Auto-Detected)
 
-These variables are automatically populated based on target type detection:
+These variables are automatically populated based on target type detection. Set `--heuristics none` to disable.
 
 | Variable | Description | Applies To |
 |----------|-------------|------------|
-| `{{TargetType}}` | Detected type (domain/url/ip/cidr/file) | All |
-| `{{TargetRootDomain}}` | Root domain | Domain, URL |
-| `{{TargetTLD}}` | Top-level domain | Domain, URL |
-| `{{TargetSLD}}` | Second-level domain | Domain, URL |
-| `{{Org}}` | Alias for TargetSLD | Domain, URL |
-| `{{TargetBaseURL}}` | Base URL | URL |
-| `{{TargetRootURL}}` | Root URL (scheme+host) | URL |
-| `{{TargetHostname}}` | Hostname | URL |
-| `{{TargetHost}}` | Host with port | URL |
-| `{{TargetPort}}` | Port number | URL |
-| `{{TargetPath}}` | URL path | URL |
-| `{{TargetScheme}}` | URL scheme | URL |
-| `{{TargetFileExt}}` | File extension | URL, File |
-| `{{TargetIsWildcard}}` | Is wildcard subdomain | Domain |
-| `{{TargetResolvedIP}}` | Resolved IP address | Domain |
-| `{{TargetStatusCode}}` | HTTP status code | URL |
-| `{{TargetContentLength}}` | Content length | URL |
-| `{{HeuristicsCheck}}` | Heuristics status | All |
+| `{{TargetType}}` | Detected type | `url`, `domain`, `ip`, `file`, `unknown` |
+| `{{HeuristicsCheck}}` | Heuristics level | `basic` (default), `deep`, `none` |
+
+**URL Target Variables** (when `{{TargetType}}` is `url`):
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{{TargetBaseURL}}` | Base URL without path | `https://example.com:8080` |
+| `{{TargetRootURL}}` | Root URL (scheme+host) | `https://example.com` |
+| `{{TargetHostname}}` | Hostname from URL | `example.com` |
+| `{{TargetRootDomain}}` | Root domain | `example.com` |
+| `{{TargetTLD}}` | Top-level domain | `com` |
+| `{{TargetSLD}}` | Second-level domain | `example` |
+| `{{Org}}` | Alias for TargetSLD | `example` |
+| `{{TargetHost}}` | Host with port | `example.com:8080` |
+| `{{TargetPort}}` | Port number | `8080` |
+| `{{TargetPath}}` | URL path | `/api/v1` |
+| `{{TargetFileExt}}` | File extension | `html` |
+| `{{TargetScheme}}` | URL scheme | `https` |
+| `{{TargetStatusCode}}` | HTTP status code (if detected) | `200` |
+| `{{TargetContentLength}}` | Content length (if detected) | `1234` |
+
+**Domain Target Variables** (when `{{TargetType}}` is `domain`):
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{{TargetRootDomain}}` | Root domain | `example.com` |
+| `{{TargetTLD}}` | Top-level domain | `com` |
+| `{{TargetSLD}}` | Second-level domain | `example` |
+| `{{Org}}` | Alias for TargetSLD | `example` |
+| `{{TargetIsWildcard}}` | Is wildcard subdomain | `true`, `false` |
+| `{{TargetResolvedIP}}` | Resolved IP address (if available) | `93.184.216.34` |
+
+**IP Target Variables** (when `{{TargetType}}` is `ip`):
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{{TargetRootDomain}}` | Original IP value | `192.168.1.1` |
+
+### Platform Detection Variables
+
+| Variable | Description | Example Values |
+|----------|-------------|----------------|
+| `{{PlatformOS}}` | Operating system | `linux`, `darwin`, `windows` |
+| `{{PlatformArch}}` | CPU architecture | `amd64`, `arm64` |
+| `{{PlatformInDocker}}` | Running in Docker container | `true`, `false` |
+| `{{PlatformInKubernetes}}` | Running in Kubernetes pod | `true`, `false` |
+| `{{PlatformCloudProvider}}` | Detected cloud provider | `aws`, `gcp`, `azure`, `local` |
 
 ### Thread Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `{{threads}}` | Thread count (tactic based) | `10` |
-| `{{Threads}}` | Alias for threads | `10` |
-| `{{baseThreads}}` | Base thread count | `10` |
+| `{{baseThreads}}` | Base thread count (threads / 2) | `5` |
 
 ### Metadata Variables
 
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `{{Version}}` | Osmedeus version | `5.0.0` |
-| `{{TaskID}}` | Unique task identifier (8 chars) | `ab12cd34` |
+| `{{ModuleName}}` | Current workflow/module name | `subdomain-enum` |
+| `{{workflow}}` | Alias for ModuleName | `subdomain-enum` |
+| `{{RunUUID}}` | UUID for current run execution | `550e8400-e29b-41d4-a716-446655440000` |
+| `{{run_uuid}}` | Alias for RunUUID | `550e8400-e29b-41d4-a716-446655440000` |
+| `{{DBRunID}}` | Integer Run.ID for database foreign keys | `42` |
 | `{{TaskDate}}` | Task date | `2025-01-15` |
 | `{{Today}}` | Current date | `2025-01-15` |
 | `{{TimeStamp}}` | Unix timestamp | `1705312800` |
-| `{{CurrentTime}}` | Current time (ISO 8601) | `2025-01-15T10:00:00Z` |
-| `{{RandomString}}` | Random 8-char alphanumeric | `xK9mPq2n` |
-| `{{RunID}}` | Current run identifier | `run-abc123` |
-| `{{run_id}}` | Alias for RunID | `run-abc123` |
+| `{{CurrentTime}}` | Current time (ISO 8601) | `2025-01-15T10:00:00` |
+| `{{RandomString}}` | Random 6-char lowercase string | `xkmprq` |
+
+### Constants
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{{DefaultUA}}` | Default User-Agent string | `Mozilla/5.0 ...` |
 
 ### State File Variables
 
@@ -129,11 +166,24 @@ Used for distributed scanning with `--chunk` flag:
 
 | Variable | Description |
 |----------|-------------|
-| `{{ChunkIndex}}` | Current chunk index (1-based) |
+| `{{ChunkIndex}}` | Current chunk index |
 | `{{ChunkSize}}` | Number of items per chunk |
 | `{{TotalChunks}}` | Total number of chunks |
-| `{{ChunkStart}}` | Start line number |
-| `{{ChunkEnd}}` | End line number |
+| `{{ChunkStart}}` | Start position |
+| `{{ChunkEnd}}` | End position |
+
+### Event Trigger Variables
+
+These variables are only available for event-triggered workflows:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{{EventEnvelope}}` | Full event envelope as JSON string | `{"topic":"assets.new",...}` |
+| `{{EventTopic}}` | Event topic | `assets.new` |
+| `{{EventSource}}` | Event source | `nuclei` |
+| `{{EventDataType}}` | Event data type | `asset` |
+| `{{EventTimestamp}}` | Event timestamp | `2025-01-15T10:00:00Z` |
+| `{{EventData}}` | Event data payload as JSON string | `{"url":"https://...",...}` |
 
 ## Utility Functions
 
