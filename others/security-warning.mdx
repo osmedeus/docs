@@ -1,0 +1,152 @@
+---
+title: "Security Warning"
+description: "Important Security Notice and Disclaimer"
+icon: "triangle-exclamation"
+---
+
+<Warning>
+**Important:** Osmedeus is a powerful security automation tool designed to execute code on your machine. Please read this document carefully before using Osmedeus in any environment.
+</Warning>
+
+## Overview
+
+Osmedeus is intentionally designed as a workflow execution engine that runs arbitrary commands and scripts. This design is fundamental to its purpose as a security automation tool. However, this power comes with inherent security risks that users must understand and mitigate.
+
+This document outlines the security considerations, potential risks, and best practices for safely using Osmedeus.
+
+---
+
+## Security Considerations
+
+### 1. Web UI and API Server
+
+The Osmedeus Web UI and REST API provide interfaces for:
+
+- Creating and executing new scans
+- Running utility functions
+- Managing workflows and schedules
+- Accessing scan results and artifacts
+
+**Risks:**
+- Unauthorized access could allow attackers to execute arbitrary commands on your system
+- Exposed APIs without authentication can be exploited for remote code execution
+- Default credentials pose a significant security risk
+
+**Recommendations:**
+- Always use strong, unique credentials for API authentication. Use the following commands to set secure random credentials:
+
+```bash
+osmedeus config set server.password "$(openssl rand -hex 12)"
+osmedeus config set server.jwt.secret_signing_key "$(openssl rand -hex 32)"
+osmedeus config set server.auth_api_key "$(openssl rand -hex 24)"
+```
+
+- Never expose the API server to the public internet without proper authentication
+- Use the `--no-auth` flag only in isolated development environments
+- Consider using API keys with limited permissions
+- Deploy behind a reverse proxy with TLS encryption
+- Implement network-level access controls (firewall rules, VPN)
+
+### 2. YAML Workflow Files
+
+YAML workflow files are the core of Osmedeus automation. They can contain:
+
+- Shell commands (`bash` steps)
+- JavaScript function calls (`function` steps)
+- Remote execution commands (`remote-bash` steps)
+- HTTP requests (`http` steps)
+
+**Risks:**
+- Malicious workflows can execute arbitrary commands with the privileges of the Osmedeus process
+- Third-party workflows may contain hidden malicious code
+- Workflows can access the filesystem, network, and other system resources
+
+**Recommendations:**
+- **Never run untrusted or unverified workflow files**
+- Always review workflow YAML files before execution
+- Use `osmedeus workflow validate <name>` to check workflow syntax
+- Store workflows in version-controlled repositories
+- Implement workflow signing or checksums for verification
+- Run Osmedeus with minimal required privileges
+
+<Note>
+This is similar to other workflow engines such as Apache Airflow, Argo Workflows, GitHub Actions, and Jenkins. Allowing users to execute arbitrary workflows is inherent to their design.
+</Note>
+
+### 3. External Binary Installation
+
+The `osmedeus install` command downloads and installs binaries from external sources:
+
+- Security tools (nuclei, httpx, subfinder, etc.)
+- Workflow files from remote repositories
+
+**Risks:**
+- Downloaded binaries could be compromised or malicious
+- Man-in-the-middle attacks during downloads
+- Supply chain attacks on upstream tool repositories
+
+**Recommendations:**
+- Only install binaries from trusted sources
+- Verify checksums when available
+- Consider using the Nix-based installation for reproducible builds
+- Review the binary registry before installing new tools
+- Keep installed tools updated to patch known vulnerabilities
+
+### 4. Database and Storage
+
+Osmedeus stores scan results, credentials, and configuration data:
+
+**Risks:**
+- Sensitive data exposure through database access
+- Unencrypted storage of credentials
+- Backup file exposure
+
+**Recommendations:**
+- Secure database access with strong authentication
+- Encrypt sensitive configuration values
+- Implement proper backup encryption
+- Regularly audit stored data for sensitive information
+- Use PostgreSQL with TLS for production deployments
+
+---
+
+## Best Practices Summary
+
+| Area | Recommendation |
+|------|----------------|
+| Authentication | Use strong credentials, enable API keys, rotate regularly |
+| Network | Use TLS, firewall rules, VPN for remote access |
+| Workflows | Review before execution, use version control, validate syntax |
+| Binaries | Verify sources, check signatures, use Nix when possible |
+| Privileges | Run with minimal permissions, use dedicated service accounts |
+| Monitoring | Enable logging, audit access, monitor for anomalies |
+| Updates | Keep Osmedeus and tools updated with security patches |
+
+---
+
+## Disclaimer
+
+<Warning>
+**Osmedeus is for authorized security testing only.** Unauthorized use may violate laws in your jurisdiction.
+</Warning>
+
+By using Osmedeus, you acknowledge:
+
+- **Authorization Required** — You must have explicit permission before scanning any target
+- **User Responsibility** — You are solely responsible for legal compliance and any consequences from use
+- **No Warranty** — Provided "AS IS" without warranty; authors are not liable for damages or legal issues
+- **Code Execution** — This tool intentionally executes code by design; review all workflows before running
+- **Third-Party Tools** — You must comply with the licenses and terms of all integrated tools
+
+**Limitation of Liability:** The authors shall not be liable for any claims, damages, or liability arising from use of this software. The user assumes all responsibility and risk.
+
+---
+
+## Reporting Security Issues
+
+If you discover a security vulnerability in Osmedeus:
+
+1. **Do not** disclose it publicly until it has been addressed
+2. Report the issue through [GitHub Security Advisories](https://github.com/j3ssie/osmedeus/security/advisories)
+3. Provide detailed information to help reproduce and fix the issue
+4. Allow reasonable time for the issue to be addressed before disclosure

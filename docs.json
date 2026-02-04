@@ -96,7 +96,8 @@
               "reference/types",
               "reference/variables",
               "api-references/index",
-              "others/faq"
+              "others/faq",
+              "others/security-warning"
             ]
           }
         ]

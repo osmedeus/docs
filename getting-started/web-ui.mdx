@@ -33,7 +33,7 @@ osmedeus config view server.username
 osmedeus config view server.password
 ```
 
-<Danger>Many API endpoints are intentionally designed to execute code on your machine, so ensure your web UI and API endpoints are protected with strong credentials.</Danger>
+<Danger>Many API endpoints are intentionally designed to execute code on your machine, so ensure your web UI and API endpoints are protected with strong credentials. See [security-warning](/others/security-warning) for more details</Danger>
 
 You can also change the default password and set API key authentication by running the following command:
 
@@ -43,7 +43,7 @@ osmedeus config set server.password "$(openssl rand -hex 12)"
 # api key auth requires a jwt secret signing key
 osmedeus config set server.jwt.secret_signing_key "$(openssl rand -hex 32)"
 osmedeus config set server.enabled_auth_api true
-osmedeus config set server.auth_api_key "$(openssl rand -hex 12)"
+osmedeus config set server.auth_api_key "$(openssl rand -hex 24)"
 
 ## API Key Authentication Settings
 # server:
