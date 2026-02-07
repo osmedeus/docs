@@ -49,7 +49,6 @@ Osmedeus is a standalone Golang binary and works perfectly fine on its own. Howe
  </Expandable>
 </ResponseField>
 
-
 <ResponseField name="I encountered an error when installing the binary or running `osmedeus health`. What should I do?">
   <Expandable title="Answer" defaultOpen="true">
 Not all binaries listed in the registry are required for every workflow. Your scans may still function correctly even if some tools are missing.
@@ -73,59 +72,8 @@ If you would like the ideal setup then I recommend using Docker to run Osmedeus 
 
 ---
 
-## 3. Workflows
 
-<ResponseField name="What is the difference between a flow and a module?">
-  <Expandable title="Answer" defaultOpen="true">
-    - **Module**: A single workflow unit containing steps that execute sequentially
-    - **Flow**: Orchestrates multiple modules, allowing parallel execution and dependencies between modules
-  </Expandable>
-</ResponseField>
-
-<ResponseField name="Where are workflows stored?">
-  <Expandable title="Answer" defaultOpen="true">
-    Workflows are stored in `~/osmedeus-base/workflows/`:
-    - `flows/` - Flow workflows
-    - `modules/` - Module workflows
-  </Expandable>
-</ResponseField>
-
-<ResponseField name="How do I create a custom workflow?">
-  <Expandable title="Answer" defaultOpen="true">
-    Create a YAML file in the workflows directory:
-
-    ```yaml
-    name: my-workflow
-    kind: module
-    description: My custom workflow
-    params:
-      - name: target
-        required: true
-    steps:
-      - name: scan-target
-        type: bash
-        command: nmap {{target}}
-    ```
-  </Expandable>
-</ResponseField>
-
-<ResponseField name="What step types are available?">
-  <Expandable title="Answer" defaultOpen="true">
-    | Type | Description |
-    |------|-------------|
-    | `bash` | Execute shell commands |
-    | `function` | Execute JavaScript utility functions |
-    | `parallel-steps` | Run steps concurrently |
-    | `foreach` | Iterate over items |
-    | `remote-bash` | Execute in Docker or via SSH |
-    | `http` | Make HTTP requests |
-    | `llm` | Execute LLM API calls |
-  </Expandable>
-</ResponseField>
-
----
-
-## 4. Running Scans
+## 3. Scan Execution & Scanning Results
 
 <ResponseField name="How do I run a basic scan?">
   <Expandable title="Answer" defaultOpen="true">
@@ -264,7 +212,77 @@ If you would like the ideal setup then I recommend using Docker to run Osmedeus 
   </Expandable>
 </ResponseField>
 
+
+<ResponseField name="The scan executed without issues, but the UI doesn't display any assets?">
+  <Expandable title="Answer" defaultOpen="true">
+    This is likely due to the fact that the workflow you executed did not generate any assets. You can verify this by checking the workspace directory located at `~/workspaces-osmedeus/<target>/` to see if any files were created.
+
+    It is also because the workflow doesn't use any database utility function to save the assets into the database. You can check the workflow file to see if it uses any database utility functions like `db_import_asset`. You can also see the full list of database related function at `osmedeus func ls db --example`
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="Why I didn't see any notification even when I setup the ?">
+  <Expandable title="Answer" defaultOpen="true">
+  This is likely due to the fact that the workflow you executed did not generate any assets. You can verify this by checking the workspace directory located at `~/workspaces-osmedeus/<target>/` to see if any files were created.
+
+  It is also because the workflow doesn't use any notification utility function to save the assets into the notification. You can check the workflow file to see if it uses any notification utility functions like `notify_telegram`. You can also see the full list of notification related function at `osmedeus func ls noti --example`
+  </Expandable>
+</ResponseField>
+
 ---
+
+## 4. Workflows
+
+<ResponseField name="What is the difference between a flow and a module?">
+  <Expandable title="Answer" defaultOpen="true">
+    - **Module**: A single workflow unit containing steps that execute sequentially
+    - **Flow**: Orchestrates multiple modules, allowing parallel execution and dependencies between modules
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="Where are workflows stored?">
+  <Expandable title="Answer" defaultOpen="true">
+    Workflows are stored in `~/osmedeus-base/workflows/`:
+    - `flows/` - Flow workflows
+    - `modules/` - Module workflows
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="How do I create a custom workflow?">
+  <Expandable title="Answer" defaultOpen="true">
+    Create a YAML file in the workflows directory:
+
+    ```yaml
+    name: my-workflow
+    kind: module
+    description: My custom workflow
+    params:
+      - name: target
+        required: true
+    steps:
+      - name: scan-target
+        type: bash
+        command: nmap {{target}}
+    ```
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="What step types are available?">
+  <Expandable title="Answer" defaultOpen="true">
+    | Type | Description |
+    |------|-------------|
+    | `bash` | Execute shell commands |
+    | `function` | Execute JavaScript utility functions |
+    | `parallel-steps` | Run steps concurrently |
+    | `foreach` | Iterate over items |
+    | `remote-bash` | Execute in Docker or via SSH |
+    | `http` | Make HTTP requests |
+    | `llm` | Execute LLM API calls |
+  </Expandable>
+</ResponseField>
+
+---
+
 
 ## 5. API & Server
 
@@ -510,9 +528,8 @@ If you would like the ideal setup then I recommend using Docker to run Osmedeus 
   <Expandable title="Answer" defaultOpen="true">
     just run the command below to clean up workspace and database and generate the default osmedeus config
     ```bash
-    rm -rf rm -rf ~/.osmedeus ~/osmedeus-base ~/workspaces-osmedeus
-    rm -rf $(which osmedeus) 
-
+    rm -rf ~/workspaces-osmedeus
+    osmedeus db clean --force
     ```
   </Expandable>
 </ResponseField>
