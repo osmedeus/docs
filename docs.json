@@ -5,7 +5,7 @@
   "logo": {
     "light": "/logo/osm-svg-light.svg",
     "dark": "/logo/osm-svg-dark.svg",
-    "href": "https://www.osmedeus.org"
+    "href": "https://docs.osmedeus.org"
   },
   
   "colors": {
