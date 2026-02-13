@@ -3,6 +3,11 @@ title: "Distributed Execution"
 icon: "chart-network"
 ---
 
+
+<Frame>
+  <img src="images/cli/cli-distributed-run.png" alt="Distributed Execution" />
+</Frame>
+
 Scale scanning across multiple machines using Redis coordination.
 
 ## Architecture
@@ -97,7 +102,7 @@ osmedeus worker join
 
 ```bash
 # Via CLI
-osmedeus run -f general -t example.com --distributed-run
+osmedeus run --distributed-run -f general -t hackerone.com
 
 # Via API
 curl -X POST http://master:8002/osm/api/runs \
