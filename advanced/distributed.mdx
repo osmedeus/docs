@@ -5,7 +5,7 @@ icon: "chart-network"
 
 
 <Frame>
-  <img src="images/cli/cli-distributed-run.png" alt="Distributed Execution" />
+  <img src="/images/cli/cli-distributed-run.png" alt="Distributed Execution" />
 </Frame>
 
 Scale scanning across multiple machines using Redis coordination.
@@ -192,16 +192,6 @@ curl http://master:8002/osm/api/tasks/task-123 \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### Health Checks
-
-```bash
-# Master health
-curl http://master:8002/health
-
-# Worker health (local)
-osmedeus health
-```
-
 ## Remote Monitoring
 
 Use the `client` command to monitor distributed runs from any machine:
@@ -224,56 +214,74 @@ osmedeus client fetch -t vulnerabilities --severity critical
 ## Docker Compose Setup
 
 ```yaml
-version: '3.8'
-
 services:
   redis:
     image: redis:7-alpine
+    container_name: osm-e2e-redis
     ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    command: redis-server --appendonly yes
+      - "6399:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - osm-e2e-network
 
   master:
-    build: .
-    command: osmedeus server --master
+    build:
+      context: ../..
+      dockerfile: build/docker/Dockerfile
+    image: osmedeus:e2e
+    container_name: osm-e2e-master
     ports:
       - "8002:8002"
-    environment:
-      - OSM_REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
     volumes:
-      - master-data:/root/osmedeus-base
+      - workspaces:/root/workspaces-osmedeus
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["serve", "--master", "--redis-url", "redis://redis:6379", "-A"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    networks:
+      - osm-e2e-network
 
   worker:
-    build: .
-    command: osmedeus worker join
-    environment:
-      - OSM_REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-      - master
+    image: osmedeus:e2e
+    container_name: osm-e2e-worker
     volumes:
-      - worker-data:/root/osmedeus-base
-    deploy:
-      replicas: 3
+      - workspaces:/root/workspaces-osmedeus
+    depends_on:
+      redis:
+        condition: service_healthy
+      master:
+        condition: service_healthy
+    command: ["worker", "join", "--redis-url", "redis://redis:6379"]
+    networks:
+      - osm-e2e-network
 
 volumes:
-  redis-data:
-  master-data:
-  worker-data:
+  workspaces:
+    driver: local
+
+networks:
+  osm-e2e-network:
+    driver: bridge
 ```
 
 Run:
 ```bash
-# Start services
-docker-compose up -d
+# Distributed E2E stack: Redis + master + worker
+# Usage:
 
-# Scale workers
-docker-compose up -d --scale worker=5
+make distributed-e2e-up      # Build image + start stack + wait for health
+make distributed-e2e-run     # Submit scan + tail worker logs
+make distributed-e2e-down    # Tear down everything
 
-# View logs
-docker-compose logs -f worker
 ```
