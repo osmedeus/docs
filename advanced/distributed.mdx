@@ -41,6 +41,8 @@ Scale scanning across multiple machines using Redis coordination.
 - Report progress and results
 - Auto-reconnect on failure
 - Heartbeat to master
+- Worker ID format: `wosm-<uuid8>` (e.g. `wosm-a1b2c3d4`)
+- Default alias: `wosm-<public-ip>` or `wosm-<local-ip>` when no `--alias` is provided
 
 ### Redis
 
@@ -89,7 +91,17 @@ However, the results won't be aggregated in the master API and you have to run t
 osmedeus worker join --redis-url redis://host.docker.internal:6379
 ```
 
-or if master is on localhost:
+With public IP detection (used for default alias and SSH routing):
+```bash
+osmedeus worker join --redis-url redis://host.docker.internal:6379 --get-public-ip
+```
+
+With a custom alias:
+```bash
+osmedeus worker join --redis-url redis://host.docker.internal:6379 --alias my-worker
+```
+
+Or if master is on localhost:
 ```bash
 ## Configure Redis connection
 osmedeus config set redis.host 127.0.0.1
@@ -98,7 +110,7 @@ osmedeus config set redis.port 6379
 osmedeus worker join
 ```
 
-### 3. Submit Tasks
+### 3. Submit Tasks & Listing Workers
 
 ```bash
 # Via CLI
@@ -109,6 +121,20 @@ curl -X POST http://master:8002/osm/api/runs \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"flow": "general", "target": "example.com", "distributed": true}'
+
+
+# List workers (use --json for json output)
+osmedeus worker ls
+```
+
+### 4. Running Utility Scripts on Master/Worker Nodes (Optional)
+
+```bash
+# run this on the master node to execute the command on all worker nodes
+osmedeus eval "run_on_worker('all', 'bash', 'touch /tmp/on-worker')" --redis-url redis://host.docker.internal:6379
+
+## run this on the worker node to execute the command on the master node
+osmedeus worker --redis-url redis://host.docker.internal:6379 eval "run_on_master('bash', 'touch /tmp/on-master')"
 ```
 
 ***
