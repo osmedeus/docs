@@ -1,0 +1,398 @@
+---
+title: "Cloud Execution"
+description: "Provision cloud infrastructure and run distributed scans across multiple providers"
+icon: "clouds"
+---
+
+[WIP] Provision cloud infrastructure and run distributed scans across multiple providers.
+
+## Overview
+
+Cloud execution enables you to:
+- Spin up cloud VMs on demand for scanning
+- Distribute workflows across multiple instances
+- Track costs with automatic spend limits
+- Auto-destroy infrastructure after scans complete
+
+### Supported Providers
+
+| Provider | Status | Spot/Preemptible |
+|----------|--------|------------------|
+| DigitalOcean | Supported | N/A |
+| AWS | Planned | Yes (70% savings) |
+| GCP | Planned | Yes (80% savings) |
+| Linode | Planned | N/A |
+| Azure | Planned | N/A |
+
+## Setup
+
+### 1. Enable Cloud Features
+
+Edit `~/osmedeus-base/osm-settings.yaml`:
+
+```yaml
+cloud:
+  enabled: true
+  cloud_path: "{{base_folder}}/cloud"
+  cloud_settings: "{{base_folder}}/cloud/cloud-settings.yaml"
+```
+
+### 2. Configure a Provider
+
+```bash
+# Set default provider
+osmedeus cloud config set defaults.provider digitalocean
+
+# Set credentials (uses environment variable expansion)
+osmedeus cloud config set providers.digitalocean.token ${DIGITALOCEAN_TOKEN}
+
+# Or set directly
+osmedeus cloud config set providers.digitalocean.region nyc1
+osmedeus cloud config set providers.digitalocean.size s-2vcpu-4gb
+```
+
+The config file is created automatically at `~/osmedeus-base/cloud/cloud-settings.yaml` on first use.
+
+### 3. Configure SSH Keys
+
+```bash
+osmedeus cloud config set ssh.private_key_path ~/.ssh/id_rsa
+osmedeus cloud config set ssh.public_key_path ~/.ssh/id_rsa.pub
+osmedeus cloud config set ssh.user root
+```
+
+### 4. Set Cost Limits
+
+```bash
+# Maximum hourly spend (blocks provisioning if exceeded)
+osmedeus cloud config set limits.max_hourly_spend 10.0
+
+# Maximum total spend (terminates infrastructure if exceeded)
+osmedeus cloud config set limits.max_total_spend 100.0
+
+# Maximum instances across all providers
+osmedeus cloud config set limits.max_instances 20
+```
+
+### 5. View Configuration
+
+```bash
+# Show current config
+osmedeus cloud config list
+
+# Show with secrets unmasked
+osmedeus cloud config list --show-secrets
+```
+
+***
+
+## CLI Commands
+
+### Create Infrastructure
+
+```bash
+# Create with defaults
+osmedeus cloud create
+
+# Specify instance count
+osmedeus cloud create --instances 5
+
+# Override provider
+osmedeus cloud create --provider digitalocean --instances 3
+
+# Skip confirmation
+osmedeus cloud create --instances 5 --force
+```
+
+Workers auto-join via `osmedeus worker join` using cloud-init scripts. The master polls for worker registration with a 5-minute timeout.
+
+### List Infrastructure
+
+```bash
+osmedeus cloud list
+```
+
+Shows active infrastructure with resource details: name, type, status, public IP, and worker ID.
+
+### Run on Cloud
+
+```bash
+# Full lifecycle: create → distribute → collect → destroy
+osmedeus cloud run -f general -t example.com --instances 3
+
+# With provider override
+osmedeus cloud run -f general -t example.com --provider digitalocean --instances 5
+
+# With timeout
+osmedeus cloud run -f general -t example.com --instances 3 --timeout 2h
+```
+
+### Destroy Infrastructure
+
+```bash
+# Destroy specific infrastructure
+osmedeus cloud destroy <infrastructure-id>
+
+# Skip confirmation
+osmedeus cloud destroy <infrastructure-id> --force
+```
+
+***
+
+## Configuration Reference
+
+The cloud config lives at `~/osmedeus-base/cloud/cloud-settings.yaml`. Use dot notation with `osmedeus cloud config set` to update values.
+
+### Providers
+
+<Accordion title="DigitalOcean">
+
+```yaml
+providers:
+  digitalocean:
+    token: "${DIGITALOCEAN_TOKEN}"       # API token (required)
+    region: "nyc1"                        # Datacenter region
+    size: "s-2vcpu-4gb"                   # Droplet size
+    image: "ubuntu-22-04-x64"            # Base image
+    snapshot_id: ""                       # Custom snapshot (optional)
+    ssh_key_id: ""                        # SSH key ID (optional)
+    ssh_key_fingerprint: ""               # SSH key fingerprint (optional)
+```
+
+**Pricing (USD/hour):**
+
+| Size | Hourly | Monthly |
+|------|--------|---------|
+| s-1vcpu-1gb | $0.00744 | $5 |
+| s-2vcpu-4gb | $0.02232 | $15 |
+| s-4vcpu-8gb | $0.04464 | $30 |
+| s-8vcpu-16gb | $0.08928 | $60 |
+
+</Accordion>
+
+<Accordion title="AWS">
+
+```yaml
+providers:
+  aws:
+    access_key_id: "${AWS_ACCESS_KEY_ID}"
+    secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
+    region: "us-east-1"
+    instance_type: "t3.medium"
+    ami: ""                               # Empty = default Ubuntu AMI
+    use_spot: false                       # 70% savings when true
+```
+
+</Accordion>
+
+<Accordion title="GCP">
+
+```yaml
+providers:
+  gcp:
+    project_id: "${GCP_PROJECT_ID}"
+    credentials_file: "${GCP_CREDENTIALS_FILE}"
+    region: "us-central1"
+    zone: "us-central1-a"
+    machine_type: "n1-standard-2"
+    image_family: "ubuntu-2204-lts"
+    use_preemptible: false                # 80% savings when true
+```
+
+</Accordion>
+
+<Accordion title="Linode">
+
+```yaml
+providers:
+  linode:
+    token: "${LINODE_TOKEN}"
+    region: "us-east"
+    type: "g6-standard-2"
+    image: "linode/ubuntu22.04"
+    ssh_public_key: ""
+```
+
+</Accordion>
+
+<Accordion title="Azure">
+
+```yaml
+providers:
+  azure:
+    subscription_id: "${AZURE_SUBSCRIPTION_ID}"
+    tenant_id: "${AZURE_TENANT_ID}"
+    client_id: "${AZURE_CLIENT_ID}"
+    client_secret: "${AZURE_CLIENT_SECRET}"
+    location: "eastus"
+    vm_size: "Standard_B2s"
+    image_reference: "Canonical:UbuntuServer:22.04-LTS:latest"
+```
+
+</Accordion>
+
+### Defaults
+
+```yaml
+defaults:
+  provider: "digitalocean"     # Default cloud provider
+  mode: "vm"                   # Execution mode (vm or serverless)
+  max_instances: 10            # Default instance count
+  use_spot: false              # Use spot/preemptible instances
+  timeout: "30m"               # Infrastructure creation timeout
+  cleanup_on_failure: true     # Auto-destroy on provisioning failure
+```
+
+### Cost Limits
+
+```yaml
+limits:
+  max_hourly_spend: 10.0       # USD/hour - blocks provisioning if exceeded
+  max_total_spend: 100.0       # USD total - terminates if exceeded during run
+  max_instances: 20            # Maximum instances across all providers
+```
+
+### SSH
+
+```yaml
+ssh:
+  private_key_path: "~/.ssh/id_rsa"
+  private_key_content: ""       # Or provide key content directly (base64)
+  public_key_path: "~/.ssh/id_rsa.pub"
+  public_key_content: ""
+  user: "root"
+```
+
+### State Storage
+
+```yaml
+state:
+  backend: "local"                      # Only "local" supported currently
+  path: "{{base_folder}}/cloud-state"   # Infrastructure state directory
+```
+
+### Worker Setup
+
+```yaml
+setup:
+  commands:
+    - "apt-get update && apt-get install -y nmap"
+    - "# Additional tools or configuration"
+```
+
+Custom commands run on worker boot after osmedeus installation.
+
+***
+
+## Architecture
+
+### Lifecycle
+
+```
+osmedeus cloud run -f general -t example.com --instances 3
+    │
+    ├─ 1. Validate cost limits
+    │     └─ Estimate hourly/total cost, check against limits
+    │
+    ├─ 2. Provision infrastructure
+    │     └─ Create VMs via cloud provider API (Pulumi)
+    │
+    ├─ 3. Wait for workers (up to 5 min)
+    │     └─ Cloud-init installs osmedeus, runs worker join
+    │
+    ├─ 4. Distribute workflow
+    │     └─ Tasks distributed to workers via Redis
+    │
+    ├─ 5. Monitor execution
+    │     └─ Cost tracker checks every 30s, terminates if over budget
+    │
+    ├─ 6. Collect results
+    │     └─ Results synced from workers via SSH/rsync
+    │
+    └─ 7. Destroy infrastructure
+          └─ Tear down VMs, remove state files, show cost summary
+```
+
+### Cloud-Init Script
+
+Each provisioned VM runs a cloud-init script that:
+
+1. Installs osmedeus from the install script
+2. Configures SSH authorized keys
+3. Joins the distributed worker pool via `osmedeus worker join`
+4. Runs custom setup commands from config
+
+### State Management
+
+Infrastructure state is persisted as JSON files in `~/osmedeus-base/cloud-state/infrastructure/`. This enables:
+- Recovery if the process is interrupted
+- Listing active infrastructure across sessions
+- Clean destruction of previously created resources
+
+### Cost Tracking
+
+The cost tracker runs as a background goroutine during cloud runs:
+- Calculates `elapsed_hours x hourly_rate` every 30 seconds
+- Immediately destroys infrastructure if `max_total_spend` is exceeded
+- Shows cost summary on completion
+
+***
+
+## Cost Examples
+
+### DigitalOcean
+
+```
+5 instances x s-2vcpu-4gb x 2 hours
+= 5 x $0.02232/hr x 2 = $0.22 total
+```
+
+### AWS with Spot Instances
+
+```
+10 instances x t3.medium x 1 hour
+Regular: 10 x $0.0416 = $0.42/hr
+Spot:    10 x $0.0125 = $0.13/hr (70% savings)
+```
+
+### GCP with Preemptible
+
+```
+8 instances x n1-standard-2 x 4 hours
+Regular:     8 x $0.095 = $0.76/hr = $3.04 total
+Preemptible: 8 x $0.019 = $0.15/hr = $0.61 total (80% savings)
+```
+
+***
+
+## Environment Variables
+
+Credentials can reference environment variables using `${VAR}` syntax in the config:
+
+```bash
+export DIGITALOCEAN_TOKEN="dop_v1_..."
+export AWS_ACCESS_KEY_ID="AKIA..."
+export AWS_SECRET_ACCESS_KEY="..."
+export GCP_PROJECT_ID="my-project"
+```
+
+Variables are resolved when the config is loaded.
+
+***
+
+## Integration with Distributed Mode
+
+Cloud execution builds on the [distributed execution](/advanced/distributed) system. Cloud-provisioned VMs are workers that:
+
+- Auto-register with the master via Redis
+- Use the same task distribution and result collection
+- Are identified by `wosm-<uuid8>` worker IDs
+- Support SSH-based file sync (`sync_from_worker`, `rsync_to_worker`)
+
+You can mix cloud workers with manually provisioned workers in the same pool.
+
+## Next Steps
+
+- [Distributed Execution](/advanced/distributed) - Master-worker architecture
+- [Deployment](/advanced/deployment) - Production deployment options
+- [CLI Reference](/getting-started/cli) - Full command reference

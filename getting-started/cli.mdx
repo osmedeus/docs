@@ -21,6 +21,7 @@ Usage:
 
 Available Commands:
   client      Interact with a remote osmedeus server
+  cloud       Cloud infrastructure management commands
   completion  Generate the autocompletion script for the specified shell
   config      Manage osmedeus configuration
   db          Database management commands
@@ -33,6 +34,7 @@ Available Commands:
   scan        Execute a workflow (alias for 'run')
   serve       Start the Osmedeus web server
   snapshot    Export and import workspace snapshots
+  uninstall   Remove Osmedeus installation (base folder, workspaces, and binary)
   update      Update osmedeus to the latest version
   version     Print version information
   worker      Worker node commands for distributed scanning
@@ -108,6 +110,66 @@ Execute a workflow against one or more targets
 
   # Concurrent targets from file
   osmedeus run -m recon -T targets.txt --concurrency 5
+
+▷ Module from URL
+  # Run module from URL
+  osmedeus run --module-url https://example.com/module.yaml -t example.com
+
+  # Run module from GitHub (public)
+  osmedeus run --module-url https://raw.githubusercontent.com/user/repo/main/module.yaml -t example.com
+
+  # Run module from private GitHub repo (requires GH_TOKEN or GITHUB_API_KEY)
+  osmedeus run --module-url https://github.com/user/private-repo/blob/main/module.yaml -t example.com
+
+▷ Chunk Mode (split large target files across machines)
+  # View chunk info for target file
+  osmedeus run -m recon -T targets.txt --chunk-size 100
+
+  # Run specific chunk (0-indexed)
+  osmedeus run -m recon -T targets.txt --chunk-size 100 --chunk-part 2
+
+  # Split into 4 equal chunks and run chunk 0
+  osmedeus run -m recon -T targets.txt --chunk-count 4 --chunk-part 0
+
+  # Distributed processing across machines
+  osmedeus run -m recon -T targets.txt --chunk-size 250 --chunk-part 0  # Machine 1
+  osmedeus run -m recon -T targets.txt --chunk-size 250 --chunk-part 1  # Machine 2
+
+▷ Queue Mode (defer execution for later processing)
+  # Queue a run for later processing
+  osmedeus run --queue -m recon -t example.com
+
+  # Queue with file target
+  osmedeus run --queue -m recon -T targets.txt
+
+  # Process queued tasks (alias for 'osmedeus worker queue run')
+  osmedeus run --queue-run
+
+  # Process queued tasks with concurrency
+  osmedeus run --queue-run --concurrency 3
+
+▷ Module Exclusion
+  # Exclude specific module(s) from a flow (exact match, repeatable)
+  osmedeus run -f general -t example.com -x subdomain-enum
+
+  # Exclude multiple modules
+  osmedeus run -f general -t example.com -x subdomain-enum -x portscan
+
+  # Fuzzy-exclude modules whose name contains a substring
+  osmedeus run -f general -t example.com -X vuln
+
+  # Combine exact and fuzzy exclusion
+  osmedeus run -f general -t example.com -x portscan -X brute
+
+▷ Webhook Mode (register a trigger instead of running immediately)
+  # Register a webhook trigger for a module
+  osmedeus run --as-webhook -m recon -t example.com
+
+  # Register with an authentication key
+  osmedeus run --as-webhook -m recon -t example.com --webhook-auth-key my-secret-key
+
+  # Register a flow webhook
+  osmedeus run --as-webhook -f general -t example.com --webhook-auth-key my-secret-key
 ```
 
 ## 2. Osmedeus Function Eval
@@ -153,6 +215,11 @@ Execute and test utility functions available in workflows
   # With custom params
   osmedeus func e 'log_info("{{host}}:{{port}}")' --params 'host=localhost' --params 'port=8080'
 
+  # Use -f flag for shell path autocompletion on file arguments
+  osmedeus func e -f trim "  hello world  "
+  osmedeus func e -f fileExists /tmp
+  osmedeus func e -t example.com -f log_info "Processing {{target}}"
+
   # Query database with SQL
   osmedeus func e 'db_select("SELECT severity, COUNT(*) FROM vulnerabilities GROUP BY severity", "markdown")'
 
@@ -164,6 +231,19 @@ Execute and test utility functions available in workflows
 
   # Alternative stdin syntax
   echo 'trim("  test  ")' | osmedeus func e -
+
+▷ Bulk Processing
+  # Process multiple targets from file
+  osmedeus func e 'log_info("Processing: " + target)' -T targets.txt
+
+  # Function from file with targets
+  osmedeus func e --function-file check.js -T targets.txt
+
+  # With concurrency
+  osmedeus func e 'httpGet("https://" + target)' -T targets.txt -c 10
+
+  # Combined with params
+  osmedeus func e 'log_info(prefix + target)' -T targets.txt --params 'prefix=test_' -c 5
 ```
 
 ## 3. Installation Command
@@ -204,16 +284,20 @@ One-liner to install workflows, base folder, or binaries from various sources.
   osmedeus install binary --nix-installation
 
   # Install binary via Nix
-  osmedeus install binary --name nuclei --nix-mode
+  osmedeus install binary --name nuclei --nix-build-install
 
   # Install all binaries via Nix
-  osmedeus install binary --all --nix-mode
+  osmedeus install binary --all --nix-build-install
 
-  # Install workflows from git
+  # Install workflows from git, zip URL, or local zip file
   osmedeus install workflow https://github.com/user/osmedeus-workflows.git
+  osmedeus install workflow http://<custom-host>/workflow-osmedeus.zip
+  osmedeus install workflow local-file-workflow-osmedeus.zip
 
-  # Install base folder from git
+  # Install base folder from git, zip URL, or local zip file
   osmedeus install base https://github.com/user/osmedeus-base.git
+  osmedeus install base http://<custom-host>/osmedeus-base.zip
+  osmedeus install base local-file-osmedeus-base.zip
 ```
 
 ## 4. Database Management
@@ -262,6 +346,496 @@ View and manage the database, including clean up, and schema operations.
 
   # Get next page of results
   osmedeus db list -t assets --offset 10 --limit 10
+```
+
+## 5. Queue Management
+
+Queue tasks for later processing and execute them with controlled concurrency. Tasks can be queued via the `--queue` flag on `osmedeus run` or directly via `osmedeus worker queue new`.
+
+```bash
+▶ Full Workflow
+  # Step 1: Queue tasks
+  osmedeus run --queue -m recon -t example.com
+  osmedeus run --queue -m recon -T targets.txt
+
+  # Step 2: List queued tasks
+  osmedeus worker queue list
+
+  # Step 2b: List as JSON (for scripting)
+  osmedeus worker queue list --json
+
+  # Step 3: Process all queued tasks
+  osmedeus worker queue run
+
+  # Step 3b: Process with higher concurrency
+  osmedeus worker queue run --concurrency 3
+
+  # Step 3c: Process with custom Redis URL
+  osmedeus worker queue run --redis-url redis://localhost:6379
+
+▶ Shortcut
+  # Queue and process in one step (alias for 'worker queue run')
+  osmedeus run --queue-run
+  osmedeus run --queue-run --concurrency 3
+
+▶ Direct Queue Creation
+  # Queue a module run
+  osmedeus worker queue new -m recon -t example.com
+
+  # Queue a flow run with targets from file
+  osmedeus worker queue new -f general -T targets.txt
+
+  # Queue with parameters
+  osmedeus worker queue new -m recon -t example.com -p 'threads=20'
+```
+
+## 6. Server
+
+Start the Osmedeus web server that provides REST API endpoints for managing runs, workflows, and settings.
+
+```bash
+▷ Examples
+  # Start server with default settings
+  osmedeus serve
+
+  # Start server on custom port
+  osmedeus serve --port 8080
+
+  # Start server without authentication (development only)
+  osmedeus serve -A
+
+  # Start server on specific host without auth
+  osmedeus serve --host 127.0.0.1 --port 8811 -A
+
+  # Start as distributed master node
+  osmedeus serve --master
+
+  # Start server without queue polling
+  osmedeus serve --no-queue-polling
+```
+
+## 7. Worker (Distributed Mode)
+
+Commands for managing worker nodes in distributed scanning mode. Workers connect to Redis and process tasks from the master node.
+
+```bash
+▶ Subcommands
+  • join    - Join the distributed worker pool
+  • status  - Show worker pool status (alias: ls)
+  • set     - Update a worker field (alias, public-ip, ssh-enabled, ssh-keys-path)
+  • eval    - Evaluate a function expression with distributed hooks
+  • queue   - Manage and process queued tasks (list, new, run)
+
+▷ Join Examples
+  # Join using settings from osm-settings.yaml
+  osmedeus worker join
+
+  # Join using a specific Redis URL
+  osmedeus worker join --redis-url redis://user:pass@localhost:6379/0
+
+  # Join and auto-detect public IP
+  osmedeus worker join --get-public-ip
+
+▷ Status
+  # Show worker status as a table
+  osmedeus worker status
+
+  # Output worker info as JSON
+  osmedeus worker status --json
+
+▷ Set Worker Fields
+  # Set an alias for a worker
+  osmedeus worker set <worker-id> alias scanner-1
+
+  # Set public IP
+  osmedeus worker set scanner-1 public-ip 203.0.113.10
+
+  # Enable SSH
+  osmedeus worker set scanner-1 ssh-enabled true
+
+  # With custom Redis URL
+  osmedeus worker set <worker-id> alias prod-1 --redis-url redis://localhost:6379
+
+▷ Eval (one-shot with distributed hooks)
+  # Simple function eval with distributed hooks
+  osmedeus worker eval 'log_info("hello from worker eval")' --redis-url redis://localhost:6379
+
+  # Route a call to the master node
+  osmedeus worker eval 'run_on_master("func", "log_info(\"routed via redis\")")' --redis-url redis://localhost:6379
+
+  # With target variable
+  osmedeus worker eval 'log_info("hello")' -t example.com --redis-url redis://localhost:6379
+
+  # Read script from stdin
+  echo 'run_on_master("func", "db_import_sarif(\"ws\", \"/path/f.sarif\")")' | osmedeus worker eval --stdin --redis-url redis://localhost:6379
+```
+
+## 8. Webhook Triggers
+
+Register runs as webhook triggers that can be invoked via HTTP requests. This allows external systems (CI/CD, monitoring tools, etc.) to trigger scans on demand.
+
+Webhook triggers require the server to have `enable_trigger_via_webhook: true` in `osm-settings.yaml`.
+
+```bash
+▶ Setup
+  # Step 1: Register a webhook trigger
+  osmedeus run --as-webhook -m recon -t example.com
+
+  # Register with an authentication key for security
+  osmedeus run --as-webhook -m recon -t example.com --webhook-auth-key my-secret-key
+
+▶ Management
+  # List all registered webhook triggers
+  osmedeus worker webhooks
+
+  # List as JSON (for scripting)
+  osmedeus --json worker webhooks
+
+▶ Triggering via HTTP
+  # Trigger a webhook (GET - no overrides)
+  curl https://your-server/osm/api/webhook-runs/<webhook-uuid>/trigger
+
+  # Trigger with authentication key
+  curl https://your-server/osm/api/webhook-runs/<webhook-uuid>/trigger?key=my-secret-key
+
+  # Trigger via POST with target override
+  curl -X POST https://your-server/osm/api/webhook-runs/<webhook-uuid>/trigger \
+    -H 'Content-Type: application/json' \
+    -d '{"target": "new-target.com"}'
+
+  # Trigger via POST with workflow override
+  curl -X POST https://your-server/osm/api/webhook-runs/<webhook-uuid>/trigger \
+    -H 'Content-Type: application/json' \
+    -d '{"target": "example.com", "module": "subdomain"}'
+
+▶ Configuration
+  # Enable webhook triggering on the server
+  osmedeus config set server.enable_trigger_via_webhook true
+```
+
+## 9. Snapshot
+
+Export and import workspace snapshots as compressed ZIP archives.
+
+```bash
+▷ Export
+  # Export a workspace to a snapshot
+  osmedeus snapshot export <workspace-name>
+
+  # Export with custom output path
+  osmedeus snapshot export <workspace-name> -o /path/to/output.zip
+
+▷ Import
+  # Import from a local file
+  osmedeus snapshot import /path/to/snapshot.zip
+
+  # Import from a URL
+  osmedeus snapshot import https://example.com/snapshot.zip
+
+  # Import files only (skip database import)
+  osmedeus snapshot import /path/to/snapshot.zip --skip-db
+
+  # Import without confirmation prompt
+  osmedeus snapshot import /path/to/snapshot.zip --force
+
+▷ List
+  # List available snapshots
+  osmedeus snapshot list
+```
+
+## 10. Client (Remote Server)
+
+Interact with a remote osmedeus server via REST API. Requires environment variables for connection.
+
+```bash
+▶ Environment Setup
+  export OSM_REMOTE_URL="http://localhost:8002"
+  export OSM_REMOTE_AUTH_KEY="your-api-key"
+
+▶ Subcommands
+  • fetch  - Fetch data from server (runs, assets, vulns, etc.)
+  • run    - Create or cancel a run
+  • exec   - Execute a function remotely
+
+▷ Fetch Examples
+  # Fetch assets (default table)
+  osmedeus client fetch
+  osmedeus client fetch -t assets -w example.com
+
+  # Fetch runs
+  osmedeus client fetch --table runs
+  osmedeus client fetch -t runs --status running
+
+  # Fetch vulnerabilities with severity filter
+  osmedeus client fetch -t vulnerabilities --severity critical
+
+  # Fetch step results
+  osmedeus client fetch -t step_results
+
+  # Pagination
+  osmedeus client fetch -t assets --limit 50 --offset 100
+
+  # JSON output
+  osmedeus client --json fetch -t runs
+
+▷ Run Examples
+  # Create a flow run
+  osmedeus client run -f basic-recon -T example.com
+
+  # Create a module run
+  osmedeus client run -m subdomain -T example.com
+
+  # Cancel a run by ID
+  osmedeus client run --cancel abc123-run-uuid
+
+  # JSON output
+  osmedeus client --json run -f recon -T example.com
+
+▷ Exec Examples
+  # Execute a simple function
+  osmedeus client exec 'log_info("Hello from remote")'
+
+  # With target variable
+  osmedeus client exec -t example.com 'fileExists("{{target}}/output.txt")'
+
+  # Using --script flag
+  osmedeus client exec -s 'trim("  hello  ")'
+
+  # JSON output
+  osmedeus client --json exec 'trim("  test  ")'
+```
+
+## 11. Uninstall
+
+Remove the Osmedeus installation including base folder, configuration, and optionally workspace data.
+
+```bash
+▶ What Gets Removed
+  • ~/osmedeus-base         - Settings, workflows, binaries, data
+  • ~/.osmedeus             - Initialization marker
+  • osmedeus binary         - Removed from PATH (up to 3 locations)
+
+  With --clean:
+  • ~/workspaces-osmedeus   - All scan results and workspace data
+
+▷ Examples
+  # Preview what will be removed (shows confirmation prompt)
+  osmedeus uninstall
+
+  # Uninstall without workspaces (keeps scan results)
+  osmedeus uninstall --force
+
+  # Full uninstall including all scan data
+  osmedeus uninstall --force --clean
+```
+
+## 12. Config Management
+
+Manage osmedeus configuration settings using dot notation.
+
+```bash
+▶ Subcommands
+  • clean  - Reset configuration to defaults
+  • set    - Set a configuration value
+  • view   - View a configuration value
+  • list   - List configuration values
+
+▷ Set Examples
+  osmedeus config set server.port 9000
+  osmedeus config set server.username admin
+  osmedeus config set server.password "d8506b99a052e797f73d1dab"
+  osmedeus config set server.jwt.secret_signing_key "d8506b99a052e797f73d1dab"
+  osmedeus config set scan_tactic.default 20
+  osmedeus config set global_vars.github_token ghp_xxx
+  osmedeus config set notification.enabled true
+
+▷ View Examples
+  # Exact key lookup
+  osmedeus config view server.port
+  osmedeus config view server.username
+  osmedeus config view server.jwt.secret_signing_key --redact
+
+  # Wildcard pattern search (requires --force)
+  osmedeus config view 'server.*' --force
+  osmedeus config view 'database.*' --force
+  osmedeus config view '*password*' --force
+  osmedeus config view 'server.*' --force --redact
+
+▷ List and Clean
+  # List all config values
+  osmedeus config list
+
+  # List including secrets
+  osmedeus config list --show-secrets
+
+  # Reset config to defaults (backs up existing config first)
+  osmedeus config clean
+```
+
+## 13. Cloud Infrastructure
+
+Provision and manage cloud infrastructure for distributed scanning. Supports multiple providers (DigitalOcean, AWS, GCP, Linode, Azure).
+
+```bash
+▶ Subcommands
+  • config  - Manage cloud configuration (set, list)
+  • create  - Create cloud infrastructure
+  • list    - List active cloud infrastructure
+  • destroy - Destroy cloud infrastructure
+  • run     - Run workflow on cloud infrastructure
+
+▷ Configuration
+  # Set cloud provider
+  osmedeus cloud config set defaults.provider digitalocean
+
+  # Set provider credentials
+  osmedeus cloud config set providers.digitalocean.token dop_v1_xxxx
+  osmedeus cloud config set providers.digitalocean.region nyc1
+  osmedeus cloud config set providers.digitalocean.size s-2vcpu-4gb
+
+  # AWS configuration
+  osmedeus cloud config set providers.aws.access_key_id AKIAXXXX
+  osmedeus cloud config set providers.aws.secret_access_key xxxx
+  osmedeus cloud config set providers.aws.region us-east-1
+
+  # Set limits
+  osmedeus cloud config set limits.max_instances 10
+  osmedeus cloud config set limits.max_hourly_spend 5.00
+
+  # List all cloud configuration values
+  osmedeus cloud config list
+
+  # List including secrets
+  osmedeus cloud config list --show-secrets
+
+▷ Infrastructure Management
+  # Create cloud instances
+  osmedeus cloud create --instances 3
+
+  # Create with specific provider and mode
+  osmedeus cloud create --provider digitalocean --mode vm --instances 5
+
+  # List active infrastructure
+  osmedeus cloud list
+
+  # Destroy infrastructure by ID
+  osmedeus cloud destroy <infrastructure-id>
+
+▷ Cloud Run
+  # Run workflow on cloud infrastructure
+  osmedeus cloud run -f general -t example.com --instances 3
+```
+
+## 14. Workflow Management
+
+List, view, search, and validate available workflows.
+
+```bash
+▶ Subcommands
+  • list (ls)   - List available workflows (default)
+  • show (view) - Show workflow details
+  • validate    - Validate and lint workflow(s)
+  • install     - Install workflows from source
+
+▷ List Workflows
+  # List all available workflows
+  osmedeus workflow list
+
+  # Search workflows by name, description, or tags
+  osmedeus workflow ls recon
+  osmedeus workflow ls --search subdomain
+
+  # Filter by tags
+  osmedeus workflow ls --tags recon,fast
+
+  # Show tags column
+  osmedeus workflow ls --show-tags
+
+  # Show usage info
+  osmedeus workflow ls --usage
+
+  # Show workflows with parse errors (verbose mode)
+  osmedeus workflow ls -v
+
+▷ Show Workflow Details
+  # Show workflow details in table format
+  osmedeus workflow show general
+
+  # Show with verbose variable descriptions
+  osmedeus workflow show general -v
+
+  # Show raw YAML with syntax highlighting
+  osmedeus workflow show general --yaml
+
+▷ Validate / Lint Workflows
+  # Validate a workflow by name
+  osmedeus workflow validate my-module
+
+  # Validate a YAML file
+  osmedeus workflow lint ./my-workflow.yaml
+
+  # Validate all workflows in a folder
+  osmedeus workflow validate /path/to/workflows/
+
+  # Stop on first failure
+  osmedeus workflow validate . --fail-fast
+
+  # CI mode (exit with error code if issues found)
+  osmedeus workflow lint my-workflow.yaml --check
+
+  # JSON output format
+  osmedeus workflow lint my-workflow.yaml --format json
+
+  # GitHub Actions annotation format
+  osmedeus workflow lint my-workflow.yaml --format github
+
+  # Disable specific lint rules
+  osmedeus workflow validate . --disable unused-variable
+
+  # Filter by minimum severity
+  osmedeus workflow lint my-workflow.yaml --severity error
+
+▷ Install Workflows
+  # Install from git URL
+  osmedeus workflow install https://github.com/user/osmedeus-workflows.git
+
+  # Install from preset (uses OSM_WORKFLOW_URL or default)
+  osmedeus workflow install --preset
+```
+
+## 15. Update
+
+Update osmedeus to the latest version from GitHub releases.
+
+```bash
+▷ Examples
+  # Check for updates without installing
+  osmedeus update --check
+
+  # Update to latest version
+  osmedeus update
+
+  # Skip confirmation prompt
+  osmedeus update --yes
+
+  # Force reinstall current version
+  osmedeus update --force
+
+  # Update to a specific version
+  osmedeus update --version v5.1.0
+```
+
+## 16. Version
+
+Print version and build information.
+
+```bash
+▷ Examples
+  # Show version info
+  osmedeus version
+
+  # JSON output
+  osmedeus --json version
 ```
 
 ## Full Usage Examples

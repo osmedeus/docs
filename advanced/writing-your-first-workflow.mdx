@@ -287,6 +287,87 @@ Branch workflow execution based on conditions:
     # Or: action: abort to stop workflow
 ```
 
+## Workflow Hooks
+
+Hooks let you run steps before and after the main workflow execution. Use them for setup, cleanup, notifications, or result post-processing.
+
+```yaml
+name: recon-with-hooks
+kind: module
+description: Reconnaissance with setup and cleanup hooks
+
+hooks:
+  pre_scan_steps:
+    - name: setup-workspace
+      type: bash
+      commands:
+        - mkdir -p {{Output}}/results
+        - echo "Scan started at $(date)" > {{Output}}/scan.log
+
+    - name: notify-start
+      type: function
+      function: |
+        generate_event("{{Workspace}}", "scan.started", "workflow", "status", "{{Target}}")
+
+  post_scan_steps:
+    - name: generate-report
+      type: function
+      function: |
+        convert_sarif_to_markdown("{{Output}}/results.sarif", "{{Output}}/report.md")
+
+    - name: notify-complete
+      type: function
+      function: |
+        generate_event("{{Workspace}}", "scan.completed", "workflow", "status", "{{Target}}")
+
+    - name: cleanup-temp
+      type: bash
+      command: rm -rf {{Output}}/tmp
+
+steps:
+  - name: run-scan
+    type: bash
+    command: nuclei -u {{Target}} -sarif-export {{Output}}/results.sarif
+```
+
+### Hook Execution Order
+
+```
+pre_scan_steps  →  steps (main workflow)  →  post_scan_steps
+```
+
+- **pre_scan_steps** run before any main steps execute
+- **post_scan_steps** run after all main steps complete
+- Both support all step types (bash, function, parallel-steps, foreach, etc.)
+- Hook steps have access to the same template variables as main steps
+
+### Flow-Level Hooks
+
+Hooks also work on flows. They run once around the entire flow, not per module:
+
+```yaml
+name: full-recon
+kind: flow
+description: Full recon flow with hooks
+
+hooks:
+  pre_scan_steps:
+    - name: pre-flight-check
+      type: function
+      function: 'log_info("Starting flow for " + "{{Target}}")'
+
+  post_scan_steps:
+    - name: aggregate-results
+      type: bash
+      command: cat {{Output}}/*/findings.txt | sort -u > {{Output}}/all-findings.txt
+
+modules:
+  - name: subdomain-enum
+    path: modules/subdomain-enum.yaml
+  - name: port-scan
+    path: modules/port-scan.yaml
+```
+
 ## Runner Configuration
 
 ### Host Runner (Default)
