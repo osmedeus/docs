@@ -296,6 +296,19 @@ If you would like the ideal setup then I recommend using Docker to run Osmedeus 
   </Expandable>
 </ResponseField>
 
+<ResponseField name="I got this `failed to run database migrations`. What should I do?">
+  <Expandable title="Answer" defaultOpen="true">
+    ```bash
+$ osmedeus server
+2026-02-16T22:59:11+07:00 ERROR Failed to create server {"error": "failed to run database migrations: failed to create index: SQL logic error: no such column: webhook_uuid (1)"}
+Error: failed to run database migrations: failed to create index: SQL logic error: no such column: ... (1)
+    ```
+
+Error like this means that the database schema is outdated and the server cannot start. To fix this, you can run `osmedeus db clean --force` to clean up the database and then start the server again. This will reset your database, so make sure to backup any important data before running the command.
+
+  </Expandable>
+</ResponseField>
+
 <ResponseField name="How do I authenticate with the API?">
   <Expandable title="Answer" defaultOpen="true">
     ```bash
