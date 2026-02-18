@@ -109,6 +109,63 @@ Override module parameters.
     severity: "critical,high"
 ```
 
+## Inline Modules
+
+Modules can define steps directly instead of referencing an external YAML file. This is useful for simple, self-contained tasks that don't warrant a separate file.
+
+```yaml
+kind: flow
+name: quick-recon
+
+modules:
+  - name: quick-check
+    description: Inline health check
+    steps:
+      - name: ping
+        type: bash
+        command: ping -c 1 {{Target}}
+
+      - name: http-check
+        type: bash
+        command: curl -s -o /dev/null -w '%{http_code}' https://{{Target}}
+        exports:
+          status_code: "{{stdout}}"
+
+  - name: full-scan
+    path: modules/full-scan.yaml
+    depends_on: [quick-check]
+    condition: '{{status_code}} == "200"'
+```
+
+### Inline Module Fields
+
+| Field | Description |
+|-------|-------------|
+| `name` | Required. Module reference name |
+| `steps` | Inline steps (makes this an inline module) |
+| `description` | Description for the inline module |
+| `runner` | Runner type for inline module (`host`, `docker`, `ssh`) |
+| `runner_config` | Runner configuration for inline module |
+
+When `steps` is defined, the module is treated as inline — no `path` is needed. Inline modules support the same step types and features as external module files.
+
+### Inline Module with Runner
+
+```yaml
+modules:
+  - name: docker-scan
+    description: Run nuclei in Docker
+    runner: docker
+    runner_config:
+      image: projectdiscovery/nuclei:latest
+      volumes:
+        - "{{Output}}:/output"
+    steps:
+      - name: nuclei
+        type: bash
+        command: nuclei -u {{Target}} -o /output/nuclei.txt
+```
+
 ## Dependency Graph
 
 Flows create a directed acyclic graph (DAG):
@@ -221,11 +278,20 @@ osmedeus run -f full-assessment -t example.com --dry-run
 
 ## Module Exclusion
 
-Skip specific modules:
+Skip specific modules using exact match (`-x`) or substring match (`-X`):
 
 ```bash
+# Exact match - exclude specific modules by name
 osmedeus run -f full-assessment -t target -x screenshot -x port-scan
+
+# Fuzzy match - exclude modules whose name contains the substring
+osmedeus run -f full-assessment -t target -X nmap -X nuclei
 ```
+
+| Flag | Description |
+|------|-------------|
+| `-x, --exclude <module>` | Exclude module by exact name (repeatable) |
+| `-X, --fuzzy-exclude <substr>` | Exclude modules whose name contains substring (repeatable) |
 
 Excluded modules are treated as completed (dependencies are satisfied).
 

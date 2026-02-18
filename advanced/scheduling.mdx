@@ -1,5 +1,5 @@
 ---
-title: "Scheduling"
+title: "Scheduling & Queue"
 icon: "clock"
 ---
 
@@ -13,6 +13,207 @@ Automate workflow execution with triggers.
 | `event` | Event-driven execution | React to discoveries |
 | `watch` | File change detection | Process new data |
 | `manual` | On-demand only | Placeholder trigger |
+
+## CLI Quick Start
+
+The fastest way to set up scheduling, queuing, and webhooks — no YAML required.
+
+### Schedule a Recurring Scan (`--as-cron`)
+
+Create a cron schedule directly from the `run` command:
+
+```bash
+# Schedule a module to run daily at 2 AM
+osmedeus run -m subdomain-enum -t example.com --as-cron '0 2 * * *'
+
+# Schedule a flow to run every 6 hours
+osmedeus run -f full-recon -t example.com --as-cron '0 */6 * * *'
+
+# Schedule with additional parameters
+osmedeus run -m nuclei-scan -t example.com --as-cron '0 0 * * 1' -p threads=20
+```
+
+This creates a schedule record in the database. To activate it, start the server:
+
+```bash
+osmedeus serve
+```
+
+List created schedules:
+
+```bash
+osmedeus db ls --table schedules
+```
+
+### Queue a Run for Later (`--queue`)
+
+Queue a run for deferred processing instead of executing immediately:
+
+```bash
+# Queue a single target
+osmedeus run -m subdomain-enum -t example.com --queue
+
+# Queue multiple targets
+osmedeus run -f full-recon -t example.com -t corp.com --queue
+
+# Queue from a target file
+osmedeus run -m nuclei-scan -T targets.txt --queue
+```
+
+Queued tasks are stored in the database with status `queued`. Process them with:
+
+```bash
+# Process queued tasks (one at a time)
+osmedeus worker queue run
+
+# Process with concurrency
+osmedeus worker queue run --concurrency 5
+```
+
+The server also auto-polls for queued tasks when running (every 30s).
+
+### Register a Webhook Trigger (`--as-webhook`)
+
+Create a webhook URL that triggers a run on demand:
+
+```bash
+# Register a webhook
+osmedeus run -m subdomain-enum -t example.com --as-webhook
+
+# With an authentication key
+osmedeus run -f full-recon -t example.com --as-webhook --webhook-auth-key mysecretkey
+```
+
+This creates a webhook record and prints the trigger URL. Trigger it with:
+
+```bash
+# GET request (simple trigger)
+curl http://localhost:8002/osm/api/webhook-runs/<uuid>/trigger
+
+# With auth key
+curl http://localhost:8002/osm/api/webhook-runs/<uuid>/trigger?key=mysecretkey
+```
+
+Requires `enable_trigger_via_webhook: true` in `osm-settings.yaml` and a running server.
+
+## Queue Management
+
+Full control over queued tasks via the `osmedeus worker queue` subcommands.
+
+### List Queued Tasks
+
+```bash
+# List all queued tasks
+osmedeus worker queue list
+
+# JSON output
+osmedeus worker queue list --json
+```
+
+### Create Queued Tasks
+
+An alternative to `--queue` on `osmedeus run`:
+
+```bash
+# Queue a flow
+osmedeus worker queue new -f full-recon -t example.com
+
+# Queue a module with multiple targets
+osmedeus worker queue new -m subdomain-enum -t example.com -t corp.com
+
+# Queue from a target file with params
+osmedeus worker queue new -m nuclei-scan -T targets.txt -p threads=20
+```
+
+### Process Queued Tasks
+
+```bash
+# Start processing (polls DB every 5s)
+osmedeus worker queue run
+
+# With concurrency
+osmedeus worker queue run --concurrency 5
+
+# With a Redis connection for dual-source polling
+osmedeus worker queue run --redis-url redis://localhost:6379
+```
+
+The queue runner polls the database every 5 seconds. If Redis is configured, it also listens via `BRPOP` for lower latency.
+
+### Server-Side Queue Polling
+
+The server (`osmedeus serve`) automatically polls for queued tasks every 30 seconds. Disable with:
+
+```bash
+osmedeus serve --no-queue-polling
+```
+
+## Webhook Management
+
+### List Registered Webhooks
+
+```bash
+osmedeus worker webhooks
+```
+
+Displays a table of all registered webhook triggers with their UUIDs, workflow, target, trigger URL, and auth key.
+
+### Triggering Webhooks
+
+Webhooks can be triggered via GET or POST:
+
+```bash
+# Simple GET trigger
+curl http://localhost:8002/osm/api/webhook-runs/<uuid>/trigger
+
+# POST with overrides (target, flow, or module)
+curl -X POST http://localhost:8002/osm/api/webhook-runs/<uuid>/trigger \
+  -H "Content-Type: application/json" \
+  -d '{"target": "other.com"}'
+
+# Override the workflow
+curl -X POST http://localhost:8002/osm/api/webhook-runs/<uuid>/trigger \
+  -H "Content-Type: application/json" \
+  -d '{"target": "other.com", "module": "nuclei-scan"}'
+```
+
+POST body fields (all optional — defaults come from the registered webhook):
+
+| Field | Description |
+|-------|-------------|
+| `target` | Override the target |
+| `flow` | Override with a flow workflow |
+| `module` | Override with a module workflow |
+
+### Authentication
+
+If a webhook was registered with `--webhook-auth-key`, the key must be provided as a query parameter:
+
+```bash
+curl http://localhost:8002/osm/api/webhook-runs/<uuid>/trigger?key=mysecretkey
+```
+
+Requests without the correct key receive a `401 Unauthorized` response.
+
+### Webhook Configuration
+
+Webhook triggering must be enabled in `osm-settings.yaml`:
+
+```yaml
+server:
+  enable_trigger_via_webhook: true
+```
+
+## Server Flags
+
+Relevant flags for `osmedeus serve`:
+
+| Flag | Description |
+|------|-------------|
+| `--no-schedule` | Disable the cron/watch/event scheduler |
+| `--no-queue-polling` | Disable background queue task polling |
+| `--no-event-receiver` | Disable automatic event receiver |
+| `--no-hot-reload` | Disable config hot reload |
 
 ## Cron Triggers
 
@@ -284,6 +485,27 @@ curl -X POST http://localhost:8002/osm/api/schedules/sched-123/trigger \
 ```bash
 curl -X DELETE http://localhost:8002/osm/api/schedules/sched-123 \
   -H "Authorization: Bearer $TOKEN"
+```
+
+### Webhook API Endpoints
+
+List registered webhooks (authenticated):
+
+```bash
+curl http://localhost:8002/osm/api/webhook-runs/list \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Trigger a webhook (unauthenticated, unless `webhook_auth_key` is set):
+
+```bash
+# GET
+curl http://localhost:8002/osm/api/webhook-runs/<uuid>/trigger
+
+# POST with overrides
+curl -X POST http://localhost:8002/osm/api/webhook-runs/<uuid>/trigger \
+  -H "Content-Type: application/json" \
+  -d '{"target": "other.com", "module": "nuclei-scan"}'
 ```
 
 ## Combined Triggers

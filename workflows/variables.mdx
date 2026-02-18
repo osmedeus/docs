@@ -92,6 +92,33 @@ steps:
   function: log_info("Status: {{status}}, Data: {{response_data}}")
 ```
 
+### Agent Exports
+
+```yaml
+- name: analyze
+  type: agent
+  query: "Analyze {{Target}} for vulnerabilities"
+  max_iterations: 10
+  agent_tools:
+    - preset: bash
+    - preset: read_file
+  exports:
+    findings: "{{agent_content}}"
+    token_usage: "{{agent_total_tokens}}"
+```
+
+| Source | Description |
+|--------|-------------|
+| `{{agent_content}}` | Final agent response text |
+| `{{agent_history}}` | Full conversation history (JSON) |
+| `{{agent_iterations}}` | Number of iterations used |
+| `{{agent_total_tokens}}` | Total tokens consumed |
+| `{{agent_prompt_tokens}}` | Prompt tokens consumed |
+| `{{agent_completion_tokens}}` | Completion tokens consumed |
+| `{{agent_tool_results}}` | All tool call results (JSON) |
+| `{{agent_plan}}` | Planning stage output (if `plan_prompt` was set) |
+| `{{agent_goal_results}}` | Per-goal results (for multi-goal `queries`) |
+
 ### Function Exports
 
 ```yaml
@@ -218,6 +245,8 @@ Osmedeus provides a comprehensive set of built-in variables that are automatical
 | `{{RandomString}}` | Random 6-character string |
 | `{{ModuleName}}` | Current module name |
 | `{{FlowName}}` | Parent flow name (empty if running module directly) |
+| `{{RunUUID}}` | Unique run identifier (UUID) |
+| `{{DBRunID}}` | Database run ID |
 
 ### State File Variables
 
@@ -254,6 +283,38 @@ These variables are populated by automatic target analysis:
 | `{{TargetStatusCode}}` | HTTP status code from target |
 | `{{TargetContentLength}}` | Content length from target response |
 | `{{HeuristicsCheck}}` | Result of heuristics analysis |
+
+### Platform Variables
+
+Automatically detected environment information:
+
+| Variable | Description |
+|----------|-------------|
+| `{{PlatformOS}}` | Operating system (`linux`, `darwin`, `windows`) |
+| `{{PlatformArch}}` | CPU architecture (`amd64`, `arm64`) |
+| `{{PlatformInDocker}}` | `"true"` if running inside a Docker container |
+| `{{PlatformInKubernetes}}` | `"true"` if running inside a Kubernetes pod |
+| `{{PlatformCloudProvider}}` | Cloud provider name (`aws`, `gcp`, `azure`, `local`) |
+
+```yaml
+steps:
+  - name: platform-check
+    type: bash
+    pre_condition: '{{PlatformOS}} == "linux"'
+    command: linux-specific-tool {{Target}}
+```
+
+### Event Variables
+
+Available when a workflow is triggered by an event:
+
+| Variable | Description |
+|----------|-------------|
+| `{{EventEnvelope}}` | Full event envelope (JSON) |
+| `{{EventTopic}}` | Event topic (e.g., `assets.new`) |
+| `{{EventSource}}` | Source of the event |
+| `{{EventDataType}}` | Type of event data |
+| `{{EventTimestamp}}` | Event timestamp |
 
 ### Chunk Variables
 
@@ -304,27 +365,43 @@ steps:
 
 ## Generator Functions
 
-Use in parameter defaults:
+Generate dynamic values for parameters using the `generator` field:
 
 ```yaml
 params:
   - name: scan_id
-    default: "{{uuid()}}"
+    generator: "uuid()"
 
   - name: timestamp
-    default: "{{currentTimestamp()}}"
+    generator: "currentTimestamp()"
 
   - name: user
-    default: "{{getEnvVar('USER', 'unknown')}}"
+    generator: "getEnvVar('USER', 'unknown')"
+
+  - name: run_date
+    generator: "currentDate()"
 ```
 
-Available generators:
-- `uuid()` - UUID v4
-- `currentDate()` - YYYY-MM-DD
-- `currentTimestamp()` - Unix timestamp
-- `randomInt(min, max)` - Random integer
-- `randomString(len)` - Random string
-- `getEnvVar(key, default)` - Environment variable
+The `generator` field is evaluated at workflow load time to produce the parameter value.
+
+### Available Generators
+
+| Generator | Description | Example |
+|-----------|-------------|---------|
+| `uuid()` | UUID v4 | `a1b2c3d4-...` |
+| `currentDate(format?)` | Current date (default: YYYY-MM-DD) | `2026-02-17` |
+| `currentTimestamp()` | Unix timestamp | `1739808000` |
+| `getEnvVar(key, default?)` | Environment variable | `getEnvVar('USER', 'unknown')` |
+| `concat(str1, str2, ...)` | Concatenate strings | `concat('scan-', 'target')` |
+| `randomInt(min?, max?)` | Random integer (default: 0-100) | `randomInt(1, 1000)` |
+| `randomString(length?)` | Random alphanumeric string (default: 16) | `randomString(8)` |
+| `execCmd(command)` | Execute shell command | `execCmd('whoami')` |
+| `toLower(str)` | Convert to lowercase | `toLower('ABC')` |
+| `toUpper(str)` | Convert to uppercase | `toUpper('abc')` |
+| `trim(str)` | Trim whitespace | `trim(' hello ')` |
+| `replace(str, old, new)` | Replace occurrences | `replace('a-b', '-', '_')` |
+| `split(str, delim, index?)` | Split and get element | `split('a,b,c', ',', 1)` |
+| `join(delim, str1, str2, ...)` | Join strings with delimiter | `join('-', 'a', 'b')` |
 
 ## Flow Variable Propagation
 

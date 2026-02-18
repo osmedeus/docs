@@ -17,7 +17,7 @@ Osmedeus supports 8 step types for different execution needs.
 | `remote-bash` | Per-step Docker/SSH | Mixed environments |
 | `http` | Make HTTP requests | API calls, webhooks |
 | `llm` | AI-powered processing | Analysis, summarization |
-| `fragment-step` | Execute reusable fragment | Code reuse, DRY patterns |
+| `agent` | Agentic LLM execution | Autonomous tool-calling agents |
 
 ## bash
 
@@ -198,6 +198,24 @@ The foreach executor uses a worker pool pattern:
 | `variable` | Yes | Variable name for current item |
 | `threads` | No | Maximum concurrent iterations (default: 1) |
 | `step` | Yes | Step to execute for each item |
+| `variable_pre_process` | No | Transform each input line before storing (e.g., `trim([[line]])`) |
+
+### Pre-Processing Input
+
+Transform each input line before it is stored in the loop variable:
+
+```yaml
+- name: scan-cleaned-hosts
+  type: foreach
+  input: "{{Output}}/hosts.txt"
+  variable: host
+  variable_pre_process: "trim([[line]])"
+  threads: 10
+  step:
+    name: probe
+    type: bash
+    command: httpx -u [[host]] -silent
+```
 
 ### Variable Syntax
 
@@ -607,38 +625,299 @@ If multiple LLM providers are configured, the executor automatically:
 - Retries up to `max_retries * provider_count` times
 - Records rate limit metrics for monitoring
 
-## fragment-step
+## agent
 
-Execute a pre-defined fragment (reusable step collection) inline.
+Agentic LLM execution with an autonomous tool-calling loop. The agent receives a task, plans its approach, calls tools iteratively, and produces a final answer.
 
 ### Basic Usage
 
 ```yaml
-- name: run-subdomain-enum
-  type: fragment-step
-  fragment_name: subdomain-enum
+- name: analyze-target
+  type: agent
+  query: "Enumerate subdomains of {{Target}} and summarize findings."
+  system_prompt: "You are a security reconnaissance agent."
+  max_iterations: 10
+  agent_tools:
+    - preset: bash
+    - preset: read_file
+    - preset: save_content
+  exports:
+    findings: "{{agent_content}}"
 ```
 
-### With Overrides
+### Preset Tools
+
+The following preset tools are available via the `preset` field:
+
+| Preset | Description |
+|--------|-------------|
+| `bash` | Execute shell commands |
+| `read_file` | Read entire file contents |
+| `read_lines` | Read specific line range from a file |
+| `file_exists` | Check if a file exists |
+| `file_length` | Count non-empty lines in a file |
+| `append_file` | Append content to a file |
+| `save_content` | Write content to a file |
+| `glob` | Find files matching a glob pattern |
+| `grep_string` | Search for literal string in files |
+| `grep_regex` | Search for regex pattern in files |
+| `http_get` | Make HTTP GET request |
+| `http_request` | Make HTTP request (any method) |
+| `jq` | Query JSON with jq expressions |
+| `exec_python` | Execute inline Python code |
+| `exec_python_file` | Execute a Python file |
+| `exec_ts` | Execute inline TypeScript code |
+| `exec_ts_file` | Execute a TypeScript file |
+| `run_module` | Run an Osmedeus module |
+| `run_flow` | Run an Osmedeus flow |
 
 ```yaml
-- name: run-enum-custom
-  type: fragment-step
-  fragment_name: subdomain-enum
-  override:
-    threads: "20"
-    timeout: "10m"
-    Target: "custom.example.com"
+agent_tools:
+  - preset: bash
+  - preset: read_file
+  - preset: grep_regex
+  - preset: save_content
+  - preset: http_get
 ```
 
-### Fields
+### Custom Tool Handlers
+
+Define custom tools with a handler expression:
+
+```yaml
+agent_tools:
+  - preset: bash
+  - name: lookup_whois
+    description: "Look up WHOIS information for a domain"
+    parameters:
+      type: object
+      properties:
+        domain:
+          type: string
+          description: "Domain to query"
+      required: [domain]
+    handler: "exec('whois ' + args.domain)"
+```
+
+### Multi-Goal Queries
+
+Use `queries` for multiple goals evaluated in sequence:
+
+```yaml
+- name: multi-task
+  type: agent
+  queries:
+    - "Enumerate subdomains of {{Target}}"
+    - "Probe discovered hosts for HTTP services"
+    - "Summarize all findings"
+  max_iterations: 20
+  agent_tools:
+    - preset: bash
+    - preset: save_content
+```
+
+### Sub-Agents
+
+Spawn specialized sub-agents from the main agent:
+
+```yaml
+- name: coordinator
+  type: agent
+  query: "Perform full reconnaissance of {{Target}}"
+  max_iterations: 15
+  agent_tools:
+    - preset: bash
+    - preset: read_file
+  sub_agents:
+    - name: dns-expert
+      description: "DNS enumeration specialist"
+      system_prompt: "You are a DNS enumeration expert."
+      agent_tools:
+        - preset: bash
+        - preset: save_content
+      max_iterations: 5
+    - name: web-scanner
+      description: "Web application scanner"
+      system_prompt: "You are a web security scanner."
+      agent_tools:
+        - preset: bash
+        - preset: http_get
+      max_iterations: 5
+```
+
+The main agent can invoke sub-agents via the auto-generated `spawn_agent` tool.
+
+### Memory Configuration
+
+Control conversation memory for long-running agents:
+
+```yaml
+- name: long-task
+  type: agent
+  query: "Perform deep analysis of {{Target}}"
+  max_iterations: 50
+  memory:
+    max_messages: 30
+    summarize_on_truncate: true
+    persist_path: "{{Output}}/agent/conversation.json"
+    resume_path: "{{Output}}/agent/conversation.json"
+  agent_tools:
+    - preset: bash
+    - preset: save_content
+```
+
+| Field | Description |
+|-------|-------------|
+| `max_messages` | Sliding window size for conversation history |
+| `summarize_on_truncate` | Summarize old messages before removing them |
+| `persist_path` | Save conversation to file after completion |
+| `resume_path` | Resume from a previous conversation file |
+
+### Planning Stage
+
+Run a planning prompt before the main execution loop:
+
+```yaml
+- name: planned-recon
+  type: agent
+  query: "Execute the reconnaissance plan for {{Target}}"
+  plan_prompt: "Create a step-by-step reconnaissance plan for {{Target}}. Consider subdomain enumeration, port scanning, and service fingerprinting."
+  max_iterations: 15
+  agent_tools:
+    - preset: bash
+    - preset: save_content
+  exports:
+    plan: "{{agent_plan}}"
+    results: "{{agent_content}}"
+```
+
+### Structured Output
+
+Enforce a JSON schema on the agent's final output:
+
+```yaml
+- name: structured-recon
+  type: agent
+  query: "Analyze {{Target}} and return structured findings."
+  max_iterations: 10
+  output_schema:
+    type: object
+    properties:
+      target:
+        type: string
+      subdomains:
+        type: array
+        items:
+          type: string
+      open_ports:
+        type: array
+        items:
+          type: integer
+      summary:
+        type: string
+    required: [target, subdomains, summary]
+  agent_tools:
+    - preset: bash
+    - preset: read_file
+```
+
+### Model Selection
+
+Specify preferred models (tried in order before falling back to default):
+
+```yaml
+- name: smart-agent
+  type: agent
+  query: "Analyze {{Target}}"
+  models:
+    - claude-sonnet-4-20250514
+    - gpt-4-turbo
+  max_iterations: 10
+  agent_tools:
+    - preset: bash
+```
+
+### Tool Tracing Hooks
+
+Add JavaScript hooks for tool call monitoring:
+
+```yaml
+- name: traced-agent
+  type: agent
+  query: "Scan {{Target}}"
+  max_iterations: 10
+  on_tool_start: "log_info('Calling tool: ' + tool_name)"
+  on_tool_end: "log_info('Tool ' + tool_name + ' returned: ' + tool_result.substring(0, 100))"
+  agent_tools:
+    - preset: bash
+    - preset: save_content
+```
+
+### Stop Condition
+
+Evaluate a JS expression after each iteration to stop early:
+
+```yaml
+- name: conditional-agent
+  type: agent
+  query: "Find vulnerabilities in {{Target}}"
+  max_iterations: 20
+  stop_condition: "file_exists('{{Output}}/critical-finding.txt')"
+  agent_tools:
+    - preset: bash
+    - preset: save_content
+```
+
+### Parallel Tool Calls
+
+Control whether the agent can execute multiple tool calls in parallel (enabled by default):
+
+```yaml
+- name: sequential-agent
+  type: agent
+  query: "Carefully analyze {{Target}}"
+  max_iterations: 10
+  parallel_tool_calls: false  # Force sequential tool execution
+  agent_tools:
+    - preset: bash
+```
+
+### Auto-Exported Variables
+
+After agent step execution, these variables are automatically available:
+
+| Variable | Description |
+|----------|-------------|
+| `{{agent_content}}` | Final agent response text |
+| `{{agent_history}}` | Full conversation history (JSON) |
+| `{{agent_iterations}}` | Number of iterations used |
+| `{{agent_total_tokens}}` | Total tokens consumed |
+| `{{agent_prompt_tokens}}` | Prompt tokens consumed |
+| `{{agent_completion_tokens}}` | Completion tokens consumed |
+| `{{agent_tool_results}}` | All tool call results (JSON) |
+| `{{agent_plan}}` | Planning stage output (if `plan_prompt` was set) |
+| `{{agent_goal_results}}` | Per-goal results (for multi-goal `queries`) |
+
+### Fields Reference
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `fragment_name` | Yes | Name of the included fragment to execute |
-| `override` | No | Map of step fields or template variables to override |
+| `query` | Yes* | Task prompt for the agent |
+| `queries` | Yes* | Multiple task prompts (alternative to `query`) |
+| `max_iterations` | Yes | Maximum tool-calling loop iterations (must be > 0) |
+| `agent_tools` | No | List of preset or custom tools |
+| `system_prompt` | No | System prompt for the agent |
+| `sub_agents` | No | Inline sub-agents spawnable via `spawn_agent` tool |
+| `memory` | No | Sliding window config (`max_messages`, `summarize_on_truncate`, `persist_path`, `resume_path`) |
+| `models` | No | Preferred models tried in order before falling back to default |
+| `output_schema` | No | JSON schema enforced on final output |
+| `plan_prompt` | No | Planning stage prompt run before the main loop |
+| `stop_condition` | No | JS expression evaluated after each iteration |
+| `on_tool_start` | No | JS hook expression run before each tool call |
+| `on_tool_end` | No | JS hook expression run after each tool call |
+| `parallel_tool_calls` | No | Enable/disable parallel tool execution (default: true) |
 
-Note: The fragment must be included in the workflow's `includes` section with a matching `fragment_name`.
+\* Either `query` or `queries` is required.
 
 ## Common Step Fields
 
@@ -678,7 +957,7 @@ All steps support these fields:
 | Field | Description |
 |-------|-------------|
 | `name` | Required. Unique step identifier |
-| `type` | Required. Step type (bash, function, foreach, etc.) |
+| `type` | Required. Step type (bash, function, foreach, parallel-steps, remote-bash, http, llm, agent) |
 | `depends_on` | Array of step names this step depends on (enables parallel execution) |
 | `pre_condition` | Expression to evaluate; step skipped if false |
 | `timeout` | Maximum execution time (default varies by step type) |

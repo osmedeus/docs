@@ -184,6 +184,34 @@ modules:
     analysis: "{{llm_step_content}}"
 ```
 
+### agent - Agentic LLM Execution
+
+```yaml
+- name: analyze-target
+  type: agent
+  query: "Enumerate subdomains of {{Target}} and summarize findings."
+  system_prompt: "You are a security reconnaissance agent."
+  max_iterations: 10
+  agent_tools:
+    - preset: bash
+    - preset: read_file
+    - preset: save_content
+  memory:
+    max_messages: 30
+    persist_path: "{{Output}}/agent/conversation.json"
+  exports:
+    findings: "{{agent_content}}"
+```
+
+The agent step type creates an autonomous tool-calling loop. The agent receives a task, plans its approach, calls tools iteratively, and produces a final answer. Key fields:
+- `query` — task prompt for the agent
+- `max_iterations` — maximum tool-calling loop iterations (required)
+- `agent_tools` — list of preset or custom tools (e.g., `bash`, `read_file`, `save_content`, `grep_regex`, `http_get`)
+- `memory` — conversation memory configuration
+- `exports` — use `{{agent_content}}` for the final response text
+
+See [Step Types - agent](../workflows/step-types#agent) for the full reference.
+
 ## Template Variables
 
 ### Built-in Variables
@@ -199,6 +227,11 @@ modules:
 | `{{Workspaces}}` | Workspaces directory |
 | `{{threads}}` | Thread count based on tactic |
 | `{{Version}}` | Osmedeus version |
+| `{{PlatformOS}}` | Operating system (`linux`, `darwin`, `windows`) |
+| `{{PlatformArch}}` | CPU architecture (`amd64`, `arm64`) |
+| `{{PlatformInDocker}}` | `"true"` if running in Docker |
+| `{{PlatformInKubernetes}}` | `"true"` if running in Kubernetes |
+| `{{PlatformCloudProvider}}` | Cloud provider (`aws`, `gcp`, `azure`, `local`) |
 
 ### Foreach Loop Variables
 

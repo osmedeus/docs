@@ -39,6 +39,23 @@ A collection of frequently asked questions along with explanations of common err
   </Expandable>
 </ResponseField>
 
+<ResponseField name="Does Osmedeus support AI/LLM integration? Can I use tools like Claude Code and Codex with it?">
+  <Expandable title="Answer">
+    Yes of course. Osmedeus has built-in support for LLMs and you can use it in your workflow to do things like generating recon reports, writing custom scripts, or even building your own agentic workflow. You can check out the [LLM Workflow Example](/advanced/llm/) to see how it works.
+
+    Be aware that using LLMs may require you to have API keys for the LLM provider and may incur additional costs based on your usage. Always monitor your usage and costs when using LLMs in your workflows.
+
+    Since Osmedeus is an orchestration framework, you can leverage it to coordinate your own custom AI/LLM tools including integrations like Claude Code or OpenCode directly within your YAML workflows. For instance, you could design a custom agent that invokes multiple tools as part of a defined pipeline and seamlessly plug it into your workflow. The flexibility is virtually unlimited.
+  </Expandable>
+</ResponseField>
+
+
+<ResponseField name="Does Osmedeus have an AI Skills that I can use in my agent?">
+  <Expandable title="Answer">
+    Yes, I've built the [osmedeus-expert](https://github.com/osmedeus/osmedeus-skills) skill at [github.com/osmedeus/osmedeus-skills](https://github.com/osmedeus/osmedeus-skills) and you can use it in your agentic tool to writing YAML workflows, running CLI commands, and configuring advanced features.
+  </Expandable>
+</ResponseField>
+
 ---
 
 ## 2. Binary Installation
@@ -278,6 +295,7 @@ If you would like the ideal setup then I recommend using Docker to run Osmedeus 
     | `remote-bash` | Execute in Docker or via SSH |
     | `http` | Make HTTP requests |
     | `llm` | Execute LLM API calls |
+    | `agent` | Agentic LLM execution with tool calling |
   </Expandable>
 </ResponseField>
 

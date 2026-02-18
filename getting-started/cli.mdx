@@ -20,6 +20,7 @@ Usage:
   osmedeus [command]
 
 Available Commands:
+  assets      Query and list discovered assets
   client      Interact with a remote osmedeus server
   cloud       Cloud infrastructure management commands
   completion  Generate the autocompletion script for the specified shell
@@ -170,6 +171,16 @@ Execute a workflow against one or more targets
 
   # Register a flow webhook
   osmedeus run --as-webhook -f general -t example.com --webhook-auth-key my-secret-key
+
+▷ Cron Schedule Mode (create a recurring schedule instead of running immediately)
+  # Create a cron schedule (daily at 2 AM)
+  osmedeus run --as-cron '0 2 * * *' -m recon -t example.com
+
+  # Schedule a flow to run every 6 hours
+  osmedeus run --as-cron '0 */6 * * *' -f general -t example.com
+
+  # Schedule for multiple targets (weekly on Monday)
+  osmedeus run --as-cron '0 0 * * 1' -m recon -T targets.txt
 ```
 
 ## 2. Osmedeus Function Eval
@@ -513,7 +524,63 @@ Webhook triggers require the server to have `enable_trigger_via_webhook: true` i
   osmedeus config set server.enable_trigger_via_webhook true
 ```
 
-## 9. Snapshot
+## 9. Assets
+
+<Frame caption="Query and list discovered assets">
+  <img src="/images/cli/cli-asset-view.png" alt="Query and list discovered assets" />
+</Frame>
+
+Query and list discovered assets from the database. A shortcut for `osmedeus db ls -t assets` with first-class support for fuzzy search, source/type filtering, and asset statistics.
+
+```bash
+▷ Examples
+  # List all assets (default columns)
+  osmedeus assets
+
+  # Fuzzy search across asset fields
+  osmedeus assets example.com
+
+  # Filter by workspace
+  osmedeus assets -w myworkspace
+
+  # Filter by source
+  osmedeus assets --source httpx
+
+  # Filter by asset type
+  osmedeus assets --type web
+
+  # Combined filters
+  osmedeus assets --source httpx --type web
+
+  # Show asset statistics
+  osmedeus assets --stats
+
+  # Stats filtered by workspace
+  osmedeus assets --stats -w myworkspace
+
+  # With pagination
+  osmedeus assets example.com --limit 100
+
+  # JSON output
+  osmedeus assets example.com --json
+
+  # Custom columns
+  osmedeus assets --columns "asset_value,url,status_code"
+```
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--workspace` | `-w` | `""` | Filter by workspace name |
+| `--source` | — | `""` | Filter by source (e.g., httpx, subfinder) |
+| `--type` | — | `""` | Filter by asset_type (e.g., web, subdomain) |
+| `--stats` | — | `false` | Show asset statistics |
+| `--limit` | — | `50` | Max records to return |
+| `--offset` | — | `0` | Records to skip (for pagination) |
+| `--columns` | — | `""` | Comma-separated columns to display |
+| `--exclude-columns` | — | `""` | Columns to exclude from output |
+| `--all` | — | `false` | Show all columns including hidden ones |
+
+## 10. Snapshot
 
 Export and import workspace snapshots as compressed ZIP archives.
 
@@ -543,7 +610,7 @@ Export and import workspace snapshots as compressed ZIP archives.
   osmedeus snapshot list
 ```
 
-## 10. Client (Remote Server)
+## 11. Client (Remote Server)
 
 Interact with a remote osmedeus server via REST API. Requires environment variables for connection.
 
@@ -605,7 +672,7 @@ Interact with a remote osmedeus server via REST API. Requires environment variab
   osmedeus client --json exec 'trim("  test  ")'
 ```
 
-## 11. Uninstall
+## 12. Uninstall
 
 Remove the Osmedeus installation including base folder, configuration, and optionally workspace data.
 
@@ -629,7 +696,7 @@ Remove the Osmedeus installation including base folder, configuration, and optio
   osmedeus uninstall --force --clean
 ```
 
-## 12. Config Management
+## 13. Config Management
 
 Manage osmedeus configuration settings using dot notation.
 
@@ -672,7 +739,7 @@ Manage osmedeus configuration settings using dot notation.
   osmedeus config clean
 ```
 
-## 13. Cloud Infrastructure
+## 14. Cloud Infrastructure
 
 Provision and manage cloud infrastructure for distributed scanning. Supports multiple providers (DigitalOcean, AWS, GCP, Linode, Azure).
 
@@ -726,7 +793,7 @@ Provision and manage cloud infrastructure for distributed scanning. Supports mul
   osmedeus cloud run -f general -t example.com --instances 3
 ```
 
-## 14. Workflow Management
+## 15. Workflow Management
 
 List, view, search, and validate available workflows.
 
@@ -803,7 +870,7 @@ List, view, search, and validate available workflows.
   osmedeus workflow install --preset
 ```
 
-## 15. Update
+## 16. Update
 
 Update osmedeus to the latest version from GitHub releases.
 
@@ -825,7 +892,7 @@ Update osmedeus to the latest version from GitHub releases.
   osmedeus update --version v5.1.0
 ```
 
-## 16. Version
+## 17. Version
 
 Print version and build information.
 

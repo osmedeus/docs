@@ -246,6 +246,79 @@ decision:
 - `default`: Fallback when no case matches (optional)
 - `goto`: Target step name or `_end` to terminate
 
+### Inline Execution in Cases
+
+Cases support running commands or functions inline, not just `goto`:
+
+```yaml
+decision:
+  switch: "{{target_type}}"
+  cases:
+    "domain":
+      goto: subdomain-enum
+      command: "echo 'Processing domain target'"
+    "ip":
+      goto: port-scan
+      commands:
+        - "echo 'Processing IP target'"
+        - "mkdir -p {{Output}}/ip-results"
+    "url":
+      function: "log_info('Direct URL target detected')"
+      goto: web-scan
+```
+
+Each `DecisionCase` supports:
+
+| Field | Description |
+|-------|-------------|
+| `goto` | Target step name or `_end` |
+| `command` | Single command to execute |
+| `commands` | Multiple commands to execute |
+| `function` | Single function to execute |
+| `functions` | Multiple functions to execute |
+
+### Condition-Based Decision Routing
+
+In addition to switch/case, decisions support `conditions` — an array of JavaScript expressions evaluated at runtime. All matching conditions execute (no short-circuit):
+
+```yaml
+- name: smart-routing
+  type: function
+  function: log_info("Evaluating conditions")
+  decision:
+    conditions:
+      - if: "file_length('{{Output}}/subdomains.txt') > 0"
+        goto: process-subdomains
+
+      - if: "file_length('{{Output}}/subdomains.txt') > 100"
+        command: "echo 'Large target set detected'"
+
+      - if: "{{enableNmap}} == 'true' && contains('{{Port}}', '-')"
+        commands:
+          - "nmap -p {{Port}} {{Target}} -oN {{Output}}/nmap.txt"
+          - "echo 'Port range scan complete'"
+
+      - if: "{{scan_mode}} == 'aggressive'"
+        functions:
+          - "log_warning('Aggressive mode enabled')"
+          - "log_info('Increasing thread count')"
+```
+
+#### Condition Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `if` | Yes | JavaScript expression (must evaluate to truthy/falsy) |
+| `goto` | No | Target step name or `_end` |
+| `command` | No | Single command to execute if condition is true |
+| `commands` | No | Multiple commands to execute if condition is true |
+| `function` | No | Single function to execute if condition is true |
+| `functions` | No | Multiple functions to execute if condition is true |
+
+<Note>
+All matching conditions in the array are executed — there is no short-circuit behavior. If you need exclusive routing, use switch/case instead.
+</Note>
+
 ### Special Goto Targets
 
 | Target | Description |

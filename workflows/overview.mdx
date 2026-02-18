@@ -61,7 +61,7 @@ modules:                        # Module references
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `kind` | Yes | `module`, `flow`, or `fragment` |
+| `kind` | Yes | `module` or `flow` |
 | `name` | Yes | Unique workflow identifier |
 | `description` | No | Human-readable description |
 | `tags` | No | Array of category tags |
@@ -152,30 +152,6 @@ modules:
     condition: 'fileLength("{{Output}}/live.txt") > 0'
 ```
 
-### Fragment Workflows
-
-A **fragment** is a reusable collection of steps that can be included in modules.
-
-```yaml
-kind: fragment
-name: common-enum
-description: Common enumeration steps
-
-steps:
-  - name: subfinder
-    type: bash
-    command: subfinder -d {{Target}} -o {{Output}}/subs.txt
-
-  - name: httpx
-    type: bash
-    command: httpx -l {{Output}}/subs.txt -o {{Output}}/live.txt
-```
-
-Use fragments for:
-- Reusable step collections
-- DRY (Don't Repeat Yourself) patterns
-- Shared scanning routines
-
 ## Module References (Flows)
 
 ```yaml
@@ -231,7 +207,7 @@ The parser validates:
 1. **Required fields**: `kind`, `name`, `steps` (module) or `modules` (flow)
 2. **Valid kind**: Must be `module` or `flow`
 3. **Step names**: Each step must have a unique name
-4. **Step types**: Must be valid (bash, function, foreach, etc.)
+4. **Step types**: Must be valid (bash, function, foreach, parallel-steps, remote-bash, http, llm, agent)
 5. **Module paths**: Referenced modules must exist (flows)
 6. **Circular dependencies**: No cycles in dependency graph (flows)
 
