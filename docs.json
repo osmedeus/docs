@@ -17,7 +17,7 @@
   "navigation": {
     "tabs": [
       {
-        "tab": "Documentation",
+        "tab": "Getting Started",
         "groups": [
           {
             "group": "Getting Started",
@@ -101,7 +101,65 @@
             ]
           }
         ]
-      }
+      },
+      {
+        "tab": "Advanced Usage",
+        "groups": [
+          {
+            "group": "Advanced Usage",
+            "icon": "hat-wizard",
+            "pages": [
+              "advanced/api-key-configuration",
+              "advanced/notification-and-cdn",
+              "advanced/deployment",
+              "advanced/event-driven",
+              "advanced/distributed",
+              "advanced/development",
+              "advanced/writing-your-first-workflow",
+              "advanced/llm"
+            ]
+          },
+          {
+            "group": "Understand Architecture",
+            "icon": "lightbulb",
+            "pages": [
+              "architecture/index",
+              "architecture/workflows",
+              "architecture/runners",
+              "architecture/templates"
+            ]
+          },
+          {
+            "group": "Advanced Topics & Extending Osmedeus",
+            "icon": "cube",
+            "pages": [
+              "advanced/library",
+              "extending/runners",
+              "extending/step-types",
+              "extending/functions",
+              "extending/cli-commands",
+              "advanced/scheduling",
+              "advanced/snapshots"
+            ]
+          }
+      ]},
+      {
+        "tab": "Reference & FAQ",
+        "groups": [
+          {
+            "group": "Reference",
+            "icon": "book",
+            "pages": [
+              "reference/workflow-schema",
+              "reference/types",
+              "reference/variables",
+              "api-references/index",
+              "others/faq",
+              "others/security-warning",
+              "others/premium-edition"
+            ]
+          }
+      ]}
     ],
     "global": {
       "anchors": [
