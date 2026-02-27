@@ -271,7 +271,11 @@ Pass data between steps using exports:
 
 ## Decision Routing
 
-Branch workflow execution based on conditions:
+Branch workflow execution based on conditions. Decisions support two modes: **switch/case** (exact string matching) and **conditions** (boolean expressions).
+
+### Switch/Case Mode
+
+Match a variable's value against exact strings:
 
 ```yaml
 - name: detect-type
@@ -302,6 +306,72 @@ Branch workflow execution based on conditions:
 
 # Use goto: _end to terminate workflow early
 ```
+
+### Inline Actions in Cases
+
+Each case can run inline commands or functions instead of (or in addition to) a `goto`. When combined with `goto`, inline actions execute first, then the jump happens.
+
+**Available case fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `goto` | string | Jump to a step by name, or `_end` to terminate |
+| `command` | string | Run a single bash command inline |
+| `commands` | string[] | Run multiple bash commands in sequence |
+| `function` | string | Execute a single utility function |
+| `functions` | string[] | Execute multiple utility functions in sequence |
+
+```yaml
+- name: setup-scan
+  type: bash
+  command: echo "Setting up scan"
+  exports:
+    setup_mode: "{{scan_mode}}"
+  decision:
+    switch: "{{setup_mode}}"
+    cases:
+      "quick":
+        functions:
+          - "log_info('Configuring quick scan')"
+          - "log_info('Quick scan configured')"
+      "deep":
+        functions:
+          - "log_info('Configuring deep scan')"
+          - "log_info('Deep scan configured')"
+        goto: deep-scan-step
+      "custom":
+        command: echo "Running custom setup"
+      "multi":
+        commands:
+          - echo "Step 1: prepare environment"
+          - echo "Step 2: configure tools"
+    default:
+      function: "log_info('Using default scan mode')"
+```
+
+### Conditions Mode
+
+Use JavaScript boolean expressions for more flexible routing. All matching conditions execute (no short-circuit), and the last matching `goto` wins.
+
+```yaml
+- name: check-results
+  type: bash
+  command: echo "Checking results"
+  decision:
+    conditions:
+      - if: "{{enable_extra}} && {{target}} != ''"
+        function: "log_info('Extra scanning enabled')"
+        goto: extra-scan
+      - if: "file_length('{{Output}}/results.txt') > 100"
+        functions:
+          - "log_info('Large result set detected')"
+          - "log_info('Switching to batch processing')"
+        goto: batch-process
+      - if: "file_exists('{{Output}}/errors.log')"
+        command: echo "Errors detected, reviewing..."
+```
+
+Conditions support template variables, function calls, and standard JavaScript operators.
 
 ## Handlers (on_success / on_error)
 

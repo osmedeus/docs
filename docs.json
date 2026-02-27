@@ -32,7 +32,7 @@
             ]
           },
           {
-            "group": "Advanced Setup",
+            "group": "Advanced Usage",
             "icon": "hat-wizard",
             "pages": [
               "advanced/api-key-configuration",
@@ -41,8 +41,8 @@
               "advanced/event-driven",
               "advanced/distributed",
               "advanced/development",
-              "advanced/writing-your-first-workflow"
-              
+              "advanced/writing-your-first-workflow",
+              "advanced/llm"
             ]
           },
           {
@@ -84,8 +84,7 @@
               "extending/functions",
               "extending/cli-commands",
               "advanced/scheduling",
-              "advanced/snapshots",
-              "advanced/llm"
+              "advanced/snapshots"
             ]
           },
           {

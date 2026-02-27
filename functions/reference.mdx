@@ -3,7 +3,7 @@ title: "Functions Reference"
 icon: "list"
 ---
 
-Complete reference for all 140+ utility functions organized by category.
+Complete reference for all 190+ utility functions organized by category.
 
 ## File Functions
 
@@ -169,6 +169,24 @@ Remove blank lines from file in-place.
 remove_blank_lines("{{Output}}/urls.txt")  // Returns: true or false
 ```
 
+### chunk_file(input, lines_per_chunk, output)
+
+Split a file into chunks of N lines each, writing numbered output files.
+
+```javascript
+chunk_file("{{Output}}/urls.txt", 1000, "{{Output}}/chunks/urls")
+// Creates: urls-0.txt, urls-1.txt, ...
+// Returns: true or false
+```
+
+### cut_to_file(input_file, delim, field, output_file)
+
+Extract a specific field from each line using a delimiter and write results to a file.
+
+```javascript
+cut_to_file("{{Output}}/data.csv", ",", 2, "{{Output}}/column2.txt")  // Returns: true or false
+```
+
 ## String Functions
 
 String manipulation operations.
@@ -293,6 +311,57 @@ Clean and deduplicate subdomains in file, optionally filter by target domain.
 clean_sub("{{Output}}/subdomains.txt", "example.com")  // Returns: true or false
 ```
 
+### trim_left(input, substring)
+
+Trim a substring from the left/start of a string.
+
+```javascript
+trim_left("https://example.com", "https://")  // Returns: "example.com"
+```
+
+### trim_right(input, substring)
+
+Trim a substring from the right/end of a string.
+
+```javascript
+trim_right("example.com/", "/")  // Returns: "example.com"
+```
+
+### trim_string(input, substring)
+
+Trim a substring from both ends of a string.
+
+```javascript
+trim_string("---hello---", "---")  // Returns: "hello"
+```
+
+### cut_space(input, field)
+
+Split string by whitespace and extract field (1-indexed).
+
+```javascript
+cut_space("hello world foo", 2)  // Returns: "world"
+```
+
+### get_target_space(input)
+
+Sanitize and truncate input for use as a workspace-safe target name (same as `{{TargetSpace}}`).
+
+```javascript
+get_target_space("https://example.com/path")  // Returns: "example.com_path"
+```
+
+### pick_valid(v1, v2, ..., v10)
+
+Return the first non-empty value from the given arguments (up to 10).
+
+```javascript
+pick_valid("", "", "fallback")  // Returns: "fallback"
+pick_valid(target, "default.com")  // Returns: target if non-empty, else "default.com"
+```
+
+**Aliases:** `cut` is an alias for `cut_with_delim`. `bash` is an alias for `exec_cmd`.
+
 ## Type Conversion Functions
 
 Convert between data types.
@@ -343,6 +412,57 @@ get_types("192.168.1.0/24")     // Returns: "cidr"
 get_types("example.com")        // Returns: "domain"
 get_types("https://example.com") // Returns: "url"
 get_types("/etc/passwd")        // Returns: "file"
+```
+
+### is_file(path)
+
+Check if path is an existing file.
+
+```javascript
+is_file("/tmp/data.txt")  // Returns: true or false
+```
+
+### is_dir(path)
+
+Check if path is an existing directory.
+
+```javascript
+is_dir("/tmp/output")  // Returns: true or false
+```
+
+### is_git(path)
+
+Check if path is inside a git repository.
+
+```javascript
+is_git("/path/to/project")  // Returns: true or false
+```
+
+### is_url(input)
+
+Check if input is a valid URL.
+
+```javascript
+is_url("https://example.com")  // Returns: true
+is_url("not-a-url")            // Returns: false
+```
+
+### is_compress(path)
+
+Check if path is a compressed archive file (.zip, .tar.gz, .tgz, etc.).
+
+```javascript
+is_compress("archive.tar.gz")  // Returns: true
+is_compress("file.txt")        // Returns: false
+```
+
+### detect_language(path)
+
+Detect the dominant programming language of a source folder (supports 26+ languages).
+
+```javascript
+detect_language("/path/to/project")  // Returns: "javascript"
+detect_language("{{Output}}/repo")   // Returns: "python"
 ```
 
 ## Utility Functions
@@ -659,6 +779,38 @@ Send structured event to all webhooks.
 send_webhook_event("scan_complete", {target: "{{Target}}", status: "success"})  // Returns: true or false
 ```
 
+### notify_telegram_channel(channel, message)
+
+Send message to a specific Telegram channel.
+
+```javascript
+notify_telegram_channel("alerts", "Critical finding on {{Target}}")  // Returns: true or false
+```
+
+### send_telegram_file_channel(channel, path, caption?)
+
+Send file to a specific Telegram channel with optional caption.
+
+```javascript
+send_telegram_file_channel("reports", "{{Output}}/report.pdf", "Report for {{Target}}")  // Returns: true or false
+```
+
+### notify_message_as_file_telegram(path)
+
+Send file content as a text file to Telegram.
+
+```javascript
+notify_message_as_file_telegram("{{Output}}/summary.txt")  // Returns: true or false
+```
+
+### notify_message_as_file_telegram_channel(channel, path)
+
+Send file content as a text file to a specific Telegram channel.
+
+```javascript
+notify_message_as_file_telegram_channel("reports", "{{Output}}/summary.txt")  // Returns: true or false
+```
+
 ## Event Generation Functions
 
 Generate structured events for the event system.
@@ -798,6 +950,23 @@ cdn_stat("scans/target/report.zip")
 // Returns: {key: "...", size: 1024, lastModified: "...", etag: "..."} or null
 ```
 
+### cdn_read(remotePath)
+
+Read file content from cloud storage and return as string.
+
+```javascript
+cdn_read("config/settings.yaml")  // Returns: file contents as string
+```
+
+### cdn_ls_tree(prefix?, depth?)
+
+List cloud storage contents in a tree-like format.
+
+```javascript
+cdn_ls_tree("scans/")       // Returns: tree-formatted string
+cdn_ls_tree("scans/", 2)    // Returns: tree limited to depth 2
+```
+
 ## Unix Command Wrappers
 
 Wrappers around common Unix commands.
@@ -878,6 +1047,23 @@ sed_string_replace("s/http/https/g", "{{Output}}/urls.txt", "{{Output}}/urls-fix
 // Returns: true or false
 ```
 
+### wget(url, outputPath)
+
+Download file using pure Go (no wget dependency). Supports segmented downloads.
+
+```javascript
+wget("https://example.com/file.zip", "/tmp/file.zip")  // Returns: true or false
+```
+
+### git_clone_subfolder(git_url, subfolder, dest)
+
+Clone only a specific subfolder from a git repository.
+
+```javascript
+git_clone_subfolder("https://github.com/user/repo.git", "tools/scanner", "/tmp/scanner")
+// Returns: true or false
+```
+
 ### sed_regex_replace(sed_syntax, source, dest)
 
 Regex replacement with sed `s/pattern/repl/g` syntax.
@@ -905,6 +1091,15 @@ Unzip archive using Go's archive/zip.
 
 ```javascript
 unzip_dir("/tmp/archive.zip", "/tmp/extracted")  // Returns: true or false
+```
+
+### extract_to(source, dest)
+
+Auto-detect archive format (.zip, .tar.gz, .tar.bz2, .tar.xz, .tgz) and extract. Removes destination directory first if it exists.
+
+```javascript
+extract_to("{{Output}}/repo.tar.gz", "{{Output}}/repo")  // Returns: true or false
+extract_to("{{Output}}/tools.zip", "{{Output}}/tools")    // Returns: true or false
 ```
 
 ## Diff Functions
@@ -966,6 +1161,15 @@ jsonl_filter("{{Output}}/httpx.jsonl", "{{Output}}/httpx-filtered.jsonl", "host,
 // Returns: true or false
 ```
 
+### jsonl_rename_key(source, dest, mappings)
+
+Rename keys in JSONL records based on a mapping string.
+
+```javascript
+jsonl_rename_key("{{Output}}/data.jsonl", "{{Output}}/renamed.jsonl", "old_key:new_key,host:domain")
+// Returns: true or false
+```
+
 ## URL Processing Functions
 
 URL deduplication and filtering.
@@ -981,6 +1185,49 @@ interesting_urls("{{Output}}/all-urls.txt", "{{Output}}/interesting.txt")
 // JSONL file with URL in specific field
 interesting_urls("{{Output}}/katana.jsonl", "{{Output}}/interesting.jsonl", "url")
 // Returns: true or false
+```
+
+### get_parent_url(url)
+
+Strip the last path component from a URL.
+
+```javascript
+get_parent_url("https://example.com/api/v1/users")  // Returns: "https://example.com/api/v1"
+```
+
+### parse_url(url, format)
+
+Parse a URL and format output using directives (similar to unfurl).
+
+```javascript
+parse_url("https://user:pass@example.com:8080/path?q=1", "%s://%d%p")
+// Returns: "https://example.com/path"
+```
+
+### parse_url_file(input, format, output)
+
+Apply `parse_url` formatting to each line of a file and write results.
+
+```javascript
+parse_url_file("{{Output}}/urls.txt", "%d", "{{Output}}/domains.txt")  // Returns: true or false
+```
+
+### query_replace(url, value, mode?)
+
+Replace all query parameter values in a URL with a given value.
+
+```javascript
+query_replace("https://example.com/search?q=test&page=1", "FUZZ")
+// Returns: "https://example.com/search?q=FUZZ&page=FUZZ"
+```
+
+### path_replace(url, value, position?)
+
+Replace a path segment at a given position (or all segments) with a value.
+
+```javascript
+path_replace("https://example.com/api/v1/users", "FUZZ", 2)
+// Returns: "https://example.com/api/FUZZ/users"
 ```
 
 ## Markdown Functions
@@ -1092,6 +1339,47 @@ Import assets from JSONL file (httpx format supported).
 
 ```javascript
 db_import_asset_from_file("{{Workspace}}", "{{Output}}/httpx.jsonl")  // Returns: 42 (count)
+```
+
+#### db_quick_import_asset(workspace, asset_value, asset_type?)
+
+Quick import a single asset by value with optional type.
+
+```javascript
+db_quick_import_asset("{{Workspace}}", "sub.example.com", "subdomain")  // Returns: true or false
+```
+
+#### db_partial_import_asset(workspace, asset_type, asset_value)
+
+Import a single asset with explicit type.
+
+```javascript
+db_partial_import_asset("{{Workspace}}", "subdomain", "api.example.com")  // Returns: true or false
+```
+
+#### db_partial_import_asset_file(workspace, asset_type, file_path)
+
+Import assets from a plain text file (one per line) with explicit type.
+
+```javascript
+db_partial_import_asset_file("{{Workspace}}", "subdomain", "{{Output}}/subs.txt")  // Returns: 150 (count)
+```
+
+#### db_import_dns_asset(workspace, file_path)
+
+Import DNS record assets from file.
+
+```javascript
+db_import_dns_asset("{{Workspace}}", "{{Output}}/dns-records.jsonl")  // Returns: 50 (count)
+```
+
+#### db_import_custom_asset(workspace, file_path, asset_type?, source?)
+
+Import custom assets from file with optional type and source.
+
+```javascript
+db_import_custom_asset("{{Workspace}}", "{{Output}}/custom.jsonl", "ip", "masscan")
+// Returns: {imported: 100, skipped: 5}
 ```
 
 ### Vulnerability Import
@@ -1337,6 +1625,38 @@ Write vulnerability diff to JSONL file.
 db_vuln_diff_to_file("{{Workspace}}", "{{Output}}/vuln-diff.jsonl")  // Returns: true or false
 ```
 
+### Run Status
+
+#### run_status(workspace, format)
+
+Query run records for a workspace.
+
+```javascript
+run_status("{{Workspace}}", "markdown")  // Returns: markdown table of runs
+run_status("{{Workspace}}", "jsonl")     // Returns: JSONL string
+```
+
+#### run_status_by_uuid(uuid, format)
+
+Query a specific run by UUID.
+
+```javascript
+run_status_by_uuid("abc123-uuid", "markdown")  // Returns: markdown table
+```
+
+### Event Log Management
+
+#### db_reset_event_logs(workspace?, topic_pattern?)
+
+Reset (delete) event logs, optionally filtered by workspace and topic pattern.
+
+```javascript
+db_reset_event_logs()                              // Reset all event logs
+db_reset_event_logs("{{Workspace}}")               // Reset for specific workspace
+db_reset_event_logs("{{Workspace}}", "discovery.*") // Reset matching topic pattern
+// Returns: {reset: 42, total: 100}
+```
+
 ### Runtime Export
 
 #### runtime_export()
@@ -1378,6 +1698,14 @@ Install package via Nix package manager.
 nix_install("nuclei", "{{Binaries}}")  // Returns: true or false
 ```
 
+### filepath_installer(local_path, tool_name, dest?)
+
+Install a binary from a local file path by copying it to the destination.
+
+```javascript
+filepath_installer("/tmp/downloads/nuclei", "nuclei", "{{Binaries}}")  // Returns: true or false
+```
+
 ## Environment Functions
 
 Environment variable operations.
@@ -1397,6 +1725,315 @@ Set environment variable.
 
 ```javascript
 os_setenv("API_KEY", "new-secret")  // Returns: true or false
+```
+
+## SARIF Functions
+
+Parse and import SARIF (Static Analysis Results Interchange Format) output from SAST tools.
+
+### db_import_sarif(workspace, file_path)
+
+Import vulnerabilities from a SARIF file into the database. Supports Semgrep, Trivy, Kingfisher, Bearer, and other SARIF-producing tools.
+
+```javascript
+db_import_sarif("{{Workspace}}", "{{Output}}/semgrep.sarif")
+// Returns: {imported: 15, skipped: 2, errors: 0}
+```
+
+### convert_sarif_to_markdown(input_path, output_path)
+
+Convert SARIF file to readable markdown tables.
+
+```javascript
+convert_sarif_to_markdown("{{Output}}/scan.sarif", "{{Output}}/findings.md")  // Returns: true or false
+```
+
+## Nmap/Port Functions
+
+Port scanning and result processing.
+
+### nmap_to_jsonl(input_path, output_path)
+
+Convert nmap XML or gnmap output to JSONL format.
+
+```javascript
+nmap_to_jsonl("{{Output}}/nmap.xml", "{{Output}}/ports.jsonl")  // Returns: true or false
+```
+
+### run_nmap(target, flags?, output?)
+
+Execute nmap scan and auto-convert results to JSONL.
+
+```javascript
+run_nmap("192.168.1.0/24")                                    // Returns: path to output JSONL
+run_nmap("10.0.0.1", "-sV -p 80,443", "{{Output}}/nmap")      // Returns: path to output JSONL
+```
+
+### db_import_port_assets(workspace, file_path, source?)
+
+Import port scan JSONL into database as IP assets.
+
+```javascript
+db_import_port_assets("{{Workspace}}", "{{Output}}/ports.jsonl", "nmap")
+// Returns: {imported: 50, skipped: 0, errors: 0}
+```
+
+## Tmux Functions
+
+Manage background processes via tmux sessions.
+
+### tmux_run(command, session_name?)
+
+Create a detached tmux session running a command. Auto-generates a `bosm-<random8>` name if not provided.
+
+```javascript
+tmux_run("nuclei -l targets.txt -o results.txt")           // Returns: "bosm-a1b2c3d4" (session name)
+tmux_run("long-scan.sh", "my-scan")                        // Returns: "my-scan"
+```
+
+### tmux_capture(session_name)
+
+Capture the current pane output from a tmux session. Pass `"all"` to capture all sessions.
+
+```javascript
+tmux_capture("my-scan")  // Returns: current output as string
+tmux_capture("all")      // Returns: output from all sessions
+```
+
+### tmux_send(session_name, command)
+
+Send keystrokes to a running tmux session.
+
+```javascript
+tmux_send("my-scan", "q")       // Returns: true or false
+tmux_send("my-scan", "C-c")     // Send Ctrl+C
+```
+
+### tmux_kill(session_name)
+
+Kill a tmux session.
+
+```javascript
+tmux_kill("my-scan")  // Returns: true or false
+```
+
+### tmux_list()
+
+List all tmux session names.
+
+```javascript
+tmux_list()  // Returns: ["bosm-a1b2c3d4", "my-scan", ...]
+```
+
+## SSH/Sync Functions
+
+Remote execution and file synchronization.
+
+### ssh_exec(host, command, user?, key_path?, password?, port?)
+
+Execute a command on a remote host via SSH (uses connection pooling).
+
+```javascript
+ssh_exec("10.0.0.1", "whoami")                                          // Returns: "root"
+ssh_exec("10.0.0.1", "ls /opt", "admin", "~/.ssh/id_rsa", "", 22)      // Returns: command output
+```
+
+### ssh_rsync(host, src, dest, user?, key_path?, password?, port?)
+
+Copy files to/from a remote host via rsync over SSH.
+
+```javascript
+ssh_rsync("10.0.0.1", "{{Output}}/results/", "/tmp/results/", "admin", "~/.ssh/id_rsa")
+// Returns: true or false
+```
+
+### sync_from_master(src, dest)
+
+Pull files from the master node. Falls back to local copy if not in distributed mode.
+
+```javascript
+sync_from_master("{{BaseFolder}}/wordlists/", "{{Output}}/wordlists/")  // Returns: true or false
+```
+
+### sync_from_worker(identifier, ip, src, dest)
+
+Sync files from a specific worker node.
+
+```javascript
+sync_from_worker("wosm-abc123", "10.0.0.2", "/tmp/results/", "{{Output}}/worker-results/")
+// Returns: true or false
+```
+
+### rsync_to_worker(identifier, ip, src, dest)
+
+Push files to a specific worker node.
+
+```javascript
+rsync_to_worker("wosm-abc123", "10.0.0.2", "{{Output}}/config/", "/tmp/config/")
+// Returns: true or false
+```
+
+## Script Execution Functions
+
+Execute Python and TypeScript code from workflows.
+
+### exec_python(code)
+
+Run inline Python code. Prefers `uv` → `python3` → `python`.
+
+```javascript
+exec_python('import json; print(json.dumps({"status": "ok"}))')  // Returns: '{"status": "ok"}'
+```
+
+### exec_python_file(path)
+
+Run a Python file. Prefers `uv` → `python3` → `python`.
+
+```javascript
+exec_python_file("{{Output}}/scripts/analyze.py")  // Returns: script stdout
+```
+
+### exec_ts(code)
+
+Run inline TypeScript code via `bun -e`.
+
+```javascript
+exec_ts('console.log("Hello from TypeScript")')  // Returns: "Hello from TypeScript"
+```
+
+### exec_ts_file(path)
+
+Run a TypeScript file via `bun run`.
+
+```javascript
+exec_ts_file("{{Output}}/scripts/process.ts")  // Returns: script stdout
+```
+
+## LLM Functions
+
+Invoke LLM models from workflows.
+
+### llm_invoke(message)
+
+Send a simple message to the configured LLM and return the response.
+
+```javascript
+llm_invoke("Summarize these findings: " + read_file("{{Output}}/results.txt"))
+// Returns: LLM response as string
+```
+
+### llm_invoke_custom(message, body_json)
+
+Send a message with a custom POST body template. Use `{{message}}` as placeholder in the body.
+
+```javascript
+llm_invoke_custom("Analyze this", '{"model": "gpt-4", "messages": [{"role": "user", "content": "{{message}}"}]}')
+// Returns: LLM response as string
+```
+
+### llm_conversations(msg1, msg2, ...)
+
+Multi-turn LLM conversation. Messages use `"role:content"` format.
+
+```javascript
+llm_conversations("system:You are a security analyst", "user:What is XSS?")
+// Returns: LLM response as string
+```
+
+## Agent/Distributed Functions
+
+Run ACP agents and distribute execution across nodes.
+
+### run_agent(message, agent_name?)
+
+Run an ACP agent and return its output. Defaults to `claude-code`.
+
+```javascript
+run_agent("Analyze the scan results in {{Output}}")               // Returns: agent output
+run_agent("Review this code", "codex")                            // Returns: agent output
+```
+
+### run_on_master(action, ...args)
+
+Execute a function or command on the master node via Redis.
+
+```javascript
+run_on_master("func", 'db_import_sarif("ws", "/path/to/file.sarif")')  // Returns: true or false
+```
+
+### run_on_worker(scope, action, ...args)
+
+Execute a function or command on worker nodes.
+
+```javascript
+run_on_worker("all", "func", 'log_info("hello from workers")')  // Returns: true or false
+```
+
+## Module Control Functions
+
+Control module execution flow.
+
+### skip(message?)
+
+Abort remaining steps in the current module. The flow continues to the next module.
+
+```javascript
+skip("No targets found, skipping module")  // Raises SkipModuleError
+skip()                                     // Skip without message
+```
+
+### run_module(module, target, params?)
+
+Run an osmedeus module programmatically.
+
+```javascript
+run_module("subdomain", "example.com")                      // Returns: execution output
+run_module("portscan", "example.com", "threads=20")          // With custom params
+```
+
+### run_flow(flow, target, params?)
+
+Run an osmedeus flow programmatically.
+
+```javascript
+run_flow("general", "example.com")                          // Returns: execution output
+run_flow("recon", "example.com", "threads=10")               // With custom params
+```
+
+## Snapshot Functions
+
+Workspace export and import as compressed ZIP archives.
+
+### snapshot_export(workspace, dest?)
+
+Export a workspace as a ZIP archive. Returns the path to the created file.
+
+```javascript
+snapshot_export("{{Workspace}}")                               // Returns: "/path/to/snapshot.zip"
+snapshot_export("{{Workspace}}", "/tmp/backup.zip")            // Returns: "/tmp/backup.zip"
+```
+
+### snapshot_import(source)
+
+Import a workspace from a ZIP file or URL. Returns the workspace name.
+
+```javascript
+snapshot_import("/tmp/snapshot.zip")                           // Returns: "example.com"
+snapshot_import("https://example.com/snapshot.zip")            // Returns: "example.com"
+```
+
+## Authentication Functions
+
+System authentication operations.
+
+### sudo_auth(password?, keepalive?)
+
+Authenticate sudo credentials and optionally keep them alive for the session.
+
+```javascript
+sudo_auth()                    // Prompt for password
+sudo_auth("mypassword", true)  // Authenticate and keep credentials alive
+// Returns: true or false
 ```
 
 ## Usage Examples

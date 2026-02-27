@@ -20,6 +20,7 @@ Usage:
   osmedeus [command]
 
 Available Commands:
+  agent       Run an ACP agent interactively
   assets      Query and list discovered assets
   client      Interact with a remote osmedeus server
   cloud       Cloud infrastructure management commands
@@ -329,17 +330,30 @@ View and manage the database, including clean up, and schema operations.
   List all database tables with their row counts, or list records from a
   specific table with pagination support.
 
-▶ Options
+▶ Subcommands
+  • list (ls)  - List database tables and row counts (default)
+  • seed       - Seed database with sample data
+  • clean      - Remove all data from database
+  • migrate    - Run database migrations
+  • index      - Index resources from filesystem to database
+
+▶ Options (list)
   -t, --table         Table name to list records from
   --offset            Number of records to skip (default: 0)
-  --limit             Maximum records to return (default: 20, max: 100)
+  --limit             Maximum records to return (default: 50)
   --list-columns      List all available columns for the specified table
   --exclude-columns   Comma-separated column names to exclude from output
+  --columns           Comma-separated columns to display
+  --all               Show all columns including hidden ones
+  --search            Search all columns for substring
+  --where             Filter records (key=value format, repeatable)
+  --refresh           Auto-refresh interval (e.g., 5s, 1m)
+  --clear             Clear all records from specified table (requires --force)
 
 ▶ Valid Tables
   runs, step_results, artifacts, assets, event_logs, schedules, workspaces, vulnerabilities
 
-▷ Examples
+▷ List Examples
   # List all tables with row counts
   osmedeus db list
 
@@ -357,6 +371,34 @@ View and manage the database, including clean up, and schema operations.
 
   # Get next page of results
   osmedeus db list -t assets --offset 10 --limit 10
+
+  # Auto-refresh every 5 seconds
+  osmedeus db list -t runs --refresh 5s
+
+  # JSON output
+  osmedeus db list -t runs --json
+
+▷ Seed Examples
+  # Seed database with sample data
+  osmedeus db seed
+
+▷ Clean Examples
+  # Remove all data from database (requires --force)
+  osmedeus db clean --force
+
+  # Remove all data including workspace files
+  osmedeus db clean --force --clean-ws
+
+▷ Migrate Examples
+  # Run database migrations
+  osmedeus db migrate
+
+▷ Index Examples
+  # Index workflows from filesystem to database
+  osmedeus db index workflow
+
+  # Force re-index all workflows
+  osmedeus db index workflow --force
 ```
 
 ## 5. Queue Management
@@ -904,6 +946,51 @@ Print version and build information.
   # JSON output
   osmedeus --json version
 ```
+
+## 18. Agent (ACP)
+
+Run an ACP (Agent Communication Protocol) agent interactively from the terminal. The agent command spawns an external AI coding agent as a subprocess and communicates via ACP.
+
+```bash
+◆ Description
+  Run an ACP agent interactively. Supports multiple agent backends.
+
+▶ Available Agents
+  • claude-code  - Claude Code (default) — npx @zed-industries/claude-code-acp@latest
+  • codex        - OpenAI Codex — npx @zed-industries/codex-acp
+  • opencode     - OpenCode — opencode acp
+  • gemini       - Google Gemini — gemini --experimental-acp
+
+▷ Examples
+  # Run with default agent (claude-code)
+  osmedeus agent "Analyze the scan results in /tmp/output"
+
+  # Use a specific agent
+  osmedeus agent --agent codex "Review this code for vulnerabilities"
+
+  # List available agents
+  osmedeus agent --list
+
+  # Set working directory
+  osmedeus agent --cwd /path/to/project "Summarize the findings"
+
+  # Custom timeout (default: 30m)
+  osmedeus agent --timeout 1h "Perform a thorough analysis"
+
+  # Read message from stdin
+  echo "Analyze this output" | osmedeus agent --stdin
+
+  # Pipe with dash shorthand
+  cat prompt.txt | osmedeus agent -
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--agent` | `claude-code` | Agent to use (see `--list` for available agents) |
+| `--cwd` | current dir | Working directory for the agent |
+| `--stdin` | `false` | Read message from stdin |
+| `--timeout` | `30m` | Timeout duration (e.g., 30m, 1h) |
+| `--list` | `false` | List available agents |
 
 ## Full Usage Examples
 

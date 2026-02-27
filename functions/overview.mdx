@@ -3,7 +3,7 @@ title: "Functions Overview"
 icon: "lightbulb"
 ---
 
-Osmedeus provides 140+ utility functions via a Goja JavaScript runtime. Functions can be used in workflow steps, conditions, and evaluated from the CLI or API.
+Osmedeus provides 190+ utility functions via a Goja JavaScript runtime. Functions can be used in workflow steps, conditions, and evaluated from the CLI or API.
 
 ## Usage
 
@@ -219,34 +219,44 @@ Functions that fail don't stop workflow execution unless you configure error han
 
 ## Function Categories
 
-Osmedeus provides 140+ functions organized into 24 categories:
+Osmedeus provides 190+ functions organized into 34 categories:
 
 | Category | Description | Count |
 |----------|-------------|-------|
-| **File** | File/directory operations, grep, glob | 20 |
-| **String** | String manipulation, regex matching | 15 |
+| **File** | File/directory operations, grep, glob | 22 |
+| **String** | String manipulation, regex matching | 21 |
 | **Type Conversion** | Parse/convert between types | 4 |
-| **Type Detection** | Detect input types (file, url, ip, etc.) | 1 |
-| **Utility** | General utilities (len, exec, sleep) | 9 |
+| **Type Detection** | Detect input types (file, url, ip, etc.) | 7 |
+| **Utility** | General utilities (len, exec, sleep) | 11 |
 | **Logging** | Log messages with level prefixes | 4 |
 | **Color Printing** | Colored terminal output | 4 |
 | **Runtime Variables** | Get/set runtime variables | 2 |
 | **HTTP** | HTTP requests and IP resolution | 4 |
+| **LLM** | LLM interaction and conversations | 3 |
 | **Generation** | Random strings and UUIDs | 2 |
 | **Encoding** | Base64 encode/decode | 2 |
 | **Data Query** | JQ-style JSON querying | 2 |
-| **Notification** | Telegram and webhook notifications | 4 |
+| **Notification** | Telegram and webhook notifications | 8 |
 | **Event Generation** | Structured event generation | 2 |
-| **CDN/Storage** | Cloud storage operations (S3-compatible) | 9 |
-| **Unix Commands** | Wrappers for sort, wget, git, tar, etc. | 10 |
-| **Archive (Go)** | Pure Go zip/unzip implementations | 2 |
+| **CDN/Storage** | Cloud storage operations (S3-compatible) | 11 |
+| **Unix Commands** | Wrappers for sort, wget, git, tar, etc. | 11 |
+| **Archive (Go)** | Pure Go zip/unzip implementations | 3 |
+| **Snapshot** | Workspace export/import as ZIP archives | 2 |
 | **Diff** | File comparison and diff extraction | 1 |
-| **Output** | Save content, JSONL/CSV conversion | 5 |
-| **URL Processing** | URL deduplication and filtering | 1 |
+| **Output** | Save content, JSONL/CSV conversion | 6 |
+| **URL Processing** | URL deduplication, filtering, and parsing | 6 |
 | **Markdown** | Markdown rendering and conversion | 6 |
-| **Database** | Asset/vuln import, queries, stats | 42 |
-| **Installer** | Download packages via go-getter/Nix | 3 |
+| **Database** | Asset/vuln import, queries, stats | 50 |
+| **SARIF** | SARIF parsing and database import | 2 |
+| **Nmap/Port** | Port scanning and result import | 3 |
+| **Installer** | Download packages via go-getter/Nix | 4 |
 | **Environment** | Environment variable operations | 2 |
+| **Tmux** | Background process management via tmux | 5 |
+| **SSH/Sync** | Remote execution and file sync | 5 |
+| **Script Execution** | Python and TypeScript execution | 4 |
+| **Agent/Distributed** | ACP agents and distributed execution | 3 |
+| **Module Control** | Skip module and run modules/flows | 3 |
+| **Authentication** | Sudo authentication | 1 |
 
 ## Best Practices
 

@@ -7,10 +7,11 @@ AI-powered workflow steps using Large Language Models.
 
 ## Overview
 
-Osmedeus provides two step types for LLM integration:
+Osmedeus provides three step types for LLM integration:
 
 - **`llm`** — Single-shot LLM calls: chat completions, tool calling, embeddings, multimodal content, structured outputs
 - **`agent`** — Agentic execution loop: iterative tool calling, sub-agents, memory management, planning stages, multi-goal execution
+- **`agent-acp`** — External AI agent execution via the [Agent Communication Protocol (ACP)](https://github.com/anthropics/agent-communication-protocol): delegates to real agent binaries (Claude Code, Codex, OpenCode, Gemini)
 
 ## Configuration
 
@@ -611,7 +612,192 @@ exports:
 
 ---
 
-## API Endpoint
+## Agent-ACP Step Type
+
+The `agent-acp` step type spawns an **external AI coding agent as a subprocess** and communicates via the [Agent Communication Protocol (ACP)](https://github.com/anthropics/agent-communication-protocol). Unlike the `agent` step type (which uses Osmedeus's internal LLM loop), `agent-acp` delegates to real agent binaries like Claude Code, Codex, OpenCode, or Gemini.
+
+### Basic Agent-ACP
+
+```yaml
+- name: analyze-target
+  type: agent-acp
+  agent: claude-code
+  messages:
+    - role: user
+      content: "Analyze the scan results in {{Output}} and create a summary report."
+  exports:
+    analysis: "{{acp_output}}"
+```
+
+### Built-in Agents
+
+Four agents are available out of the box:
+
+| Agent Name | Command | Description |
+|------------|---------|-------------|
+| `claude-code` | `npx -y @zed-industries/claude-code-acp@latest` | Anthropic's Claude Code agent |
+| `codex` | `npx -y @zed-industries/codex-acp` | OpenAI Codex agent |
+| `opencode` | `opencode acp` | OpenCode agent |
+| `gemini` | `gemini --experimental-acp` | Google Gemini agent |
+
+List available agents from the CLI:
+
+```bash
+osmedeus agent --list
+```
+
+### Configuration Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `agent` | string | Yes* | Built-in agent name (see table above) |
+| `messages` | array | Yes | Conversation messages with `role` and `content` |
+| `cwd` | string | No | Working directory for the ACP session |
+| `allowed_paths` | string[] | No | Restrict file reads to these directories |
+| `acp_config` | object | No | Custom ACP configuration (see below) |
+
+<Note>`agent` is required unless `acp_config.command` is provided to specify a custom agent binary.</Note>
+
+### ACP Config
+
+Override the built-in agent or customize execution:
+
+```yaml
+acp_config:
+  command: /path/to/custom-agent     # Custom agent binary (overrides built-in)
+  args:                               # Custom command arguments
+    - --flag1
+    - value1
+  env:                                # Environment variables for the agent process
+    CUSTOM_VAR: "value"
+    TARGET_DOMAIN: "{{Target}}"
+  write_enabled: true                 # Allow agent to write files (default: false)
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `command` | string | — | Custom agent command (overrides built-in registry) |
+| `args` | string[] | — | Custom command arguments |
+| `env` | map | — | Extra environment variables (values are template-rendered) |
+| `write_enabled` | bool | `false` | Allow the agent to write files |
+
+### Full Configuration Example
+
+```yaml
+- name: security-analysis
+  type: agent-acp
+  agent: claude-code
+  cwd: "{{Output}}"
+  allowed_paths:
+    - "{{Output}}"
+    - "/tmp"
+  acp_config:
+    env:
+      TARGET_DOMAIN: "{{Target}}"
+    write_enabled: true
+  messages:
+    - role: system
+      content: "You are a security analyst. Analyze scan results and produce actionable findings."
+    - role: user
+      content: |
+        Review the scan results in {{Output}} for {{Target}}.
+        Create a prioritized summary of findings.
+  exports:
+    analysis: "{{acp_output}}"
+    agent_name: "{{acp_agent}}"
+```
+
+### Custom Agent
+
+Use `acp_config.command` to run any ACP-compatible agent binary:
+
+```yaml
+- name: custom-agent
+  type: agent-acp
+  acp_config:
+    command: /usr/local/bin/my-agent
+    args:
+      - --mode
+      - security
+    env:
+      API_KEY: "{{env_api_key}}"
+    write_enabled: true
+  messages:
+    - role: user
+      content: "Perform analysis on {{Target}}"
+  exports:
+    result: "{{acp_output}}"
+```
+
+### Agent-ACP Exports
+
+| Export | Type | Description |
+|--------|------|-------------|
+| `acp_output` | string | Collected stdout from the agent (main output) |
+| `acp_stderr` | string | Collected stderr from the agent process |
+| `acp_agent` | string | Name/command of the agent that ran |
+
+```yaml
+exports:
+  result: "{{acp_output}}"
+  errors: "{{acp_stderr}}"
+  agent: "{{acp_agent}}"
+```
+
+### Agent CLI Command
+
+Run an ACP agent interactively from the terminal:
+
+```bash
+# Run with claude-code (default)
+osmedeus agent "Summarize the code in this directory"
+
+# Use a specific agent
+osmedeus agent --agent codex "Explain what this project does"
+
+# Set working directory and timeout
+osmedeus agent --cwd /path/to/project --timeout 1h "Review the code"
+
+# Read from stdin
+echo "Analyze this codebase" | osmedeus agent --stdin
+cat prompt.txt | osmedeus agent -
+
+# List available agents
+osmedeus agent --list
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--agent` | string | `claude-code` | Agent name to use |
+| `--cwd` | string | current dir | Working directory for the agent |
+| `--stdin` | bool | `false` | Read message from stdin |
+| `--timeout` | string | `30m` | Timeout duration (e.g., `30m`, `1h`, `2h30m`) |
+| `--list` | bool | `false` | List available agents and exit |
+
+### run_agent Utility Function
+
+Use `run_agent` in function steps to invoke an ACP agent programmatically:
+
+```yaml
+- name: quick-analysis
+  type: function
+  function: 'run_agent("Analyze {{Target}} for security issues", "claude-code")'
+  exports:
+    result: "{{_result}}"
+
+# With default agent (claude-code)
+- name: summarize
+  type: function
+  function: 'run_agent("Summarize the findings in {{Output}}/results.txt")'
+  exports:
+    summary: "{{_result}}"
+```
+
+---
+
+## API Endpoints
+
+### LLM API
 
 OpenAI-compatible API:
 
@@ -636,6 +822,27 @@ curl -X POST http://localhost:8002/osm/api/llm/v1/embeddings \
     "input": ["text to embed"]
   }'
 ```
+
+### Agent ACP API
+
+OpenAI-compatible endpoint that spawns a local ACP agent subprocess:
+
+```bash
+curl -X POST http://localhost:8002/osm/api/agent/chat/completions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-code",
+    "messages": [
+      {"role": "system", "content": "You are a security analyst."},
+      {"role": "user", "content": "Analyze the scan results and summarize findings."}
+    ]
+  }'
+```
+
+The `model` field maps to the agent name (`claude-code`, `codex`, `opencode`, `gemini`). Defaults to `claude-code` if unrecognized.
+
+<Note>Only one ACP agent subprocess can run at a time via the API. Concurrent requests return HTTP 409.</Note>
 
 ## Providers
 
@@ -832,6 +1039,26 @@ Multi-turn conversation using `role:content` format:
     recon_report: "{{agent_content}}"
 ```
 
+### Delegated Code Analysis (Agent-ACP)
+
+```yaml
+- name: code-review
+  type: agent-acp
+  agent: claude-code
+  cwd: "{{Output}}/source"
+  acp_config:
+    write_enabled: true
+  messages:
+    - role: system
+      content: "You are a security code reviewer."
+    - role: user
+      content: |
+        Review the source code in this directory for security vulnerabilities.
+        Focus on OWASP Top 10 issues. Write a report to ./security-review.md
+  exports:
+    review: "{{acp_output}}"
+```
+
 ## Best Practices
 
 1. **Use system prompts** for consistent behavior
@@ -843,6 +1070,9 @@ Multi-turn conversation using `role:content` format:
 7. **Use sub-agents** to decompose complex tasks into specialized subtasks
 8. **Add `stop_condition`** when the agent has a clear success criteria
 9. **Use `plan_prompt`** for complex tasks that benefit from upfront planning
+10. **Use `agent-acp`** when you need full coding agent capabilities (file editing, code generation) — use `agent` when you need fine-grained tool control within the osmedeus ecosystem
+11. **Restrict `allowed_paths`** in agent-acp steps to limit file access to the workspace
+12. **Keep `write_enabled: false`** (default) in agent-acp unless the agent needs to create files
 
 ## Next Steps
 
