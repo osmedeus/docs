@@ -7,7 +7,13 @@
     "dark": "/logo/osm-svg-dark.svg",
     "href": "https://docs.osmedeus.org"
   },
-  
+  "background": {
+    "decoration": "gradient",
+    "color": {
+      "light": "#F8FAFC",
+      "dark": "#0F172A"
+    }
+  },
   "colors": {
     "primary": "#8B5CF6",
     "light": "#bd93f9",
