@@ -1,10 +1,10 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "aspen",
+  "theme": "maple",
   "name": "Osmedeus Docs",
   "logo": {
-    "light": "/logo/osm-svg-light.svg",
-    "dark": "/logo/osm-svg-dark.svg",
+    "light": "/logo/osm.png",
+    "dark": "/logo/osm.png",
     "href": "https://docs.osmedeus.org"
   },
   "background": {
