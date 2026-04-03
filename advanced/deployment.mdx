@@ -1,273 +1,492 @@
 ---
 title: "Deployment"
-description: "Deploy Osmedeus as a server"
+description: "Build, deploy, and run Osmedeus in various environments"
 icon: "gopuram"
 ---
 
-This section covers how to deploy Osmedeus as a server in multiple modes.
+This guide covers building, deploying, and running Osmedeus in various environments.
 
-## Single Server
+## Prerequisites
 
-### Start the Server
+- Go 1.21+ (for local builds)
+- Docker 20.10+ (for containerized deployment)
+- Docker Compose 2.0+ (for distributed mode)
 
-```bash
-# Default configuration
-osmedeus server
-
-# Custom host and port
-osmedeus server --host 0.0.0.0 --port 8080
-
-# Disable authentication (development only)
-osmedeus server -A
-```
-
-The server provides:
-- REST API at `http://localhost:8002/osm/api/`
-- Swagger docs at `http://localhost:8002/swagger/`
-- Health check at `http://localhost:8002/health`
-- Web UI at `http://localhost:8002/` (if configured)
-
-### Authentication
-
-Default credentials (change in `osm-settings.yaml`):
-- Username: `osmedeus`
-- Password: `osmedeus-admin`
-
-Get a JWT token:
+## Quick Start
 
 ```bash
-curl -X POST http://localhost:8002/osm/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "osmedeus", "password": "osmedeus-admin"}'
+# Local build and run
+make build
+./build/bin/osmedeus serve
+
+# Docker single container
+docker build -t osmedeus:latest -f build/docker/Dockerfile .
+docker run -p 8001:8001 osmedeus:latest
+
+# Distributed mode with Docker Compose
+docker-compose -f build/docker/docker-compose.yml up -d
 ```
 
-Use the token in subsequent requests:
+## Building
+
+### Local Build
 
 ```bash
-curl http://localhost:8002/osm/api/workflows \
-  -H "Authorization: Bearer <token>"
+# Build for current platform
+make build
+
+# Cross-platform builds
+make build-all       # All platforms
+make build-linux     # Linux amd64
+make build-darwin    # macOS amd64 + arm64
+make build-windows   # Windows amd64
+
+# Output location
+./build/bin/osmedeus
 ```
 
-## Distributed Mode
-
-Scale scanning across multiple machines using Redis for coordination.
-
-### Architecture
-
-```
-┌─────────────────┐     ┌─────────────────┐
-│     Master      │     │     Redis       │
-│   (API Server)  │────▶│   (Task Queue)  │
-└─────────────────┘     └────────┬────────┘
-                                 │
-        ┌────────────────────────┼────────────────────────┐
-        │                        │                        │
-        ▼                        ▼                        ▼
-┌───────────────┐       ┌───────────────┐       ┌───────────────┐
-│   Worker 1    │       │   Worker 2    │       │   Worker N    │
-└───────────────┘       └───────────────┘       └───────────────┘
-```
-
-### Start Master
+### Docker Build
 
 ```bash
-# Start master with default Redis (localhost:6379)
-osmedeus server --master
+docker build -t osmedeus:latest -f build/docker/Dockerfile .
 
-# Custom Redis URL
-osmedeus server --master --redis-url redis://redis-host:6379
+# Development image (with hot-reload)
+docker build -t osmedeus:dev -f build/docker/Dockerfile.dev .
+
+# With custom version
+docker build --build-arg VERSION=5.1.0 -t osmedeus:5.1.0 -f build/docker/Dockerfile .
 ```
 
-### Start Workers
+## Deployment Modes
 
-On each worker machine:
+### Single Host
 
-```bash
-# Join as worker
-osmedeus worker join
-
-# Custom Redis URL
-osmedeus worker join --redis-url redis://redis-host:6379
-```
-
-### Submit Distributed Scans
+#### Direct Binary
 
 ```bash
-# Submit to distributed queue
-osmedeus run -f general -t example.com -D
+# Run server
+./build/bin/osmedeus serve --port 8001
 
-# With custom Redis
-osmedeus run -f general -t example.com -D --redis-url redis://redis-host:6379
-```
-
-### Monitor Status
-
-```bash
-# Check worker status
-osmedeus worker status
-```
-
-Via API:
-
-```bash
-# List workers
-curl http://master:8002/osm/api/workers -H "Authorization: Bearer <token>"
-
-# List tasks
-curl http://master:8002/osm/api/tasks -H "Authorization: Bearer <token>"
-```
-
-## Docker Deployment
-
-### Using Pre-built Image
-
-The official Docker image is available on Docker Hub:
-
-```bash
-# Pull the latest image
-docker pull j3ssie/osmedeus:latest
-
-# Show help
-docker run --rm j3ssie/osmedeus:latest --help
+# Run with authentication disabled (development only)
+./build/bin/osmedeus serve -A
 
 # Run a scan
-docker run --rm -v $(pwd)/output:/root/workspaces-osmedeus \
-    j3ssie/osmedeus:latest run -f general -t example.com
+./build/bin/osmedeus scan -f general -t example.com
+```
 
-# Run as server
+#### Docker Container
+
+```bash
+# Basic server
 docker run -d \
   --name osmedeus \
-  -p 8002:8002 \
+  -p 8001:8001 \
   -v osmedeus-data:/root/osmedeus-base \
-  j3ssie/osmedeus:latest server
-```
+  -v workspaces:/root/workspaces-osmedeus \
+  osmedeus:latest
 
-### Building from Source
-
-```bash
-# Build image locally
-docker build -t j3ssie/osmedeus:latest -f build/docker/Dockerfile .
-
-# Or use make target
-make docker-build
-
-# Build and push to Docker Hub (maintainers only)
-make docker-publish
-```
-
-### Single Container
-
-```bash
-# Run container
+# With custom workflows
 docker run -d \
   --name osmedeus \
-  -p 8002:8002 \
-  -v osmedeus-data:/root/osmedeus-base \
-  j3ssie/osmedeus:latest server
+  -p 8001:8001 \
+  -v /path/to/workflows:/root/osmedeus-base/workflows \
+  -v /path/to/workspaces:/root/workspaces-osmedeus \
+  osmedeus:latest
 ```
 
-### Docker Compose (Distributed)
+### Distributed Mode (Master/Worker)
 
-Create `docker-compose.yml`:
+Distributed mode allows scaling scan workloads across multiple worker nodes using Redis as a message queue.
 
-```yaml
-version: '3.8'
+#### Architecture
 
-services:
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
-  master:
-    image: j3ssie/osmedeus:latest
-    command: server --master
-    ports:
-      - "8002:8002"
-    environment:
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-    volumes:
-      - master-data:/root/osmedeus-base
-
-  worker:
-    image: j3ssie/osmedeus:latest
-    command: worker join
-    environment:
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-      - master
-    deploy:
-      replicas: 3
-
-volumes:
-  master-data:
+```
+                    ┌─────────────┐
+                    │   Client    │
+                    └──────┬──────┘
+                           │ REST API
+                    ┌──────▼──────┐
+                    │   Master    │
+                    │  (Server)   │
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │    Redis    │
+                    │   (Queue)   │
+                    └──────┬──────┘
+              ┌────────────┼────────────┐
+              │            │            │
+        ┌─────▼────┐ ┌─────▼────┐ ┌─────▼────┐
+        │ Worker 1 │ │ Worker 2 │ │ Worker N │
+        └──────────┘ └──────────┘ └──────────┘
 ```
 
-Run:
+#### Docker Compose Setup
 
 ```bash
-# Start services
-docker-compose up -d
+# Start with 2 workers (default)
+docker-compose -f build/docker/docker-compose.yml up -d
 
-# Scale workers
-docker-compose up -d --scale worker=5
+# Scale to 5 workers
+docker-compose -f build/docker/docker-compose.yml up -d --scale worker=5
 
 # View logs
-docker-compose logs -f master
-docker-compose logs -f worker
+docker-compose -f build/docker/docker-compose.yml logs -f
+
+# Stop all services
+docker-compose -f build/docker/docker-compose.yml down
+
+# Stop and remove volumes
+docker-compose -f build/docker/docker-compose.yml down -v
+```
+
+#### Manual Distributed Setup
+
+If not using Docker Compose:
+
+```bash
+# 1. Start Redis
+docker run -d --name redis -p 6379:6379 redis:7-alpine
+
+# 2. Start Master
+./build/bin/osmedeus serve --master --port 8001
+
+# 3. Start Workers (on same or different machines)
+./build/bin/osmedeus worker join --redis-url redis://localhost:6379
+```
+
+#### Submitting Distributed Scans
+
+```bash
+# Submit scan to distributed queue
+./build/bin/osmedeus scan -f general -t example.com -D
+
+# With custom Redis URL
+./build/bin/osmedeus scan -f general -t example.com -D --redis-url redis://redis-host:6379
+
+# Check worker status
+./build/bin/osmedeus worker status
+```
+
+## Configuration
+
+### Configuration File
+
+Default location: `~/osmedeus-base/osm-settings.yaml`
+
+```yaml
+base_folder: ~/osmedeus-base
+
+environments:
+  binaries_path: "{{base_folder}}/binaries"
+  data: "{{base_folder}}/data"
+  workspaces: ~/workspaces-osmedeus
+  workflows: "{{base_folder}}/workflows"
+
+server:
+  host: 0.0.0.0
+  port: 8001
+
+# Required for distributed mode
+redis:
+  host: localhost
+  port: 6379
+  password: ""    # Optional
+  db: 0
+
+database:
+  db_engine: sqlite    # or postgresql
+  db_path: "{{base_folder}}/osm-data.db"
+
+client:
+  username: admin
+  password: admin
+  jwt:
+    secret: "change-this-in-production"
+    expiration_minutes: 60
+
+scan_tactic:
+  aggressive: 40
+  default: 10
+  gently: 5
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `REDIS_HOST` | Redis hostname | localhost |
+| `REDIS_PORT` | Redis port | 6379 |
+| `OSM_BASE_FOLDER` | Base folder path | ~/osmedeus-base |
+
+### Command Line Overrides
+
+```bash
+# Override base folder
+osmedeus -b /custom/path scan -f general -t example.com
+
+# Override workflow folder
+osmedeus -F /custom/workflows workflow list
+
+# Override Redis URL (distributed mode)
+osmedeus scan -f general -t example.com -D --redis-url redis://user:pass@host:6379/0
+```
+
+## Docker Compose Reference
+
+The included `build/docker/docker-compose.yml` provides a complete distributed setup:
+
+### Services
+
+| Service | Purpose | Ports |
+|---------|---------|-------|
+| `redis` | Task queue and coordination | 6379 |
+| `master` | API server and task distributor | 8001 |
+| `worker` | Task executor (scalable) | - |
+
+### Volumes
+
+| Volume | Purpose |
+|--------|---------|
+| `redis-data` | Redis persistence |
+| `osmedeus-data` | Workflows and configuration |
+| `workspaces` | Scan output data |
+
+### Scaling
+
+```bash
+# Scale workers dynamically
+docker-compose -f build/docker/docker-compose.yml up -d --scale worker=10
+
+# View running containers
+docker-compose -f build/docker/docker-compose.yml ps
 ```
 
 ## Production Considerations
 
 ### Security
 
-1. **Change default credentials** in `osm-settings.yaml`
-2. **Use HTTPS** - Put behind a reverse proxy (nginx, Caddy)
-3. **Restrict network access** - Firewall rules for Redis and API
-4. **Use secrets management** - Environment variables for passwords
+1. **Authentication**: Never use `-A` (no-auth) in production
+2. **JWT Secret**: Change the default JWT secret in config
+3. **TLS**: Use a reverse proxy (nginx, traefik) for HTTPS
+4. **Network**: Restrict Redis access to internal network only
 
-### Reverse Proxy (nginx)
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name osmedeus.example.com;
-
-    ssl_certificate /etc/ssl/certs/osmedeus.crt;
-    ssl_certificate_key /etc/ssl/private/osmedeus.key;
-
-    location / {
-        proxy_pass http://localhost:8002;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
+```yaml
+# Example: Secure JWT configuration
+client:
+  jwt:
+    secret: "your-256-bit-secret-key-here"
+    expiration_minutes: 30
 ```
 
 ### Resource Limits
 
-In Docker Compose:
+Worker resource limits in docker-compose.yml:
 
 ```yaml
-worker:
-  deploy:
-    resources:
-      limits:
-        cpus: '2'
-        memory: 4G
+deploy:
+  resources:
+    limits:
+      cpus: '1'
+      memory: 1G
+    reservations:
+      cpus: '0.5'
+      memory: 512M
 ```
 
-### Persistence
+Adjust based on workflow requirements.
 
-- Mount volumes for `/root/osmedeus-base`
-- Use external Redis with persistence
-- Consider PostgreSQL for production
+### Health Checks
 
-## Next Steps
+The Docker image includes built-in health checks:
 
-- [Configuration](configuration) - Server and database settings
-- [API Overview](../api/overview) - API documentation
-- [Distributed Execution](../advanced/distributed) - Advanced distributed topics
+```bash
+# Check master health
+curl http://localhost:8001/health
+
+# Check readiness
+curl http://localhost:8001/health/ready
+```
+
+### Logging
+
+```bash
+# View master logs
+docker logs osmedeus-master -f
+
+# View all worker logs
+docker-compose -f build/docker/docker-compose.yml logs -f worker
+
+# Log levels are controlled by --verbose/-v flag
+./build/bin/osmedeus -v serve
+```
+
+### Database Options
+
+For production, consider PostgreSQL instead of SQLite:
+
+```yaml
+database:
+  db_engine: postgresql
+  db_host: postgres-host
+  db_port: 5432
+  db_name: osmedeus
+  db_user: osmedeus
+  db_password: secure-password
+```
+
+### Backup
+
+```bash
+# Backup volumes
+docker run --rm \
+  -v osmedeus-data:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/osmedeus-backup.tar.gz /data
+
+# Backup workspaces
+docker run --rm \
+  -v workspaces:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/workspaces-backup.tar.gz /data
+```
+
+## Ansible Deployment
+
+Deploy Osmedeus on Ubuntu/Debian servers using Ansible. Uses the official install script, SQLite storage, and no Redis -- designed for simple single-host setups.
+
+### Prerequisites
+
+- **Control machine**: Ansible 2.12+
+- **Target server**: Ubuntu 20.04+ or Debian 11+
+- SSH access with root or sudo privileges
+
+### Quick Start
+
+```bash
+cd build/infra
+
+# 1. Copy and edit inventory
+cp inventory.example.ini inventory.ini
+# Edit inventory.ini with your server IP/hostname
+
+# 2. Deploy with secure credentials
+ansible-playbook -i inventory.ini deploy.yaml \
+  -e osm_admin_password=YourSecurePassword \
+  -e osm_jwt_secret=$(openssl rand -base64 32)
+
+# 3. Dry run (preview changes without applying)
+ansible-playbook -i inventory.ini deploy.yaml --check
+```
+
+### What It Does
+
+1. Installs system dependencies (curl, tmux, git, chromium, etc.)
+2. Installs Osmedeus via `curl -fsSL https://www.osmedeus.org/install.sh | bash`
+3. Deploys `osm-settings.yaml` configured with SQLite (no Redis)
+4. Runs `osmedeus health` to verify the installation
+5. Sets up a systemd service for auto-start on boot
+
+### Playbook Files
+
+```
+build/infra/
+├── deploy.yaml                 # Main playbook
+├── inventory.example.ini       # Example inventory
+└── templates/
+    ├── osm-settings.yaml.j2   # Settings config template
+    └── osmedeus.service.j2    # Systemd unit template
+```
+
+### Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `osm_server_port` | `8002` | API server port |
+| `osm_admin_user` | `admin` | Admin username |
+| `osm_admin_password` | `CHANGE_ME_ADMIN_PASSWORD` | Admin password |
+| `osm_jwt_secret` | `CHANGE_ME_JWT_SECRET_MIN_32_CHARS` | JWT signing secret |
+| `osm_jwt_expiration_minutes` | `1440` | Token expiry (24h) |
+| `osm_threads_aggressive` | `50` | Aggressive scan threads |
+| `osm_threads_default` | `20` | Default scan threads |
+| `osm_threads_gently` | `5` | Gentle scan threads |
+| `osm_enable_service` | `true` | Install systemd service |
+| `osm_telegram_enabled` | `false` | Enable Telegram notifications |
+| `osm_telegram_bot_token` | `""` | Telegram bot token |
+| `osm_telegram_chat_id` | `""` | Telegram chat ID |
+| `osm_global_variables` | `[]` | Extra env vars for workflows |
+
+### Customization
+
+Override any variable at deploy time with `-e`:
+
+```bash
+# Custom port and thread settings
+ansible-playbook -i inventory.ini deploy.yaml \
+  -e osm_server_port=9090 \
+  -e osm_threads_default=30
+
+# With Telegram notifications
+ansible-playbook -i inventory.ini deploy.yaml \
+  -e osm_telegram_enabled=true \
+  -e osm_telegram_bot_token=your_bot_token \
+  -e osm_telegram_chat_id=your_chat_id
+
+# Skip systemd service setup
+ansible-playbook -i inventory.ini deploy.yaml \
+  -e osm_enable_service=false
+```
+
+### Post-Deployment
+
+```bash
+# Check service status
+ssh root@YOUR_SERVER systemctl status osmedeus
+
+# Run a scan
+ssh root@YOUR_SERVER osmedeus run -f general -t example.com
+
+# View logs
+ssh root@YOUR_SERVER journalctl -u osmedeus -f
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**Workers not connecting:**
+```bash
+# Check Redis connectivity
+docker exec osmedeus-redis redis-cli ping
+
+# Check worker logs
+docker-compose logs worker
+```
+
+**Scans not executing:**
+```bash
+# Verify workflow exists
+./build/bin/osmedeus workflow list
+
+# Check master logs
+docker logs osmedeus-master
+```
+
+**Port conflicts:**
+```bash
+# Use different ports
+docker run -p 8080:8001 osmedeus:latest
+```
+
+### Useful Commands
+
+```bash
+# Environment health check
+./build/bin/osmedeus health
+
+# Validate workflows
+./build/bin/osmedeus workflow validate <workflow-name>
+
+# Test workflow (dry-run)
+./build/bin/osmedeus scan -f general -t example.com --dry-run
+```

@@ -47,6 +47,7 @@
               "advanced/event-driven",
               "advanced/distributed",
               "advanced/development",
+              "cloud/usage-guide",
               "advanced/writing-your-first-workflow",
               "advanced/llm"
             ]
@@ -78,6 +79,19 @@
             "pages": [
               "functions/overview",
               "functions/reference"
+            ]
+          },
+          {
+            "group": "Cloud",
+            "icon": "clouds",
+            "pages": [
+              "cloud/usage-guide",
+              "cloud/quick-reference",
+              "cloud/cheatsheet",
+              "cloud/usage-examples",
+              "cloud/provider-aws",
+              "cloud/provider-gcp",
+              "cloud/provider-hetzner"
             ]
           },
           {
@@ -133,6 +147,19 @@
               "architecture/workflows",
               "architecture/runners",
               "architecture/templates"
+            ]
+          },
+          {
+            "group": "Cloud",
+            "icon": "clouds",
+            "pages": [
+              "cloud/usage-guide",
+              "cloud/quick-reference",
+              "cloud/cheatsheet",
+              "cloud/usage-examples",
+              "cloud/provider-aws",
+              "cloud/provider-gcp",
+              "cloud/provider-hetzner"
             ]
           },
           {
